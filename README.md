@@ -35,7 +35,9 @@ ni interpretación de resultados. DraftSense mide campeones; el laboratorio hace
 
 ## Puesta en marcha local
 
-Requisitos: **Python 3.12 o superior**, **Node 20 o superior** y un **PostgreSQL 16** accesible.
+Requisitos: **Python 3.12 o superior**, **Node 20 o superior** y un **PostgreSQL 15 o
+superior** accesible. El esquema usa `NULLS NOT DISTINCT`, que es de Postgres 15; desarrollo
+y CI corren sobre 17.
 
 ### Backend
 
@@ -45,8 +47,9 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows;  source .venv/bin/activate en Linux/macOS
 pip install -e ".[dev]"
 
-# Apuntar a la base
-export DS_DATABASE_URL="postgresql+asyncpg://draftsense:draftsense@localhost:5432/draftsense"
+# Apuntar a la base: crear backend/.env (esta en .gitignore, nunca se versiona)
+#   DS_DATABASE_URL=postgresql+asyncpg://usuario:clave@host:5432/basededatos
+# Lo leen la aplicacion, Alembic y los tests.
 
 alembic upgrade head            # crea el esquema
 python -m app.cli seed-catalog  # 8 dimensiones y 7 atributos
@@ -69,8 +72,9 @@ cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 python infra/check_docs.py      # DDL, enlaces y conteos de la documentación
 ```
 
-Los tests del backend corren **sin base de datos**: los que la requieren se saltean solos y se
-ejecutan en CI, que levanta un Postgres 16 real.
+Los tests del backend corren **sin base de datos**: los que la requieren se saltean solos si no
+hay `DS_DATABASE_URL`. Con un `.env` configurado corren los diez; en CI siempre, contra un
+Postgres 17 real.
 
 ### Operación
 
@@ -88,3 +92,16 @@ CDN de Riot no responde.
 DraftSense no está afiliado, respaldado ni patrocinado por Riot Games. *League of Legends* y sus
 activos son propiedad de Riot Games, Inc. Las imágenes de campeones se obtienen de Data Dragon,
 el CDN público de Riot. Ver [`docs/33-privacidad-y-legal.md`](docs/33-privacidad-y-legal.md).
+
+## Base de datos de desarrollo
+
+Se usa un proyecto **Supabase** gratuito, separado del que vaya a produccion: las respuestas de
+prueba no deben poder contaminar el dataset que se le entrega al laboratorio.
+
+En el panel de Supabase hay que tomar la cadena del **Session pooler** (puerto 5432), no la de
+*Direct connection*: `db.<ref>.supabase.co` sólo publica registro AAAA y no resuelve desde una red
+sin IPv6. El pooler de **transaccion** (puerto 6543) tampoco sirve, porque no admite sentencias
+preparadas y Alembic no puede correr contra él.
+
+El DSN lleva `?ssl=require`, que es la opcion de asyncpg; los tests la traducen a `sslmode` para
+psycopg.

@@ -351,12 +351,16 @@ CREATE TABLE questions (
     CONSTRAINT questions_entropy_range CHECK (entropy IS NULL OR entropy BETWEEN 0 AND 1)
 );
 
--- Identidad de una pregunta: impide generar duplicados desde el sampler
+-- Identidad de una pregunta: impide generar duplicados desde el sampler.
+-- NULLS NOT DISTINCT (Postgres 15+) hace que dos filas con los mismos NULL choquen,
+-- que es lo que se quiere: una pregunta de tipo 1 no usa role ni duo_ctx.
+-- La alternativa con COALESCE(role::text, '') no es valida: castear un enum a text es
+-- STABLE, no IMMUTABLE, y Postgres lo rechaza en la expresion de un indice. Ademas un
+-- indice por expresion solo lo usa el planificador si la consulta repite la expresion.
 CREATE UNIQUE INDEX questions_identity ON questions (
-    type, patch_id, champion_a,
-    COALESCE(champion_b, 0), COALESCE(champion_c, 0), COALESCE(champion_d, 0),
-    COALESCE(dimension_id, 0), COALESCE(role::text, ''), COALESCE(duo_ctx::text, '')
-);
+    type, patch_id, champion_a, champion_b, champion_c, champion_d,
+    dimension_id, role, duo_ctx
+) NULLS NOT DISTINCT;
 
 -- Camino del sampler: filtra por tipo y parche, ordena por exposición
 CREATE INDEX questions_sampler ON questions (type, patch_id, exposure_count)
@@ -501,10 +505,9 @@ CREATE TABLE aggregates (
 );
 
 CREATE UNIQUE INDEX aggregates_identity ON aggregates (
-    scope, champion_id,
-    COALESCE(champion_b_id, 0), COALESCE(dimension_id, 0), COALESCE(trait_id, 0),
-    COALESCE(role::text, ''), COALESCE(duo_ctx::text, ''), patch_id
-);
+    scope, champion_id, champion_b_id, dimension_id, trait_id,
+    role, duo_ctx, patch_id
+) NULLS NOT DISTINCT;
 ```
 
 `support` traduce `n_comparisons` y el ancho del intervalo a un juicio legible por el laboratorio,

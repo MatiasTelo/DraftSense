@@ -13,14 +13,30 @@ Requiere `sqlglot`.
 
 from __future__ import annotations
 
+import logging
 import re
 import sys
 from pathlib import Path
 
 import sqlglot
+from sqlglot import expressions as exp
 from sqlglot.errors import ParseError
 
+# sqlglot avisa por consola cada vez que degrada una sentencia; lo detectamos nosotros.
+logging.getLogger("sqlglot").setLevel(logging.ERROR)
+
 DOCS = Path(__file__).resolve().parents[1] / "docs"
+
+#: Sentencias que sqlglot no sabe parsear y devuelve como texto crudo, sin validar nada.
+#: Se toleran de a una y por nombre: si aparece cualquier otra, es que se colo un error de
+#: sintaxis o que hay sintaxis nueva que hay que revisar a mano.
+UNPARSEABLE_BY_SQLGLOT = {
+    # NULLS NOT DISTINCT es de Postgres 15; sqlglot 30 todavia no lo modela.
+    "CREATE UNIQUE INDEX questions_identity",
+    "CREATE UNIQUE INDEX aggregates_identity",
+    # sqlglot no modela CREATE EXTENSION en ningun dialecto.
+    "CREATE EXTENSION IF NOT EXISTS pgcrypto",
+}
 
 #: Bloques del CSV de campeones: cuántas columnas aporta cada uno.
 CHAMPION_FEATURE_BLOCKS = {
@@ -51,10 +67,11 @@ EXPECTED_TABLES = {
 
 def check_ddl(errors: list[str]) -> None:
     text = (DOCS / "11-modelo-de-datos.md").read_text(encoding="utf-8")
-    blocks = re.findall(r"```sql\n(.*?)```", text, re.S)
+    blocks = re.findall(r"```sql\n(.*?)```", text, re.DOTALL)
     print(f"bloques SQL: {len(blocks)}")
 
     parsed = 0
+    degraded: list[str] = []
     for index, block in enumerate(blocks, 1):
         # El bloque de permisos usa variables de psql (:'clave'), que no son SQL puro.
         if ":'" in block:
@@ -63,11 +80,22 @@ def check_ddl(errors: list[str]) -> None:
             if statement is None:
                 continue
             parsed += 1
+            if isinstance(statement, exp.Command):
+                # sqlglot no la entendio: la devolvio como texto y no valido nada.
+                sql = statement.sql(dialect="postgres", comments=False)
+                head = " ".join(sql.split())[:60]
+                if not any(head.startswith(known) for known in UNPARSEABLE_BY_SQLGLOT):
+                    errors.append(f"DDL, bloque {index}: sqlglot no pudo parsear `{head}`")
+                else:
+                    degraded.append(head.split("(")[0].strip())
+                continue
             try:
                 sqlglot.transpile(statement.sql(dialect="postgres"), read="postgres")
             except ParseError as exc:
                 errors.append(f"DDL, bloque {index}: {exc}")
-    print(f"sentencias parseadas: {parsed}")
+    print(f"sentencias parseadas: {parsed - len(degraded)} de {parsed}")
+    for head in degraded:
+        print(f"  sin validar (sintaxis que sqlglot no modela): {head}")
 
     tables = set(re.findall(r"CREATE TABLE (\w+)", text))
     missing = EXPECTED_TABLES - tables

@@ -26,6 +26,21 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 DATABASE_URL = os.getenv("DS_DATABASE_URL", "")
 
 
+def sync_url() -> str:
+    """El mismo DSN, pero con el driver sincronico que usan las pruebas no async.
+
+    No alcanza con cambiar el nombre del driver: `ssl` es la opcion de asyncpg y
+    `sslmode` la de psycopg. Cualquier Postgres gestionado exige TLS, asi que el DSN
+    real lleva ese parametro y la traduccion tiene que ser explicita.
+    """
+    url = sa.engine.make_url(DATABASE_URL).set(drivername="postgresql+psycopg")
+    query = dict(url.query)
+    ssl = query.pop("ssl", None)
+    if ssl is not None:
+        query.setdefault("sslmode", "require" if ssl in ("require", "true", "1") else str(ssl))
+    return url.set(query=query).render_as_string(hide_password=False)
+
+
 # --------------------------------------------------------------------------- sin base de datos
 
 
@@ -145,7 +160,7 @@ def test_models_match_database_after_migration() -> None:
     from alembic.autogenerate import compare_metadata
     from alembic.migration import MigrationContext
 
-    engine = sa.create_engine(DATABASE_URL.replace("+asyncpg", "+psycopg"))
+    engine = sa.create_engine(sync_url())
     with engine.connect() as connection:
         context = MigrationContext.configure(connection)
         diff = compare_metadata(context, Base.metadata)
@@ -174,7 +189,7 @@ def test_models_match_database_after_migration() -> None:
 @requires_db
 def test_responses_rejects_malformed_answer() -> None:
     """CA-203 — la base rechaza una respuesta mal formada sin pasar por la aplicación."""
-    engine = sa.create_engine(DATABASE_URL.replace("+asyncpg", "+psycopg"))
+    engine = sa.create_engine(sync_url())
     with engine.connect() as connection:  # noqa: SIM117
         with pytest.raises(sa.exc.IntegrityError):
             connection.execute(

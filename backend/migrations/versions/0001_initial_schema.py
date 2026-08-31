@@ -336,10 +336,9 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX questions_identity ON questions (
-            type, patch_id, champion_a,
-            COALESCE(champion_b, 0), COALESCE(champion_c, 0), COALESCE(champion_d, 0),
-            COALESCE(dimension_id, 0), COALESCE(role::text, ''), COALESCE(duo_ctx::text, '')
-        )
+            type, patch_id, champion_a, champion_b, champion_c, champion_d,
+            dimension_id, role, duo_ctx
+        ) NULLS NOT DISTINCT
         """
     )
     op.execute(
@@ -498,10 +497,9 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX aggregates_identity ON aggregates (
-            scope, champion_id,
-            COALESCE(champion_b_id, 0), COALESCE(dimension_id, 0), COALESCE(trait_id, 0),
-            COALESCE(role::text, ''), COALESCE(duo_ctx::text, ''), patch_id
-        )
+            scope, champion_id, champion_b_id, dimension_id, trait_id,
+            role, duo_ctx, patch_id
+        ) NULLS NOT DISTINCT
         """
     )
 

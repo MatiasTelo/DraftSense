@@ -20,7 +20,7 @@ jobs:
     # puede validar la migración. Por eso el job levanta uno.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: draftsense
           POSTGRES_PASSWORD: draftsense
@@ -106,6 +106,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install sqlglot
+      - run: pip install sqlglot ruff
+      - name: Lint de infra
+        run: ruff check infra
       - name: Verificar la documentación
         run: python infra/check_docs.py

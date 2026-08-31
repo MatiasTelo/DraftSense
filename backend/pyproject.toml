@@ -23,6 +23,7 @@ dev = [
     "mypy>=1.13",
     "types-pyyaml",
     "psycopg[binary]>=3.2",
+    "sqlglot>=25",
 ]
 
 [project.scripts]
