@@ -1,0 +1,51 @@
+# Los 7 atributos del tipo de pregunta 5.
+#
+# Los siete son `legacy_tag: true`: son exactamente las etiquetas binarias del etiquetado manual
+# que hoy usa el laboratorio. Medirlas de nuevo como proporción continua es lo que hace comparable
+# el modelo nuevo contra el previo — el puente de retrocompatibilidad.
+#
+# Cuatro códigos coinciden con nombres de dimensiones, pero NO miden lo mismo: la dimensión es un
+# score relativo de comparación pareada, el atributo es una proporción absoluta. En el CSV nunca
+# colisionan porque los atributos llevan prefijo `trait_`.
+
+- code: engage
+  display_order: 1
+  legacy_tag: true
+  label_en: Engage
+  description_en: Starts fights on their own terms.
+
+- code: poke
+  display_order: 2
+  legacy_tag: true
+  label_en: Poke
+  description_en: Wears enemies down from range.
+
+- code: pick
+  display_order: 3
+  legacy_tag: true
+  label_en: Pick
+  description_en: Catches out and kills isolated targets.
+
+- code: peel
+  display_order: 4
+  legacy_tag: true
+  label_en: Peel
+  description_en: Keeps divers off their carries.
+
+- code: front_to_back
+  display_order: 5
+  legacy_tag: true
+  label_en: Front to back
+  description_en: Wants a straight teamfight, tanks in front.
+
+- code: dive
+  display_order: 6
+  legacy_tag: true
+  label_en: Dive
+  description_en: Jumps past the front line onto the back line.
+
+- code: split_push
+  display_order: 7
+  legacy_tag: true
+  label_en: Split push
+  description_en: Pressures a side lane instead of grouping.

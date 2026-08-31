@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.egg-info/
+build/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Entorno
+.env
+.env.local
+*.local
+
+# Datos y salidas
+exports/
+*.csv
+!infra/seeds/*.csv
+*.dump
+
+# Sistema
+.DS_Store
+Thumbs.db

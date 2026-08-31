@@ -1,0 +1,53 @@
+# Las 8 dimensiones funcionales del tipo de pregunta 1.
+#
+# Agregar una dimensión es agregar una entrada acá y recargar el seed: no requiere migración
+# ni despliegue (RF-603, CA-601). `label_es` y `description_es` quedan vacíos hasta la
+# internacionalización de la semana 8 (ADR-010).
+
+- code: engage
+  display_order: 1
+  label_en: Engage
+  description_en: Starting fights on your terms.
+  prompt_en: Who has more engage?
+
+- code: poke
+  display_order: 2
+  label_en: Poke
+  description_en: Chipping enemies down from range without committing.
+  prompt_en: Who has more poke?
+
+- code: pick
+  display_order: 3
+  label_en: Pick potential
+  description_en: Isolating and killing a single target.
+  prompt_en: Who has more pick potential?
+
+- code: peel
+  display_order: 4
+  label_en: Peel
+  description_en: Protecting an ally from divers and assassins.
+  prompt_en: Who has more peel?
+
+- code: mobility
+  display_order: 5
+  label_en: Mobility
+  description_en: Dashes, blinks and repositioning tools.
+  prompt_en: Who has more mobility?
+
+- code: scaling
+  display_order: 6
+  label_en: Scaling
+  description_en: How much stronger they get with gold and levels.
+  prompt_en: Who scales better?
+
+- code: cc
+  display_order: 7
+  label_en: Crowd control
+  description_en: Amount and reliability of stuns, roots and slows.
+  prompt_en: Who has more crowd control?
+
+- code: waveclear
+  display_order: 8
+  label_en: Waveclear
+  description_en: How fast they clear minion waves.
+  prompt_en: Who has better waveclear?

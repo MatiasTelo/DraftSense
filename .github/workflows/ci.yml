@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # El esquema usa enums nativos, arrays, jsonb e índices parciales: sólo un Postgres real
+    # puede validar la migración. Por eso el job levanta uno.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: draftsense
+          POSTGRES_PASSWORD: draftsense
+          POSTGRES_DB: draftsense
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DS_DATABASE_URL: postgresql+asyncpg://draftsense:draftsense@localhost:5432/draftsense
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tipos
+        run: mypy app
+
+      - name: Validar los seeds
+        run: python -m app.cli check-seeds --seeds-dir ../infra/seeds
+
+      - name: Migrar
+        run: alembic upgrade head
+
+      - name: Comprobar que la migración es reversible
+        run: |
+          alembic downgrade base
+          alembic upgrade head
+
+      - name: Tests
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # RNF-03: el bundle inicial no debe superar los 200 KB gzip.
+      - name: Presupuesto de bundle
+        run: |
+          BYTES=$(gzip -c dist/assets/*.js | wc -c)
+          KB=$((BYTES / 1024))
+          echo "bundle: ${KB} KB gzip"
+          if [ "$KB" -gt 200 ]; then
+            echo "::error::el bundle supera el presupuesto de 200 KB gzip (${KB} KB)"
+            exit 1
+          fi
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install sqlglot
+      - name: Verificar la documentación
+        run: python infra/check_docs.py
