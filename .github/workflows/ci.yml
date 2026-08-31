@@ -108,6 +108,8 @@ jobs:
           python-version: '3.12'
       - run: pip install sqlglot ruff
       - name: Lint de infra
-        run: ruff check infra
+        run: |
+          ruff --version
+          ruff check --output-format=github infra
       - name: Verificar la documentación
         run: python infra/check_docs.py

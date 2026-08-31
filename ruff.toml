@@ -1,0 +1,9 @@
+# Configuracion de ruff para lo que queda fuera de backend/ (que tiene la suya en
+# su pyproject.toml, con las mismas reglas). Sin este archivo, ruff aplicaria sus
+# valores por omision a infra/, que son mas laxos y distintos de los del proyecto:
+# el lint pasaria en una maquina y fallaria en otra segun desde donde se invoque.
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
