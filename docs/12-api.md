@@ -56,6 +56,10 @@ Los endpoints `/admin/*` requieren el header `X-Admin-Key`.
 | `GET` | `/leaderboard` | Tabla de posiciones |
 | `GET` | `/admin/stats` | Métricas del panel de administración |
 | `POST` | `/admin/exports` | Disparar una corrida de agregación |
+| `POST` | `/admin/patches/{patch_id}/activate` | Marcar un parche como vigente |
+| `PATCH` | `/admin/champions/pool-tier` | Cambiar el tier de uno o varios campeones |
+| `PATCH` | `/admin/settings/{key}` | Cambiar un parámetro operativo |
+| `POST` | `/admin/respondents/{id}/flag` | Marcar o desmarcar un respondedor |
 | `GET` | `/health` | Sonda de salud |
 
 ---
@@ -77,7 +81,9 @@ la IP antes de almacenarlo.
   "onboarding_seen": false,
   "answers_count": 0,
   "current_streak": 0,
-  "best_streak": 0
+  "best_streak": 0,
+  "current_day_streak": 0,
+  "best_day_streak": 0
 }
 ```
 
@@ -290,6 +296,8 @@ La forma de `answer` depende del tipo de la pregunta (ver
     "answers_count": 18,
     "current_streak": 7,
     "best_streak": 31,
+    "current_day_streak": 4,
+    "best_day_streak": 9,
     "agreement_rate": 0.81
   }
 }
@@ -318,6 +326,8 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
   "answers_count": 143,
   "current_streak": 12,
   "best_streak": 31,
+  "current_day_streak": 4,
+  "best_day_streak": 9,
   "agreement_rate": 0.78,
   "coverage": {
     "pairwise_dimension": 96,
@@ -331,7 +341,11 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 }
 ```
 
-`trust_score` **no se expone**.
+`trust_score` **no se expone**, ni ninguna métrica de la que se pueda despejar.
+
+Las dos rachas miden cosas distintas: `current_streak` son respuestas seguidas sin una pausa de más
+de 30 minutos, `current_day_streak` son días consecutivos con al menos 5 respuestas. Ninguna depende
+del **contenido** de las respuestas — ver [`23-gamificacion.md`](23-gamificacion.md) §2.3.
 
 ---
 
@@ -350,8 +364,17 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 }
 ```
 
-Top 50. Los respondedores con `is_flagged = true` quedan fuera. El alias nunca es un identificador
-real; su generación y moderación se especifican en [`23-gamificacion.md`](23-gamificacion.md).
+Top 50. Quedan fuera los respondedores con `is_flagged = true` **y** los que están por debajo de
+`app_settings['export.min_trust']`: la tabla muestra a quien contribuyó al conjunto de datos, no a
+quien más toques dio ([ADR-014](13-adr/ADR-014-leaderboard-filtra-por-confianza.md)).
+
+Eso **no expone el trust score**: no se publica el valor, el orden sigue siendo por cantidad de
+respuestas, y no hay ninguna métrica de la que se pueda despejar. Lo único observable es que alguien
+no aparece, que es un bit y no un valor.
+
+El alias nunca es un identificador real; su generación se especifica en
+[`23-gamificacion.md`](23-gamificacion.md) §4. Las ventanas `day` y `week` se cuentan sobre
+`responses` y se cachean 60 segundos.
 
 ---
 
@@ -378,6 +401,58 @@ distribución del trust score, estado de conectividad del grafo por dimensión, 
 
 Responde `202` y no `201` porque la corrida lleva minutos: el cliente consulta el estado por
 `GET /admin/exports/{run_id}`.
+
+**`POST /admin/patches/{patch_id}/activate`** — marca el parche como vigente. El índice parcial
+`patches_single_current` garantiza que haya a lo sumo uno.
+
+```jsonc
+// 200 OK
+{ "patch_id": 12, "version": "16.21", "previous": "16.20" }
+```
+
+A partir de acá las preguntas y respuestas nuevas toman ese `patch_id`. **Las anteriores no se
+tocan**: conservan el suyo, y la agregación puede seguir combinando parches con decaimiento
+([ADR-004](13-adr/ADR-004-ventana-de-parches-con-decaimiento.md)). Como `patch_id` forma parte de
+`questions_identity`, el sampler empieza a materializar filas nuevas para el parche vigente sin que
+haya que generar nada por adelantado.
+
+**`PATCH /admin/champions/pool-tier`** — cambia el tier de uno o varios campeones. Es un `UPDATE`,
+no un despliegue ([ADR-006](13-adr/ADR-006-pool-escalonado-por-pick-rate.md)).
+
+```jsonc
+// request
+{ "champion_ids": [55, 77], "pool_tier": 1 }
+// 200 OK
+{ "updated": 2 }
+```
+
+**`PATCH /admin/settings/{key}`** — cambia un parámetro operativo de `app_settings`. Es el endpoint
+que habilita el tier siguiente (`sampler.enabled_pool_tiers`), ajusta la exploración del sampler
+(`sampler.epsilon`) o mueve el umbral de confianza (`export.min_trust`).
+
+```jsonc
+// PATCH /admin/settings/sampler.enabled_pool_tiers
+{ "value": 2 }
+// 200 OK
+{ "key": "sampler.enabled_pool_tiers", "value": 2, "previous": 1 }
+```
+
+`400` si la clave no existe o el valor no valida contra el esquema de esa clave. **No se crean claves
+nuevas por API**: una clave nueva llega con el código que la usa, en un seed.
+
+**`POST /admin/respondents/{id}/flag`** — marca o desmarca un respondedor a mano, para el falso
+positivo conocido de la deduplicación por huella ([`22-calidad-de-datos.md`](22-calidad-de-datos.md) §6.3).
+
+```jsonc
+// request
+{ "flagged": false, "reason": "red compartida del lanzamiento cerrado" }
+// 200 OK
+{ "respondent_id": "3f2a…", "is_flagged": false }
+```
+
+**Ninguna de estas acciones borra ni modifica una respuesta.** Todas quedan registradas en
+`admin_audit` con su `action`, su `payload` y su timestamp, que es lo que permite explicar por qué
+dos corridas del pipeline sobre el mismo crudo dieron distinto.
 
 **`GET /health`** — verifica conectividad a la base y devuelve el parche vigente. Sin autenticación.
 

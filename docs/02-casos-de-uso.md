@@ -163,7 +163,7 @@ popular en vez de lo que se cree cierto.
 
 ## CU-06 — Operar el catálogo
 
-**Actor:** Administrador · **Requerimientos:** RF-403, RF-601 a RF-605
+**Actor:** Administrador · **Requerimientos:** RF-403, RF-405, RF-601 a RF-606
 
 **Flujo principal**
 
@@ -174,12 +174,15 @@ popular en vez de lo que se cree cierto.
    corresponde.
 
 **Alternativo A — promover tier.** Cuando el volumen acumulado lo permite, el administrador habilita
-el tier siguiente. Es un cambio de datos, no un despliegue.
+el tier siguiente. Es un cambio de datos, no un despliegue: cambia
+`app_settings['sampler.enabled_pool_tiers']`, y el criterio numérico que lo justifica está en
+[`21-sampler.md`](21-sampler.md) §7.2.
 
 **Alternativo B — Data Dragon no disponible.** El seeder usa el snapshot local de respaldo y avisa.
 
 **Postcondición:** las preguntas nuevas se generan contra el parche vigente y el pool actualizado.
-Las preguntas y respuestas anteriores conservan su parche original.
+Las preguntas y respuestas anteriores conservan su parche original. **Las cuatro acciones dejan una
+fila en `admin_audit`** (RF-405).
 
 ---
 
@@ -245,7 +248,9 @@ pierde precisión progresivamente pero no falla.
 
 Marca respuestas más rápidas que el umbral de lectura y rachas de *straightlining*, actualiza los
 contadores de calidad y recalcula los trust scores afectados. Marca a los respondedores cuya huella
-acumuló más de 5 identidades en 24 horas.
+**creó** más de 5 identidades en las últimas 24 horas — se cuenta por `first_seen`, no por actividad,
+porque la señal que interesa es la creación de identidades y no el uso de una máquina compartida
+([`22-calidad-de-datos.md`](22-calidad-de-datos.md) §6).
 
 **Ninguna respuesta se borra.** El efecto es siempre sobre pesos y marcas, nunca sobre el crudo
 ([ADR-002](13-adr/ADR-002-responses-append-only.md)).

@@ -60,10 +60,10 @@ entrega.
 
 | # | Requerimiento | Pr. |
 |---|---|---|
-| RF-301 | El sistema debe llevar la racha actual y la mejor racha de cada respondedor | S |
+| RF-301 | El sistema debe llevar dos rachas por respondedor —respuestas consecutivas sin pausa larga, y días consecutivos de actividad— cada una con su mejor marca | S |
 | RF-302 | El sistema debe mostrar un perfil con cantidad de respuestas, rachas, tasa de acuerdo y cobertura por tipo | S |
 | RF-303 | El sistema debe ofrecer una tabla de posiciones ordenada por cantidad de respuestas, con ventanas de día, semana y total | C |
-| RF-304 | La tabla de posiciones debe usar alias generados, nunca identificadores reales, y excluir a los respondedores marcados | S |
+| RF-304 | La tabla de posiciones debe usar alias generados, nunca identificadores reales, y excluir tanto a los respondedores marcados como a los que quedan por debajo del umbral de confianza de la exportación | S |
 
 ### RF-4xx — Administración
 
@@ -73,6 +73,7 @@ entrega.
 | RF-402 | El panel debe mostrar el estado de conectividad del grafo de comparaciones por dimensión | S |
 | RF-403 | El panel debe permitir activar un parche, promover campeones de tier y disparar una corrida de agregación | S |
 | RF-404 | Los endpoints de administración deben requerir una clave de acceso | M |
+| RF-405 | Toda acción de administración debe quedar registrada en un log de auditoría append-only | S |
 
 ### RF-5xx — Agregación y exportación
 
@@ -100,6 +101,7 @@ entrega.
 | RF-603 | Debe ser posible agregar una dimensión o un atributo insertando una fila, sin desplegar código | S |
 | RF-604 | El pool de campeones habilitados debe ser un parámetro de datos, modificable sin desplegar código | M |
 | RF-605 | El sistema debe registrar el snapshot de pick rate que fundamenta el pool, con su fuente y su fecha | C |
+| RF-606 | Los parámetros operativos —tiers habilitados, umbrales de calidad, pesos del sampler y parámetros de agregación— deben residir en datos y ser modificables sin desplegar código | M |
 
 ### Fuera de esta entrega
 
@@ -143,7 +145,7 @@ Cada meta del §3.2 del Informe Inicial mapea a requerimientos concretos.
 | M3 — Conjunto amplio de features continuas con IC | RF-506, RF-508 · **ajustada**: 20 magnitudes por campeón en vez de ~117 por partida ([ADR-005](13-adr/ADR-005-alcance-medicion-de-campeones.md)) |
 | M4 — Incorporar la dimensión temporal | RF-103, RF-502 |
 | M5 — Al menos 1 000 respuestas reales | RF-101, RF-114, RF-301 a RF-304 (la gamificación es el instrumento de esta meta) |
-| M6 — Pipeline reproducible y trazable | RF-507, RF-509, RF-512, RNF-08 |
+| M6 — Pipeline reproducible y trazable | RF-405, RF-507, RF-509, RF-512, RNF-08 |
 | M7 — Mecanismos de control de calidad | RF-201 a RF-209 |
 | M8 — Informe de Calidad de Datos | RF-511 |
 | M9 — Documentación técnica completa | Este repositorio; ver [`README.md`](README.md) |

@@ -204,6 +204,9 @@ motivación como la calidad de las respuestas siguientes.
 │    143        12       31   │
 │  answers    streak    best  │
 │                             │
+│    🔥 4 days in a row       │
+│       best: 9 days          │
+│                             │
 │   You agree with the        │
 │   community 78% of the time │
 │                             │
@@ -221,6 +224,11 @@ motivación como la calidad de las respuestas siguientes.
 │   └───────────────────┘     │
 └─────────────────────────────┘
 ```
+
+**Las dos rachas se muestran por separado y significan cosas distintas.** La de arriba son
+respuestas seguidas dentro de una sesión; la de días es constancia entre sesiones. Ninguna de las dos
+depende del contenido de las respuestas: premiar coincidir con el consenso rompería la independencia
+entre anotadores ([`23-gamificacion.md`](23-gamificacion.md) §2.3).
 
 **No se muestra el trust score**, ni ninguna señal derivada de él, ni el resultado de los honeypots.
 Exponerlo convertiría la calidad en un juego a optimizar en vez de una consecuencia de responder

@@ -23,6 +23,8 @@ escribe uno nuevo. El registro es histórico.
 | [010](ADR-010-interfaz-en-ingles.md) | Interfaz en inglés primero, español después | aceptada |
 | [011](ADR-011-support-level-en-vez-de-excluir.md) | Exportar todo con `support_level`, no excluir bajo umbral | aceptada |
 | [012](ADR-012-sampler-uniforme-en-arranque-en-frio.md) | Sampler uniforme durante el arranque en frío | aceptada |
+| [013](ADR-013-honeypots-verificables-desde-el-kit.md) | Las honeypots se derivan del kit del campeón, no del juicio experto | aceptada |
+| [014](ADR-014-leaderboard-filtra-por-confianza.md) | La tabla de posiciones filtra por confianza, sin exponerla | aceptada |
 
 ## Cuál merece un ADR
 

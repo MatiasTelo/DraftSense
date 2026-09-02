@@ -237,10 +237,14 @@ CREATE TABLE respondents (
     straightline_runs int NOT NULL DEFAULT 0,
 
     -- Gamificación
-    answers_count  int NOT NULL DEFAULT 0,
-    current_streak int NOT NULL DEFAULT 0,
-    best_streak    int NOT NULL DEFAULT 0,
-    alias          text,
+    answers_count      int  NOT NULL DEFAULT 0,
+    current_streak     int  NOT NULL DEFAULT 0,
+    best_streak        int  NOT NULL DEFAULT 0,
+    answers_today      int  NOT NULL DEFAULT 0,
+    last_active_date   date,
+    current_day_streak int  NOT NULL DEFAULT 0,
+    best_day_streak    int  NOT NULL DEFAULT 0,
+    alias              text,
 
     first_seen timestamptz NOT NULL DEFAULT now(),
     last_seen  timestamptz NOT NULL DEFAULT now(),
@@ -258,9 +262,10 @@ CREATE TABLE respondents (
         OR declared_hours_bucket IN ('<5','5-15','15-30','30+')
     ),
     CONSTRAINT respondents_counters_consistent CHECK (
-        honeypot_passed   <= honeypot_attempts
+        honeypot_passed       <= honeypot_attempts
         AND retest_consistent <= retest_pairs
         AND current_streak    <= best_streak
+        AND current_day_streak <= best_day_streak
     )
 );
 
@@ -268,6 +273,17 @@ CREATE INDEX respondents_fingerprint ON respondents (fingerprint_hash);
 CREATE INDEX respondents_leaderboard ON respondents (answers_count DESC)
     WHERE NOT is_flagged;
 ```
+
+**Las dos rachas miden cosas distintas.** `current_streak` cuenta respuestas seguidas sin una pausa
+de más de 30 minutos: es el motor intra-sesión. `current_day_streak` cuenta días consecutivos con al
+menos 5 respuestas: es el motor entre sesiones, y es el que sostiene la recolección a lo largo de las
+cuatro semanas del piloto. `answers_today` y `last_active_date` son el estado mínimo para llevar la
+segunda sin consultar `responses` en el camino crítico; son reconstruibles desde el crudo. Ver
+[`23-gamificacion.md`](23-gamificacion.md) §2.
+
+**Ninguna recompensa depende del contenido de la respuesta**, sólo del volumen y de la constancia.
+Una racha por coincidir con el consenso rompería la independencia entre anotadores, que es un
+supuesto del alfa de Krippendorff y del modelo de Bradley-Terry.
 
 **Privacidad.** No se guarda IP en claro, ni email, ni nombre, ni identificador de cuenta de Riot.
 El sistema no tiene login. `fingerprint_hash` es SHA-256 de user-agent + hash de IP + resolución de
@@ -296,10 +312,11 @@ CREATE TABLE questions (
     expected_answer jsonb,
 
     -- Denormalizados, mantenidos por refresh_question_stats
-    exposure_count  int     NOT NULL DEFAULT 0,
-    answer_counts   jsonb   NOT NULL DEFAULT '{}'::jsonb,
-    entropy         numeric(5,4),
-    bridge_priority boolean NOT NULL DEFAULT false,
+    exposure_count    int     NOT NULL DEFAULT 0,
+    answer_counts     jsonb   NOT NULL DEFAULT '{}'::jsonb,
+    entropy           numeric(5,4),
+    coverage_deficit  numeric(5,4),
+    bridge_priority   boolean NOT NULL DEFAULT false,
     stats_refreshed_at timestamptz,
 
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -348,7 +365,10 @@ CREATE TABLE questions (
     CONSTRAINT questions_honeypot_has_expected CHECK (
         NOT is_honeypot OR expected_answer IS NOT NULL
     ),
-    CONSTRAINT questions_entropy_range CHECK (entropy IS NULL OR entropy BETWEEN 0 AND 1)
+    CONSTRAINT questions_entropy_range CHECK (entropy IS NULL OR entropy BETWEEN 0 AND 1),
+    CONSTRAINT questions_coverage_range CHECK (
+        coverage_deficit IS NULL OR coverage_deficit BETWEEN 0 AND 1
+    )
 );
 
 -- Identidad de una pregunta: impide generar duplicados desde el sampler.
@@ -372,6 +392,11 @@ CREATE INDEX questions_bridges   ON questions (patch_id, dimension_id) WHERE bri
 
 `answer_counts` guarda la distribución observada, por ejemplo `{"a": 231, "b": 74, "unknown": 12}`.
 La lee el feedback post-respuesta y de ella se deriva `entropy`.
+
+`coverage_deficit` es el tercer término de la función de prioridad del sampler: cuánto le falta al
+campeón peor cubierto de esta pregunta para llegar a la mediana global de cobertura. Está
+denormalizado por la misma razón que `entropy`: `GET /questions/next` tiene 100 ms de presupuesto y
+no puede hacer un `GROUP BY` sobre `responses`. Ver [`21-sampler.md`](21-sampler.md) §3.3.
 
 `bridge_priority` lo marca el job `check_graph_connectivity`: indica que esa pregunta uniría dos
 componentes desconectadas del grafo de comparaciones y por lo tanto vale mucho más que su escasez
@@ -433,6 +458,9 @@ CREATE INDEX responses_by_respondent ON responses (respondent_id, created_at DES
 
 -- Recorridos del pipeline de agregación por ventana de parches
 CREATE INDEX responses_by_patch_type ON responses (patch_id, type);
+
+-- Ventanas de día y semana de la tabla de posiciones
+CREATE INDEX responses_recent ON responses (created_at DESC);
 ```
 
 Dos campos son **redundantes a propósito**: `type` y `patch_id` ya se pueden deducir de
@@ -549,6 +577,70 @@ CREATE TABLE exports (
 CREATE INDEX exports_by_patch ON exports (patch_id, created_at DESC);
 ```
 
+### 3.12 `app_settings`
+
+Los parámetros operativos del sistema. **Ninguno es una constante del código** (RF-606).
+
+```sql
+CREATE TABLE app_settings (
+    key        text  PRIMARY KEY,
+    value      jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    updated_by text,
+    CONSTRAINT app_settings_key_format CHECK (key ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$')
+);
+```
+
+Existe porque tres documentos ya prometían que estos valores fueran configurables sin desplegar, y no
+había dónde guardarlos: `enabled_pool_tiers` ([ADR-006](13-adr/ADR-006-pool-escalonado-por-pick-rate.md)),
+los umbrales de 5 y 20 del arranque en frío —que [ADR-012](13-adr/ADR-012-sampler-uniforme-en-arranque-en-frio.md)
+declara explícitamente "parámetros de configuración, no constantes en el código"—, los umbrales de
+`support_level` ([ADR-011](13-adr/ADR-011-support-level-en-vez-de-excluir.md)), la `σ` de la curva de
+poder y la `ε` del sampler.
+
+Claves iniciales, por bloque:
+
+| Prefijo | Claves | Documento que las define |
+|---|---|---|
+| `sampler.` | `enabled_pool_tiers`, `epsilon`, `weights`, `cold_threshold`, `consensus_threshold`, `candidate_limit`, `max_rejection_retries` | [`21-sampler.md`](21-sampler.md) §9 |
+| `quality.` | `honeypot_every`, `honeypot_min_pass_rate`, `retest_every`, `retest_min_distance`, `fast_answer_ms`, `straightline_run`, `fingerprint_max_identities`, `trust_weights`, `trust_smoothing` | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §8 |
+| `gamification.` | `streak_gap_minutes`, `day_streak_min_answers`, `streak_timezone`, `leaderboard_size`, `leaderboard_cache_seconds` | [`23-gamificacion.md`](23-gamificacion.md) §7 |
+| `export.` | `min_trust`, `decay_halflife_days`, `bootstrap_samples`, `power_curve_sigma`, `support_thresholds` | [`26-esquema-de-salida.md`](26-esquema-de-salida.md) |
+
+El formato del `key` obliga a `bloque.nombre`: sin el punto, la tabla degenera en un cajón de sastre
+en tres semanas.
+
+**El valor de cada corrida de exportación se copia a `exports`**, no se lee de acá al reproducirla.
+`app_settings` es el estado actual; `exports` es el registro histórico. Reproducir una corrida vieja
+con los parámetros de hoy daría un archivo distinto y rompería RNF-08.
+
+La aplicación cachea la tabla **60 segundos** en memoria: son unas 30 filas que se leen en cada
+petición y cambian dos veces por semana.
+
+### 3.13 `admin_audit`
+
+Toda acción de administración deja rastro.
+
+```sql
+CREATE TABLE admin_audit (
+    audit_id   bigserial PRIMARY KEY,
+    action     text  NOT NULL,
+    payload    jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT admin_audit_action_valid CHECK (
+        action IN ('activate_patch', 'set_pool_tier', 'set_enabled_tiers',
+                   'set_setting', 'flag_respondent', 'trigger_export')
+    )
+);
+
+CREATE INDEX admin_audit_recent ON admin_audit (created_at DESC);
+```
+
+Es append-only por la misma razón que `responses`: un registro de auditoría que se puede editar no
+es un registro de auditoría. No guarda quién —el panel se autentica con una clave compartida
+(`X-Admin-Key`), no con identidades— sino **qué cambió y cuándo**, que es lo que hace falta para
+explicar por qué dos corridas del pipeline sobre el mismo crudo dieron distinto.
+
 ---
 
 ## 4. Permisos: cómo se garantiza el append-only
@@ -571,8 +663,15 @@ GRANT INSERT, UPDATE         ON respondents TO draftsense_app;
 GRANT INSERT, UPDATE         ON questions   TO draftsense_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO draftsense_app;
 
+-- Configuración: la aplicación la lee, sólo el panel la escribe
+GRANT UPDATE, INSERT ON app_settings TO draftsense_app;
+GRANT INSERT ON admin_audit TO draftsense_app;
+
 -- Explícito, aunque no se haya otorgado: responses no se modifica ni se borra
 REVOKE UPDATE, DELETE, TRUNCATE ON responses FROM draftsense_app;
+
+-- El registro de auditoría tampoco se reescribe
+REVOKE UPDATE, DELETE, TRUNCATE ON admin_audit FROM draftsense_app;
 
 -- El pipeline de agregación usa un rol propio, de sólo lectura sobre el crudo
 CREATE ROLE draftsense_agg LOGIN PASSWORD :'agg_password';
@@ -622,7 +721,8 @@ comparación es una igualdad de `jsonb`.
 | Rate limit del respondedor en la última hora | cada `POST /responses` | `responses_by_respondent` |
 | Distribución de respuestas de una pregunta | job cada 15 min | `responses_by_question` |
 | Barrido de la ventana de parches por tipo | pipeline de agregación | `responses_by_patch_type` |
-| Top 50 del leaderboard | cada `GET /leaderboard` | `respondents_leaderboard` |
+| Top 50 del leaderboard, ventana total | cada `GET /leaderboard?window=all` | `respondents_leaderboard` |
+| Top 50 del leaderboard, día y semana | `GET /leaderboard`, cacheado 60 s | `responses_recent` |
 | Identidades por fingerprint en 24 h | job diario | `respondents_fingerprint` |
 
 **El rate limit no necesita infraestructura extra.** Se resuelve contando sobre
@@ -669,6 +769,8 @@ Con el pool inicial de 40 campeones (`pool_tier = 1`):
 | `responses` | 1 000 (piso comprometido) – 8 000 (meta de trabajo) | ~250 B por fila → menos de 2 MB |
 | `aggregates` | ~2 000 | 40 campeones × (8 dimensiones + 1 pico + 7 atributos) + pares |
 | `exports` | ~20 | 4 archivos × 5 corridas |
+| `app_settings` | ~30 | Una fila por parámetro operativo |
+| `admin_audit` | ~100 | Una fila por acción del panel |
 
 El total queda holgadamente por debajo de los 500 MB del plan gratuito de Supabase; el margen es
 superior al 99 %. **El cuello de botella del proyecto no es el almacenamiento: es conseguir

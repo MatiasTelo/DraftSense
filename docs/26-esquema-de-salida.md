@@ -25,6 +25,11 @@ enfrentan, y la dupla de campeones que juegan juntos. Ninguna medición cae fuer
 Cada archivo queda registrado en la tabla `exports` con su SHA-256 y los parámetros exactos de la
 corrida que lo produjo, de modo que cualquier entrega es reproducible y verificable.
 
+**Hay un ejemplo ejecutable de los tres archivos en [`examples/`](examples/)**, con un diccionario
+columna por columna y las trampas de lectura señaladas. Los valores son sintéticos; la estructura, el
+formato de cada celda y los `support_level` son reales. Es además el *fixture* contra el que los
+tests de exportación comparan las cabeceras.
+
 **Fuera de alcance:** no se emite ningún archivo a nivel de partida. DraftSense mide campeones; el
 análisis de partidas es del laboratorio ([ADR-005](13-adr/ADR-005-alcance-medicion-de-campeones.md)).
 
@@ -216,8 +221,18 @@ Origen: **tipo 4**, Bradley-Terry sobre duplas.
 | `synergy_mean_n` | conteo | Duplas distintas que lo incluyen, con al menos una respuesta |
 | `synergy_mean_support` | enum | Ver §2.4 |
 
-Es un resumen: **el dato útil de sinergia es pareado** y vive en `duo_features.csv`. Esta columna
-sirve para responder "¿este campeón es fácil de acompañar en general?", no para elegir una dupla.
+**Es la única magnitud del archivo sin `_ci_low` / `_ci_high`, y es deliberado.** `synergy_mean` no
+es una estimación del modelo: es un **resumen derivado**, el promedio de estimaciones que ya tienen
+su propio intervalo en `duo_features.csv`. Un intervalo honesto para ese promedio exigiría propagar
+la covarianza entre duplas que comparten un campeón, que es justamente la estructura que el promedio
+borra; publicar un intervalo calculado como si las duplas fueran independientes sería más engañoso
+que no publicar ninguno.
+
+Por eso **RF-506 no aplica acá**: ese requerimiento pide intervalo para toda *estimación*, y ésta no
+lo es. Las 19 magnitudes estimadas del archivo sí lo llevan.
+
+El dato útil de sinergia es pareado y vive en `duo_features.csv`. Esta columna sirve para responder
+"¿este campeón es fácil de acompañar en general?", **no para elegir una dupla**.
 
 ### 3.6 Atributos — 35 columnas
 
@@ -306,7 +321,7 @@ ganar el carril por fuerza bruta individual. Por eso se recolectan por separado.
 | `lane_strength_is_observed` | bool | `true` si la dupla se preguntó; `false` si es predicha |
 | `patch_window` | text | Parches incluidos |
 
-**17 columnas, 2 magnitudes medidas por dupla.**
+**18 columnas, 2 magnitudes medidas por dupla.**
 
 `lane_strength` sólo tiene valor cuando `duo_context = 'bot'`: el enfrentamiento 2v2 se pregunta
 únicamente sobre el carril inferior, que es donde dos campeones comparten oponentes durante la fase

@@ -28,12 +28,13 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 | Doc | Contenido | Estado |
 |---|---|---|
 | [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md) | Los 5 tipos: enunciado, UI, payload, validación, generación, casos borde | **v1** |
-| [`21-sampler.md`](21-sampler.md) | Sampling adaptativo: prioridad, exploración, composición de sesión, arranque en frío | pendiente |
-| [`22-calidad-de-datos.md`](22-calidad-de-datos.md) | Honeypots, test-retest, patrones degenerados, trust score, deduplicación | pendiente |
-| [`23-gamificacion.md`](23-gamificacion.md) | Racha, acuerdo con el consenso, perfil, leaderboard, anti-gaming | pendiente |
+| [`21-sampler.md`](21-sampler.md) | Sampling adaptativo: prioridad, exploración, composición de sesión, arranque en frío | **v1** |
+| [`22-calidad-de-datos.md`](22-calidad-de-datos.md) | Honeypots, test-retest, patrones degenerados, trust score, deduplicación | **v1** |
+| [`23-gamificacion.md`](23-gamificacion.md) | Rachas, acuerdo con el consenso, perfil, leaderboard, anti-gaming | **v1** |
 | [`24-panel-admin.md`](24-panel-admin.md) | Métricas, vistas, acciones de operación, autenticación | pendiente |
 | [`25-agregacion.md`](25-agregacion.md) | Los 5 métodos estadísticos con pseudocódigo, parámetros y casos límite | pendiente |
 | [`26-esquema-de-salida.md`](26-esquema-de-salida.md) | Los tres CSV columna por columna: fórmula, rango, origen, soporte | **v1** |
+| [`examples/`](examples/) | Ejemplo ejecutable de los tres CSV, con el diccionario de cada columna | **v1** |
 | [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md) | Krippendorff, test-retest, cobertura, estabilidad por segmento | pendiente |
 
 ### Producto y operación

@@ -107,7 +107,8 @@ y envía `POST /api/v1/responses` con `{question_id, answer, response_time_ms}`.
 1. valida el `answer` contra el esquema JSON del tipo de la pregunta;
 2. verifica el rate limit (40/min, 1500/día) contando sobre el índice `(respondent_id, created_at)`;
 3. inserta en `responses` — **append-only**, nunca se modifica ni se borra;
-4. actualiza los contadores mutables del respondedor: `answers_count`, `current_streak`, `last_seen`;
+4. actualiza los contadores mutables del respondedor: `answers_count`, `current_streak`,
+   `answers_today`, `current_day_streak`, `last_seen`;
 5. si la pregunta era honeypot o retest, actualiza los contadores de calidad y **recalcula `trust_score`**.
 
 **7. Feedback.** La respuesta HTTP incluye la distribución de respuestas de esa pregunta, leída del
@@ -126,10 +127,10 @@ Ambos son alcanzables porque ninguno hace agregaciones: leen y escriben filas in
 
 | Job | Frecuencia | Qué hace |
 |---|---|---|
-| `refresh_question_stats` | 15 min | Recalcula `exposure_count`, `answer_counts` y `entropy` de las preguntas del parche vigente. Alimenta al sampler y al feedback de consenso |
+| `refresh_question_stats` | 15 min | Recalcula `exposure_count`, `answer_counts`, `entropy` y `coverage_deficit` de las preguntas del parche vigente. Alimenta al sampler y al feedback de consenso, y retira las honeypots cuyo *pass rate* cayó por debajo del umbral |
 | `check_graph_connectivity` | 1 h | Calcula las componentes conexas del grafo de comparaciones por dimensión y marca las preguntas que unirían componentes separadas, para que el sampler las priorice |
 | `detect_degenerate_patterns` | diario | Marca respuestas apuradas y rachas de *straightlining*; actualiza los contadores del respondedor y su `trust_score` |
-| `flag_duplicate_fingerprints` | diario | Marca `is_flagged` a los respondedores cuyo `fingerprint_hash` acumuló más de 5 identidades en 24 h |
+| `flag_duplicate_fingerprints` | diario | Marca `is_flagged` a los respondedores cuyo `fingerprint_hash` **creó** más de 5 identidades en 24 h — se cuenta por `first_seen`, no por actividad |
 | `seed_champions` | manual, por parche | Relee `champion.json` de Data Dragon y actualiza el catálogo |
 
 **Por qué el consenso se denormaliza y no se calcula en vivo:** mostrar "74 % coincidió con vos"

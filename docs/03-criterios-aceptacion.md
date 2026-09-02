@@ -177,6 +177,17 @@ derivada.
 **Cuando** se genera una exportación
 **Entonces** sus respuestas no entran en la agregación, pero siguen presentes en `responses`.
 
+### CA-308 · `unknown` en una honeypot es neutro — RF-205 · `U`
+**Dado** un respondedor que recibe una honeypot
+**Cuando** responde `unknown`
+**Entonces** `honeypot_attempts` y `honeypot_passed` quedan iguales y su trust score no cambia.
+
+### CA-309 · La honeypot mala se retira sola — RF-205 · `U`
+**Dado** una honeypot cuyo *pass rate* cae a `0.80` sobre 40 respuestas
+**Cuando** corre el refresco de estadísticas
+**Entonces** queda con `is_honeypot = false` y el trust de todos los que la habían recibido se
+recalcula como si nunca hubiera existido.
+
 ---
 
 ## 5. Agregación y exportación
@@ -271,7 +282,7 @@ según el decaimiento configurado.
 
 ---
 
-## 7. Extensibilidad
+## 7. Extensibilidad y operación
 
 ### CA-601 · Una dimensión nueva no requiere código — RF-603, RNF-12 · `I`
 **Dado** el sistema desplegado
@@ -284,20 +295,60 @@ definición, **sin desplegar nada**.
 **Cuando** se lo promueve a `pool_tier = 1`
 **Entonces** el sampler empieza a incluirlo en preguntas nuevas sin reiniciar la aplicación.
 
+### CA-603 · Los parámetros operativos viven en datos — RF-606, RNF-12 · `I`
+**Dado** el sistema desplegado y en marcha
+**Cuando** se cambia `sampler.enabled_pool_tiers` de `1` a `2` por el panel
+**Entonces** la siguiente pregunta generada puede incluir campeones de tier 2, **sin reiniciar el
+proceso ni desplegar código**.
+
+### CA-604 · Toda acción de administración queda auditada — RF-405 · `I`
+**Dado** un administrador que activa un parche, promueve un campeón de tier y cambia un parámetro
+**Cuando** se consulta `admin_audit`
+**Entonces** hay tres filas con su `action`, su `payload` y su timestamp, y el rol de aplicación no
+tiene permiso de `UPDATE` ni `DELETE` sobre esa tabla.
+
 ---
 
-## 8. Resumen de cobertura
+## 8. Gamificación
+
+### CA-310 · La racha de respuestas corta con la pausa — RF-301 · `U`
+**Dado** un respondedor con `current_streak = 12` y `best_streak = 12`
+**Cuando** responde de nuevo 31 minutos después de su última respuesta
+**Entonces** `current_streak` vuelve a `1` y `best_streak` sigue en `12`.
+
+### CA-311 · La racha de días suma una vez por día — RF-301 · `U`
+**Dado** un respondedor que contesta 20 preguntas en un mismo día
+**Cuando** se consulta su perfil
+**Entonces** `current_day_streak` subió exactamente `1`; y si saltea un día calendario completo,
+vuelve a `1`.
+
+### CA-312 · El alias no es un identificador — RF-304 · `I`
+**Dado** cualquier respondedor
+**Cuando** se compara su alias con su `respondent_id` y su `fingerprint_hash`
+**Entonces** no es derivable de ninguno de los dos.
+
+### CA-313 · La tabla de posiciones filtra dos veces — RF-303, RF-304 · `I`
+**Dado** un respondedor marcado con el mayor volumen de respuestas, y otro con `trust_score = 0.20`
+también entre los primeros por volumen
+**Cuando** se consulta la tabla de posiciones en cualquiera de sus tres ventanas
+**Entonces** ninguno de los dos aparece, y ninguna respuesta del endpoint permite despejar el trust
+score de nadie.
+
+---
+
+## 9. Resumen de cobertura
 
 | Grupo | Criterios | Requerimientos cubiertos |
 |---|---|---|
 | Sesión e identidad | CA-001 a CA-005 | RF-001 a RF-006, RNF-05 |
 | Entrega de preguntas | CA-101 a CA-106 | RF-101, RF-105, RF-106, RF-112, RF-202, RNF-01 |
 | Registro de respuestas | CA-201 a CA-209 | RF-108 a RF-110, RF-203, RF-209, RNF-04 |
-| Calidad de datos | CA-301 a CA-307 | RF-201, RF-204 a RF-208 |
+| Calidad de datos | CA-301 a CA-309 | RF-201, RF-202, RF-204 a RF-208 |
 | Agregación y exportación | CA-401 a CA-409 | RF-501, RF-506, RF-507, RF-509, RF-510, RF-512, RNF-08 |
 | Interfaz | CA-501 a CA-506 | RF-113, RF-114, RNF-06, RNF-07 |
-| Extensibilidad | CA-601, CA-602 | RF-603, RF-604, RNF-12 |
+| Extensibilidad y operación | CA-601 a CA-604 | RF-405, RF-603, RF-604, RF-606, RNF-12 |
+| Gamificación | CA-310 a CA-313 | RF-301, RF-303, RF-304 |
 
-Los requerimientos de administración (RF-4xx) y los de catálogo (RF-6xx restantes) se verifican
-manualmente durante la operación; sus criterios se agregan al escribir
+Los requerimientos de administración restantes (RF-401 a RF-404) y los de catálogo (RF-601, RF-602,
+RF-605) se verifican manualmente durante la operación; sus criterios se agregan al escribir
 [`24-panel-admin.md`](24-panel-admin.md).
