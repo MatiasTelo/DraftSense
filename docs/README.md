@@ -32,7 +32,7 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) | Honeypots, test-retest, patrones degenerados, trust score, deduplicación | **v1** |
 | [`23-gamificacion.md`](23-gamificacion.md) | Rachas, acuerdo con el consenso, perfil, leaderboard, anti-gaming | **v1** |
 | [`24-panel-admin.md`](24-panel-admin.md) | Métricas, vistas, acciones de operación, autenticación | pendiente |
-| [`25-agregacion.md`](25-agregacion.md) | Los 5 métodos estadísticos con pseudocódigo, parámetros y casos límite | pendiente |
+| [`25-agregacion.md`](25-agregacion.md) | Del respondedor al CSV: qué se hace con los datos declarados, ponderación, los 5 estimadores y los casos límite | **v1** |
 | [`26-esquema-de-salida.md`](26-esquema-de-salida.md) | Los tres CSV columna por columna: fórmula, rango, origen, soporte | **v1** |
 | [`examples/`](examples/) | Ejemplo ejecutable de los tres CSV, con el diccionario de cada columna | **v1** |
 | [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md) | Krippendorff, test-retest, cobertura, estabilidad por segmento | pendiente |
