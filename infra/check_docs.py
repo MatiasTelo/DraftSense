@@ -62,6 +62,8 @@ EXPECTED_TABLES = {
     "responses",
     "aggregates",
     "exports",
+    "app_settings",
+    "admin_audit",
 }
 
 

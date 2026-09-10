@@ -1,0 +1,14 @@
+champion_a_id,champion_a_key,champion_b_id,champion_b_key,role,advantage,advantage_ci_low,advantage_ci_high,n_responses,support,is_observed,patch_window
+18,Darius,25,Garen,top,0.340,0.168,0.512,41,solid,true,16.18..16.20
+18,Darius,34,Kayle,top,0.720,0.508,0.932,27,solid,true,16.18..16.20
+25,Garen,34,Kayle,top,0.510,0.251,0.769,18,limited,true,16.18..16.20
+30,Karma,61,Syndra,mid,-0.440,-0.807,-0.073,9,limited,true,16.18..16.20
+34,Kayle,55,Ziggs,mid,-0.180,-0.596,0.236,7,insufficient,true,16.18..16.20
+34,Kayle,72,Zed,mid,-0.630,-0.865,-0.395,22,solid,true,16.18..16.20
+41,Lucian,61,Syndra,mid,-0.120,-0.438,0.198,12,limited,true,16.18..16.20
+55,Ziggs,61,Syndra,mid,-0.150,-0.402,0.102,19,limited,true,16.18..16.20
+55,Ziggs,72,Zed,mid,-0.480,-0.774,-0.186,14,limited,true,16.18..16.20
+61,Syndra,72,Zed,mid,-0.280,-0.509,-0.051,23,solid,true,16.18..16.20
+9,Jhin,41,Lucian,adc,-0.410,-0.608,-0.212,31,solid,true,16.18..16.20
+30,Karma,34,Kayle,mid,0.190,-0.430,0.810,0,insufficient,false,16.18..16.20
+41,Lucian,72,Zed,mid,-0.350,-0.970,0.270,0,insufficient,false,16.18..16.20

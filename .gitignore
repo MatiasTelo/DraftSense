@@ -22,6 +22,9 @@ dist/
 exports/
 *.csv
 !infra/seeds/*.csv
+# Los CSV de docs/examples/ son fixtures sintéticos del contrato de salida (docs v1),
+# no salida real del pipeline: se versionan igual que los seeds.
+!docs/examples/*.csv
 *.dump
 
 # Sistema

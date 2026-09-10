@@ -25,6 +25,8 @@ escribe uno nuevo. El registro es histórico.
 | [012](ADR-012-sampler-uniforme-en-arranque-en-frio.md) | Sampler uniforme durante el arranque en frío | aceptada |
 | [013](ADR-013-honeypots-verificables-desde-el-kit.md) | Las honeypots se derivan del kit del campeón, no del juicio experto | aceptada |
 | [014](ADR-014-leaderboard-filtra-por-confianza.md) | La tabla de posiciones filtra por confianza, sin exponerla | aceptada |
+| [015](ADR-015-estructura-en-capas-del-backend.md) | Backend en cuatro capas: routers, services, schemas, models | aceptada |
+| [016](ADR-016-carga-inicial-del-pool.md) | La carga inicial del pool usa los cortes de la regla de promoción | aceptada |
 
 ## Cuál merece un ADR
 

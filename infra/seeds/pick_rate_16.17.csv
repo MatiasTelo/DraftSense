@@ -1,0 +1,168 @@
+# Snapshot manual de pick rate — la fuente del pool escalonado (ADR-006).
+# Fuente: lolalytics, tier list por línea, filtros por defecto EMERALD+ / Ranked Solo/Duo / GLOBAL.
+# URL: https://lolalytics.com/lol/tierlist/?lane=<top|jungle|middle|bottom|support>
+# Capturado: 2026-09-09 · Parche: 16.17
+#
+# El número de parche está corroborado por dos fuentes: lolalytics rotula esta tier list como
+# "Patch 16.17", y `ddragon_champions_snapshot.json` —el volcado del CDN de Riot versionado en
+# esta misma carpeta— declara la versión 16.17.1. Los `image_url` de `champions` apuntan a ese
+# mismo CDN, así que el catálogo, las imágenes y el pool quedan sobre el mismo parche.
+#
+# `pick_rate` es el porcentaje de la columna Pick del sitio dividido por 100: es la proporción de
+# partidas de ese rol en las que se elige al campeón, no una proporción sobre todas las partidas.
+# `rank_in_role` es la posición POR PICK RATE dentro del rol, no el puesto de la tier list del
+# sitio (que ordena por rendimiento y no sirve para definir el pool).
+#
+# Se capturan los 30 primeros de cada rol. La regla de tier usa el top 12 y el top 20 de cada
+# rol (docs/21-sampler.md §7.1, ADR-016), así que por debajo del puesto 30 nada cambia el pool.
+role,champion_name,pick_rate,rank_in_role
+top,Nasus,0.0827,1
+top,Yone,0.0814,2
+top,Darius,0.0716,3
+top,Garen,0.0713,4
+top,Malphite,0.0672,5
+top,Jax,0.0591,6
+top,Aatrox,0.0588,7
+top,Sett,0.0562,8
+top,Renekton,0.0549,9
+top,Jayce,0.0549,10
+top,Gangplank,0.0546,11
+top,Mordekaiser,0.0515,12
+top,Irelia,0.0448,13
+top,Camille,0.0432,14
+top,Teemo,0.0416,15
+top,Ambessa,0.0396,16
+top,K'Sante,0.0364,17
+top,Dr. Mundo,0.0363,18
+top,Fiora,0.0358,19
+top,Gnar,0.0357,20
+top,Shen,0.0356,21
+top,Yasuo,0.0348,22
+top,Ornn,0.0333,23
+top,Olaf,0.0328,24
+top,Tryndamere,0.0319,25
+top,Volibear,0.0316,26
+top,Yorick,0.0312,27
+top,Cho'Gath,0.0300,28
+top,Pantheon,0.0280,29
+top,Sion,0.0279,30
+jungle,Lee Sin,0.1336,1
+jungle,Graves,0.1029,2
+jungle,Viego,0.0883,3
+jungle,Sylas,0.0769,4
+jungle,Kayn,0.0701,5
+jungle,Talon,0.0634,6
+jungle,Nocturne,0.0621,7
+jungle,Wukong,0.0618,8
+jungle,Jarvan IV,0.0584,9
+jungle,Kha'Zix,0.0556,10
+jungle,Hecarim,0.0543,11
+jungle,Shyvana,0.0541,12
+jungle,Vi,0.0515,13
+jungle,Master Yi,0.0505,14
+jungle,Qiyana,0.0485,15
+jungle,Briar,0.0464,16
+jungle,Shaco,0.0453,17
+jungle,Ekko,0.0404,18
+jungle,Naafiri,0.0377,19
+jungle,Rengar,0.0376,20
+jungle,Bel'Veth,0.0325,21
+jungle,Warwick,0.0318,22
+jungle,Lillia,0.0317,23
+jungle,Cho'Gath,0.0314,24
+jungle,Nidalee,0.0310,25
+jungle,Zac,0.0304,26
+jungle,Diana,0.0281,27
+jungle,Zed,0.0266,28
+jungle,Xin Zhao,0.0252,29
+jungle,Evelynn,0.0241,30
+mid,Ahri,0.0944,1
+mid,Viktor,0.0941,2
+mid,Zed,0.0895,3
+mid,Yasuo,0.0885,4
+mid,Syndra,0.0857,5
+mid,Yone,0.0730,6
+mid,Katarina,0.0718,7
+mid,Sylas,0.0690,8
+mid,Locke,0.0654,9
+mid,Akali,0.0570,10
+mid,LeBlanc,0.0559,11
+mid,Lissandra,0.0557,12
+mid,Malzahar,0.0540,13
+mid,Fizz,0.0538,14
+mid,Twisted Fate,0.0499,15
+mid,Xerath,0.0447,16
+mid,Vladimir,0.0411,17
+mid,Hwei,0.0408,18
+mid,Lux,0.0395,19
+mid,Galio,0.0384,20
+mid,Veigar,0.0384,21
+mid,Ekko,0.0313,22
+mid,Ryze,0.0312,23
+mid,Diana,0.0310,24
+mid,Qiyana,0.0307,25
+mid,Orianna,0.0302,26
+mid,Vex,0.0299,27
+mid,Irelia,0.0292,28
+mid,Zoe,0.0280,29
+mid,Kassadin,0.0276,30
+adc,Kai'Sa,0.2020,1
+adc,Jinx,0.1763,2
+adc,Jhin,0.1640,3
+adc,Caitlyn,0.1542,4
+adc,Ezreal,0.1265,5
+adc,Tristana,0.0945,6
+adc,Yunara,0.0918,7
+adc,Lucian,0.0847,8
+adc,Ashe,0.0649,9
+adc,Miss Fortune,0.0588,10
+adc,Twitch,0.0578,11
+adc,Zeri,0.0492,12
+adc,Aphelios,0.0480,13
+adc,Xayah,0.0466,14
+adc,Sivir,0.0438,15
+adc,Samira,0.0405,16
+adc,Draven,0.0365,17
+adc,Smolder,0.0361,18
+adc,Vayne,0.0354,19
+adc,Viktor,0.0340,20
+adc,Kalista,0.0302,21
+adc,Varus,0.0274,22
+adc,Yasuo,0.0242,23
+adc,Syndra,0.0225,24
+adc,Ziggs,0.0207,25
+adc,Veigar,0.0200,26
+adc,Seraphine,0.0193,27
+adc,Kog'Maw,0.0191,28
+adc,Corki,0.0178,29
+adc,Xerath,0.0162,30
+support,Thresh,0.1479,1
+support,Lulu,0.1120,2
+support,Nautilus,0.1080,3
+support,Nami,0.0907,4
+support,Seraphine,0.0863,5
+support,Leona,0.0773,6
+support,Karma,0.0690,7
+support,Milio,0.0679,8
+support,Lux,0.0648,9
+support,Blitzcrank,0.0630,10
+support,Pyke,0.0627,11
+support,Senna,0.0557,12
+support,Yuumi,0.0524,13
+support,Soraka,0.0502,14
+support,Bard,0.0492,15
+support,Alistar,0.0489,16
+support,Braum,0.0482,17
+support,Morgana,0.0441,18
+support,Janna,0.0389,19
+support,Rell,0.0380,20
+support,Pantheon,0.0362,21
+support,Rakan,0.0340,22
+support,Zilean,0.0326,23
+support,Xerath,0.0294,24
+support,Sona,0.0292,25
+support,Vel'Koz,0.0271,26
+support,Swain,0.0260,27
+support,Brand,0.0249,28
+support,Zyra,0.0244,29
+support,Camille,0.0240,30

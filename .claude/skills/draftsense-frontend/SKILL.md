@@ -24,6 +24,21 @@ la difusión es por Reddit y Discord.
 operativo desde la semana 1— y `api.ts` tiene los tipos del contrato. **Las pantallas se implementan
 desde la semana 3** según `docs/30-ux-flujos.md`.
 
+Desde la semana 2 `api.ts` cubre el contrato entero: la pregunta y su unión discriminada, más
+`SessionResponse`, `OnboardingRequest`, `QuestionBatch`, `ResponseRequest`, `MeResponse`,
+`LeaderboardResponse` y `ApiErrorBody`. **La API ya está en pie** (`uvicorn app.main:app --reload`
+en `:8000`, con el proxy de Vite apuntando ahí), así que las pantallas se escriben contra un
+servidor real y no contra mocks.
+
+Dos cosas a tener en cuenta al escribirlas:
+
+- **No hace falta llamar a `POST /sessions` antes de nada.** Los endpoints que necesitan identidad
+  crean la sesión al vuelo y devuelven la cookie (`docs/12-api.md` §1.3). Llamarlo igual al
+  arrancar es correcto y es lo que da el `onboarding_seen`.
+- **Todo error trae el sobre `{ error: { code, message, field? } }`.** Ramificá por `code`, no por
+  el status: el `409 duplicate_response` del doble toque, por ejemplo, no se muestra como error
+  sino que avanza a la tarjeta siguiente (CA-502).
+
 ## Comandos
 
 ```bash

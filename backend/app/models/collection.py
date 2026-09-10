@@ -97,6 +97,18 @@ class Respondent(Base):
     best_streak: Mapped[int] = mapped_column(
         sa.Integer, nullable=False, server_default=sa.text("0")
     )
+    # `answers_today` y `last_active_date` son el estado mínimo para llevar la racha de días sin
+    # consultar `responses` en el camino crítico. Son reconstruibles desde el crudo.
+    answers_today: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("0")
+    )
+    last_active_date: Mapped[dt.date | None] = mapped_column(sa.Date)
+    current_day_streak: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("0")
+    )
+    best_day_streak: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("0")
+    )
     alias: Mapped[str | None] = mapped_column(sa.Text)
 
     first_seen: Mapped[dt.datetime] = mapped_column(
@@ -123,7 +135,8 @@ class Respondent(Base):
         sa.CheckConstraint(
             "honeypot_passed <= honeypot_attempts "
             "AND retest_consistent <= retest_pairs "
-            "AND current_streak <= best_streak",
+            "AND current_streak <= best_streak "
+            "AND current_day_streak <= best_day_streak",
             name="respondents_counters_consistent",
         ),
         sa.Index("respondents_fingerprint", "fingerprint_hash"),
@@ -184,6 +197,10 @@ class Question(Base):
         pg.JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")
     )
     entropy: Mapped[Decimal | None] = mapped_column(sa.Numeric(5, 4))
+    # Cuánto le falta al campeón peor cubierto de esta pregunta para llegar a la mediana global.
+    # Denormalizado por la misma razón que `entropy`: /questions/next tiene 100 ms de presupuesto
+    # y no puede hacer un GROUP BY sobre `responses`. Ver docs/21-sampler.md §3.3.
+    coverage_deficit: Mapped[Decimal | None] = mapped_column(sa.Numeric(5, 4))
     #: La marca el job de conectividad: uniría dos componentes desconectadas del grafo (ADR-008).
     bridge_priority: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.false()
@@ -245,6 +262,10 @@ class Question(Base):
         ),
         sa.CheckConstraint(
             "entropy IS NULL OR entropy BETWEEN 0 AND 1", name="questions_entropy_range"
+        ),
+        sa.CheckConstraint(
+            "coverage_deficit IS NULL OR coverage_deficit BETWEEN 0 AND 1",
+            name="questions_coverage_range",
         ),
         # Identidad de una pregunta: impide generar duplicados desde el sampler.
         sa.Index(
@@ -351,6 +372,8 @@ class Response(Base):
         sa.Index("responses_by_question", "question_id", "created_at"),
         sa.Index("responses_by_respondent", "respondent_id", sa.text("created_at DESC")),
         sa.Index("responses_by_patch_type", "patch_id", "type"),
+        # Ventanas de día y semana de la tabla de posiciones (docs/23-gamificacion.md §5.3).
+        sa.Index("responses_recent", sa.text("created_at DESC")),
     )
 
 

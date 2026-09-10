@@ -1,6 +1,6 @@
 # 11 — Modelo de datos
 
-> Estado: **v1** · Última revisión: 31/08/2026 · Motor: PostgreSQL 16
+> Estado: **v1** · Última revisión: 09/09/2026 · Motor: PostgreSQL 16
 
 Esquema completo, diccionario de datos, esquemas de validación de las respuestas y estrategia de
 migraciones. El DDL de este documento es **ejecutable tal cual**: se corre contra un Postgres 16
@@ -605,10 +605,18 @@ Claves iniciales, por bloque:
 | `sampler.` | `enabled_pool_tiers`, `epsilon`, `weights`, `cold_threshold`, `consensus_threshold`, `candidate_limit`, `max_rejection_retries` | [`21-sampler.md`](21-sampler.md) §9 |
 | `quality.` | `honeypot_every`, `honeypot_min_pass_rate`, `retest_every`, `retest_min_distance`, `fast_answer_ms`, `straightline_run`, `fingerprint_max_identities`, `trust_weights`, `trust_smoothing` | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §8 |
 | `gamification.` | `streak_gap_minutes`, `day_streak_min_answers`, `streak_timezone`, `leaderboard_size`, `leaderboard_cache_seconds` | [`23-gamificacion.md`](23-gamificacion.md) §7 |
-| `export.` | `min_trust`, `decay_halflife_days`, `bootstrap_samples`, `power_curve_sigma`, `support_thresholds` | [`26-esquema-de-salida.md`](26-esquema-de-salida.md) |
+| `export.` | `min_trust` | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §8 |
+| `aggregation.` | `decay_halflife_days`, `bootstrap_samples`, `power_sigma`, `bt_prior`, `duo_lambda_champion`, `duo_lambda_interaction`, `max_iter`, `tol`, `support_thresholds`, `segment_min_respondents`, `segment_min_comparisons` | [`25-agregacion.md`](25-agregacion.md) §9 |
 
 El formato del `key` obliga a `bloque.nombre`: sin el punto, la tabla degenera en un cajón de sastre
 en tres semanas.
+
+> **Corregido el 09/09/2026.** La primera redacción de esta tabla agrupaba bajo `export.` los
+> parámetros del pipeline. [`25-agregacion.md`](25-agregacion.md) §9 —escrito después y más
+> específico— los define bajo el prefijo `aggregation.`, y renombra `power_curve_sigma` a
+> `power_sigma`. En `export.` queda sólo `min_trust`, que es la clave que ADR-014 obliga a
+> compartir entre el filtro de exportación y la tabla de posiciones. Manda §9; esta tabla se
+> alineó a ella. El seed de `infra/seeds/app_settings.yaml` usa estos nombres.
 
 **El valor de cada corrida de exportación se copia a `exports`**, no se lee de acá al reproducirla.
 `app_settings` es el estado actual; `exports` es el registro histórico. Reproducir una corrida vieja

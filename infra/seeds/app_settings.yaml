@@ -1,0 +1,178 @@
+# Los parámetros operativos del sistema. Ninguno es una constante del código (RF-606).
+#
+# Cada clave se define en un documento y ese documento manda: si acá dice otra cosa, acá está
+# el error. La columna `Documento` de cada bloque dice cuál.
+#
+# El formato `bloque.nombre` lo exige el CHECK `app_settings_key_format`. El valor es JSON: lo
+# que se escriba acá se guarda tal cual en la columna `value`, de tipo jsonb.
+#
+# Cambiar uno de estos valores en producción NO se hace editando este archivo: se hace por
+# `PATCH /admin/settings/{key}`, que además lo registra en `admin_audit`. Este seed es el
+# estado inicial, no el estado actual.
+
+# --- sampler. --- docs/21-sampler.md §9 ---------------------------------------------------------
+- key: sampler.enabled_pool_tiers
+  value: 1
+  description: Hasta qué tier de pool genera preguntas el sampler.
+
+- key: sampler.epsilon
+  value: 1.00
+  description: Probabilidad de explorar en vez de explotar. Arranca en 1.00 y baja a 0.20.
+
+- key: sampler.weights
+  value:
+    escasez: 0.35
+    informacion: 0.25
+    cobertura: 0.20
+    puente: 1.00
+  description: Pesos de la función de prioridad.
+
+- key: sampler.cold_threshold
+  value: 5
+  description: Respuestas que necesita una pregunta para salir del estrato frío (ADR-012).
+
+- key: sampler.consensus_threshold
+  value: 20
+  description: Respuestas que necesita una pregunta para mostrar el feedback de consenso (RF-114).
+
+- key: sampler.candidate_limit
+  value: 50
+  description: Cuántas candidatas trae la rama de explotación.
+
+- key: sampler.max_rejection_retries
+  value: 10
+  description: Reintentos de la rama de exploración antes de rendirse.
+
+# --- quality. --- docs/22-calidad-de-datos.md §8 ------------------------------------------------
+- key: quality.honeypot_every
+  value: [10, 15]
+  description: Ventana de cadencia de honeypots, en preguntas.
+
+- key: quality.honeypot_min_pass_rate
+  value: 0.85
+  description: Bajo este pass rate la honeypot se retira sola.
+
+- key: quality.retest_every
+  value: 30
+  description: Cadencia de retests, en preguntas.
+
+- key: quality.retest_min_distance
+  value: 15
+  description: Preguntas mínimas entre la respuesta original y su retest.
+
+- key: quality.fast_answer_ms
+  value: 800
+  description: Bajo este tiempo la respuesta cuenta como apurada.
+
+- key: quality.straightline_run
+  value: 8
+  description: Respuestas seguidas en la misma posición que cuentan como straightlining.
+
+- key: quality.fingerprint_max_identities
+  value: 5
+  description: Identidades por huella en 24 h antes de marcar al respondedor.
+
+- key: quality.trust_weights
+  value:
+    honeypot: 0.60
+    retest: 0.40
+    degenerate: 0.50
+  description: Pesos de los tres términos de la fórmula del trust score.
+
+- key: quality.trust_smoothing
+  value: 2
+  description: Fuerza del suavizado bayesiano del trust score.
+
+# --- export. --- docs/22-calidad-de-datos.md §8 -------------------------------------------------
+# Una sola clave, y es compartida a propósito: el filtro de la tabla de posiciones y el de la
+# exportación usan literalmente ésta, no una copia (ADR-014). Duplicarla las desincroniza en la
+# primera calibración.
+- key: export.min_trust
+  value: 0.30
+  description: Umbral de confianza del filtro de exportación y del leaderboard.
+
+# --- gamification. --- docs/23-gamificacion.md §7 -----------------------------------------------
+- key: gamification.streak_gap_minutes
+  value: 30
+  description: Pausa que corta `current_streak`.
+
+- key: gamification.day_streak_min_answers
+  value: 5
+  description: Respuestas en un día para sostener la racha de días.
+
+- key: gamification.streak_timezone
+  value: America/Argentina/Buenos_Aires
+  description: Dónde empieza el día. En UTC, responder a las 22:00 sumaría al día siguiente.
+
+- key: gamification.leaderboard_size
+  value: 50
+  description: Filas de la tabla de posiciones.
+
+- key: gamification.leaderboard_cache_seconds
+  value: 60
+  description: Vida del caché de las ventanas day y week.
+
+# --- aggregation. --- docs/25-agregacion.md §9 -------------------------------------------------
+# El pipeline es de la semana 9; las claves se siembran ahora para que existan cuando llegue y
+# para que el panel pueda mostrarlas. Los cuatro primeros se calibran con los datos del piloto.
+- key: aggregation.decay_halflife_days
+  value: 21
+  description: Vida media del decaimiento por recencia.
+
+- key: aggregation.bootstrap_samples
+  value: 2000
+  description: Remuestreos del bootstrap.
+
+- key: aggregation.power_sigma
+  value: 7.5
+  description: Ancho de la curva de poder gaussiana (ADR-009).
+
+- key: aggregation.bt_prior
+  value: 0.5
+  description: El épsilon de estabilidad numérica de Bradley-Terry.
+
+- key: aggregation.duo_lambda_champion
+  value: 0.10
+  description: Penalización L2 sobre el término de campeón del modelo de duplas.
+
+- key: aggregation.duo_lambda_interaction
+  value: 1.00
+  description: Penalización L2 sobre el término de interacción del modelo de duplas.
+
+- key: aggregation.max_iter
+  value: 500
+  description: Tope de iteraciones del ajuste.
+
+- key: aggregation.tol
+  value: 1.0e-9
+  description: Criterio de convergencia del ajuste.
+
+# Los umbrales de `_support`, copiados de la tabla de docs/26-esquema-de-salida.md §2.4. Cada
+# nivel exige las DOS condiciones: soporte muestral y ancho del intervalo. `insufficient` no se
+# lista porque es el resto. Las claves de magnitud son las del CSV de salida.
+- key: aggregation.support_thresholds
+  value:
+    dimension:
+      solid: {n: 25, width: 0.60}
+      limited: {n: 10, width: 1.20}
+    peak_minute:
+      solid: {n: 20, width: 4}
+      limited: {n: 10, width: 8}
+    lane_strength:
+      solid: {n: 20, width: 0.60}
+      limited: {n: 8, width: 1.20}
+    synergy:
+      solid: {n: 15, width: 0.80}
+      limited: {n: 6, width: 1.50}
+    trait:
+      solid: {n: 20, width: 0.25}
+      limited: {n: 10, width: 0.45}
+  description: Umbrales de `_support` por magnitud. Ver docs/26-esquema-de-salida.md §2.4.
+
+- key: aggregation.segment_min_respondents
+  value: 15
+  description: Piso de respondedores para reportar un segmento.
+
+- key: aggregation.segment_min_comparisons
+  value: 300
+  description: Piso de comparaciones para reportar un segmento.

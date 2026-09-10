@@ -1,6 +1,6 @@
 # 23 — Gamificación y retención
 
-> Estado: **v1** · Última revisión: 01/09/2026 · Ola 3 · Desbloquea la semana 6 del cronograma
+> Estado: **v1** · Última revisión: 09/09/2026 · Ola 3 · Desbloquea la semana 6 del cronograma
 
 La gamificación de DraftSense no es un adorno: es **el instrumento de la meta M5** del Informe
 Inicial —al menos 1 000 respuestas reales— y el único que hay, porque el sistema no paga, no tiene
@@ -79,6 +79,19 @@ si answers_today == 5:                              # se cruza el umbral hoy
 **El umbral de 5 existe para que la racha signifique algo.** Con umbral 1, mantener la racha cuesta
 un toque y deja de ser un compromiso; con un umbral alto se vuelve una obligación y la gente
 abandona en cuanto la rompe una vez.
+
+> **Corregido el 09/09/2026.** El pseudocódigo de arriba tiene un error de orden: cuando se cruza
+> el umbral compara `last_active_date_previa` contra `hoy - 1 día`, pero para ese momento
+> `last_active_date` **ya vale hoy** —lo pisó el bloque de arriba, y en el segundo día de una
+> racha el umbral se cruza varias respuestas después del cambio de día—, así que la condición
+> nunca se cumple y la racha se reiniciaría en 1 todos los días.
+>
+> La implementación resuelve el encadenado **en el cambio de día**, que es el único momento en
+> que el dato del día anterior todavía existe: al detectar que `last_active_date` no es hoy,
+> `answers_today` todavía tiene el conteo de ayer. La racha sobrevive si ese día era ayer **y**
+> llegó al umbral; si no, `current_day_streak` vuelve a 0 y la primera racha del día nuevo la
+> deja en 1. El comportamiento observable es el que describe la prosa —días consecutivos con al
+> menos 5 respuestas— y el que verifica CA-311. Ver `backend/app/services/streaks.py`.
 
 **El día se define en horario argentino, no en UTC**, y es deliberado: la difusión del piloto es
 local, y en UTC alguien que responde a las 22:00 de un martes estaría sumando al miércoles. Una
