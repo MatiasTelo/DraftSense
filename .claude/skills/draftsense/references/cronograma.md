@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 08/09/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 09/09/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -12,8 +12,8 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | Sem. | Período | Entregable | Hs | Estado |
 |---|---|---|---|---|
 | 1 | 01/09 – 07/09 | Esquema de base de datos versionado y entorno de staging operativo | 20 | **cerrada** |
-| 2 | 08/09 – 14/09 | API REST núcleo funcional con pruebas automatizadas | 20 | **en curso** |
-| 3 | 15/09 – 21/09 | Primer tipo de pregunta operativo de extremo a extremo | 20 | pendiente |
+| 2 | 08/09 – 14/09 | API REST núcleo funcional con pruebas automatizadas | 20 | **cerrada** |
+| 3 | 15/09 – 21/09 | Primer tipo de pregunta operativo de extremo a extremo | 20 | **en curso** |
 | 4 | 22/09 – 28/09 | Tipos de pregunta 2 y 3 operativos con feedback | 20 | pendiente |
 | 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | pendiente |
 | 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | pendiente |
@@ -35,20 +35,25 @@ Esto hay que registrarlo en el Informe de Avance de la semana 6.
 
 ## Estado real del repositorio
 
-Al 08/09/2026:
+Al 09/09/2026:
 
-- Rama `main`, remoto `https://github.com/MatiasTelo/DraftSense.git`. Último commit `04a5ed5`
-  ("Actualizar documentación de sampler, calidad de datos y gamificación; agregar ADRs y script de
-  ejemplos").
-- **Hecho:** monorepo, CI de tres jobs (backend con Postgres 17 real, frontend con presupuesto de
-  bundle, docs), esquema completo con migración inicial reversible, seeder de campeones desde Data
-  Dragon con snapshot de respaldo, 10 tests de esquema, andamiaje del frontend, y la documentación
-  técnica de las olas 1 a 3.
+- Rama `main`, remoto `https://github.com/MatiasTelo/DraftSense.git`.
+- **Semana 1:** monorepo, CI de tres jobs (backend con Postgres 17 real, frontend con presupuesto
+  de bundle, docs), esquema con migración inicial reversible, seeder de campeones desde Data Dragon
+  con snapshot de respaldo, andamiaje del frontend, y la documentación técnica de las olas 1 a 3.
+- **Semana 2:** los **siete endpoints públicos** (`/health`, `POST /sessions`,
+  `POST /sessions/onboarding`, `GET /questions/next`, `POST /responses`, `GET /me`,
+  `GET /leaderboard`) sobre una estructura en cuatro capas (ADR-015), la migración `0002` que
+  cerró el desvío entre el esquema documentado y el implementado, los seeds de `app_settings`,
+  alias y pick rate, y **50 tests**.
+- **El pool ya está sembrado:** snapshot de lolalytics del parche 16.17, con 58 campeones en
+  tier 1, 38 en tier 2 y 77 en tier 3 (ADR-016).
 - **`aggregation/` está vacía.** El paquete se implementa en la semana 9.
-- **`backend/app/` tiene modelos, config, db, cli y seeds, pero todavía no hay endpoints**: no existe
-  `main.py` ni routers. Eso es el trabajo de la semana 2.
-- **`frontend/src/` es andamiaje**: `App.tsx` es sólo el landing, `api.ts` tiene los tipos del
-  contrato. Las pantallas son de la semana 3 en adelante.
+- **Lo que NO tiene el backend todavía:** el sampler completo (semana 5 — hoy `/questions/next`
+  sortea uniforme sobre el tipo 1), honeypots, retests y trust score (semana 5), los `/admin/*`
+  (semana 7) y los cuatro jobs de fondo.
+- **`frontend/src/` sigue siendo andamiaje**: `App.tsx` es sólo el landing y `api.ts` tiene los
+  tipos del contrato, ya alineados con `12-api.md`. Las pantallas son de la semana 3 en adelante.
 
 ## Entregables académicos
 

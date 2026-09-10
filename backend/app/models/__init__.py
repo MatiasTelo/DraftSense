@@ -22,12 +22,16 @@ from app.models.enums import (
     QuestionType,
     SupportLevel,
 )
+from app.models.operations import AUDIT_ACTIONS, AdminAudit, AppSetting
 from app.models.outputs import Aggregate, Export
 
 __all__ = [
     "ALL_ENUMS",
+    "AUDIT_ACTIONS",
+    "AdminAudit",
     "Aggregate",
     "AggregateScope",
+    "AppSetting",
     "Base",
     "Champion",
     "Dimension",

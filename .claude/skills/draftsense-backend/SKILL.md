@@ -20,9 +20,26 @@ Decidido en [ADR-007](../../../docs/13-adr/ADR-007-fastapi-python.md).
 
 ## Estado actual
 
-`backend/app/` tiene `config.py`, `db.py`, `cli.py`, `models/` y `seeds/`. **Todavía no hay
-endpoints**: no existe `main.py` ni routers. Eso es el trabajo de la semana 2. Hay 10 tests de
-esquema en `tests/test_schema.py`.
+Los **siete endpoints públicos** están implementados (semana 2), en cuatro capas:
+
+| Carpeta | Qué hay |
+|---|---|
+| `app/routers/` | `health`, `sessions`, `questions`, `responses`, `profile` — montados en `/api/v1` |
+| `app/services/` | `sessions`, `questions`, `answers`, `responses`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias` |
+| `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno |
+| `app/` | `main.py`, `errors.py`, `dependencies.py`, además de `config.py`, `db.py`, `cli.py`, `models/` y `seeds/` |
+
+La organización y sus razones están en
+[ADR-015](../../../docs/13-adr/ADR-015-estructura-en-capas-del-backend.md). **Un service no importa
+nada de `fastapi`**: es la regla que hace verificable todo lo demás.
+
+**Lo que todavía no existe, y en qué semana llega:** el sampler completo (5 — hoy
+`GET /questions/next` sortea uniforme sobre el tipo 1), honeypots, retests y trust score (5), los
+`/admin/*` (7) y los cuatro jobs de fondo. `POST /responses` **nunca escribe `is_retest_of`**
+todavía, así que CA-205 está sin cubrir.
+
+50 tests en `tests/`: `test_schema`, `test_sessions`, `test_questions`, `test_responses`,
+`test_profile`, `test_leaderboard` y `test_api_contract`.
 
 ## Comandos
 
@@ -36,15 +53,23 @@ ruff check . && mypy app && pytest -q             # las tres comprobaciones, en 
 alembic upgrade head                              # crea el esquema
 alembic downgrade base && alembic upgrade head    # lo que corre CI: la migración debe ser reversible
 
-python -m app.cli check-seeds                     # valida los YAML sin tocar la base
+python -m app.cli check-seeds                     # valida los seeds sin tocar la base
 python -m app.cli seed-catalog                    # 8 dimensiones y 7 atributos
-python -m app.cli seed-champions --patch 16.20    # relee Data Dragon
+python -m app.cli seed-settings                   # los 33 parámetros operativos
+python -m app.cli seed-champions --patch 16.17 --released-at 2026-08-25
+python -m app.cli seed-pick-rate --patch 16.17 --file ../infra/seeds/pick_rate_16.17.csv     --source lolalytics --source-url URL --captured-at 2026-09-09
 python -m app.cli fetch-ddragon --out ../infra/seeds/ddragon_champions_snapshot.json
+
+uvicorn app.main:app --reload                     # la API en :8000, OpenAPI en /docs
 ```
+
+`seed-settings` **no pisa** los valores existentes sin `--force`: `app_settings` es el estado
+actual del sistema y el seed es sólo el inicial. `seed-pick-rate` deriva `pool_tier` del snapshot
+con la regla de [ADR-016](../../../docs/13-adr/ADR-016-carga-inicial-del-pool.md).
 
 La configuración se lee del entorno con prefijo `DS_` y desde `backend/.env`
 (`DS_DATABASE_URL`, `DS_ADMIN_KEY`, `DS_CORS_ORIGIN`, `DS_DDRAGON_BASE_URL`). **`.env` está en
-`.gitignore` y nunca se versiona.**
+`.gitignore` y nunca se versiona**; `backend/.env.example` tiene las claves sin valores.
 
 ## Las cinco reglas que no se negocian
 
@@ -59,7 +84,11 @@ La configuración se lee del entorno con prefijo `DS_` y desde `backend/.env`
    viaja compuesto, con los nombres de campeón ya sustituidos.
 5. **Sin autenticación de usuario.** Sesión anónima por cookie `ds_session`; en base sólo el
    SHA-256 del token ([ADR-001](../../../docs/13-adr/ADR-001-sin-autenticacion.md)). Los endpoints
-   `/admin/*` sí van con `DS_ADMIN_KEY`.
+   `/admin/*` sí van con `DS_ADMIN_KEY`. **No tener sesión no es un error:** los endpoints que
+   necesitan identidad la crean al vuelo y devuelven la cookie (`docs/12-api.md` §1.3).
+6. **Todo error sale por `ApiError`.** Un `HTTPException` de FastAPI devuelto a mano produce
+   `{"detail": ...}` y rompe el contrato en silencio, porque el cliente no valida la forma del
+   error. `tests/test_api_contract.py` lo verifica.
 
 ## Cuándo leer cada referencia
 

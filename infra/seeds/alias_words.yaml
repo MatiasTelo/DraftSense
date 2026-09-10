@@ -1,0 +1,99 @@
+# Diccionarios del alias público, con la forma `adjetivo-sustantivo-NNNN` (docs/23-gamificacion.md §4).
+#
+# El alias NO es un identificador: no se deriva del `respondent_id` ni de la huella. Se sortea al
+# crear la sesión y el sufijo de cuatro dígitos resuelve las colisiones. 40 × 40 × 10 000 son
+# 16 millones de combinaciones para los 500–3 000 respondedores esperados del piloto.
+#
+# Dos reglas al editar estas listas:
+#
+# 1. **Nada de nombres de campeón.** Un alias `brave-yasuo-4417` se lee como una afirmación sobre
+#    un campeón, que es justo lo que el sistema está midiendo.
+# 2. **Sólo palabras neutras o positivas.** El alias no se puede elegir precisamente para no
+#    sostener una cola de moderación; un adjetivo despectivo en la tabla pública sería el mismo
+#    problema por la puerta de atrás.
+#
+# Los términos son en inglés porque la interfaz pública lo es (ADR-010).
+
+adjectives:
+  - brave
+  - calm
+  - swift
+  - bold
+  - keen
+  - wise
+  - bright
+  - quiet
+  - steady
+  - clever
+  - eager
+  - gentle
+  - humble
+  - lucky
+  - noble
+  - patient
+  - proud
+  - quick
+  - sharp
+  - sturdy
+  - sunny
+  - warm
+  - witty
+  - agile
+  - cheery
+  - crisp
+  - daring
+  - deft
+  - fair
+  - jolly
+  - merry
+  - nimble
+  - plucky
+  - spry
+  - tough
+  - vivid
+  - loyal
+  - mellow
+  - polite
+  - upbeat
+
+nouns:
+  - poro
+  - baron
+  - drake
+  - herald
+  - nexus
+  - minion
+  - turret
+  - scuttle
+  - gromp
+  - krug
+  - raptor
+  - wolf
+  - ward
+  - trinket
+  - rift
+  - elder
+  - grub
+  - cannon
+  - lantern
+  - blastcone
+  - honeyfruit
+  - inhibitor
+  - dragon
+  - tribush
+  - wisp
+  - totem
+  - shard
+  - beacon
+  - spire
+  - bastion
+  - sigil
+  - relic
+  - banner
+  - crest
+  - ember
+  - comet
+  - glaive
+  - aegis
+  - pylon
+  - gateway

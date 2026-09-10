@@ -94,6 +94,9 @@ export interface Progress {
   answers_count: number;
   current_streak: number;
   best_streak: number;
+  /** Las dos rachas miden cosas distintas: respuestas seguidas y dias consecutivos. */
+  current_day_streak: number;
+  best_day_streak: number;
   agreement_rate: number;
 }
 
@@ -110,6 +113,74 @@ export interface RecordedResponse {
   /** Ausente mientras la pregunta tiene menos de 20 respuestas. */
   feedback: Feedback | null;
   progress: Progress;
+}
+
+/** Lo que devuelve `POST /sessions`. La cookie `ds_session` viaja aparte, y es HttpOnly. */
+export interface SessionResponse {
+  respondent_id: string;
+  onboarding_seen: boolean;
+  answers_count: number;
+  current_streak: number;
+  best_streak: number;
+  current_day_streak: number;
+  best_day_streak: number;
+}
+
+/** Los tres campos son opcionales: `null` significa que prefirio no decir. */
+export interface OnboardingRequest {
+  declared_rank: string | null;
+  declared_main_role: string | null;
+  declared_hours_bucket: string | null;
+}
+
+export interface QuestionBatch {
+  questions: Question[];
+}
+
+export interface ResponseRequest {
+  question_id: number;
+  answer: Answer;
+  response_time_ms: number;
+}
+
+export interface MeResponse {
+  answers_count: number;
+  current_streak: number;
+  best_streak: number;
+  current_day_streak: number;
+  best_day_streak: number;
+  agreement_rate: number;
+  /** Un conteo por cada uno de los cinco tipos; los que no tienen respuestas van en 0. */
+  coverage: Record<QuestionType, number>;
+  rank_percentile: number;
+  alias: string | null;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  alias: string | null;
+  answers_count: number;
+  is_you: boolean;
+}
+
+export interface LeaderboardResponse {
+  window: LeaderboardWindow;
+  generated_at: string;
+  entries: LeaderboardEntry[];
+}
+
+export type LeaderboardWindow = 'day' | 'week' | 'all';
+
+/**
+ * El sobre uniforme de error del servidor. **Toda** respuesta de error tiene esta forma, asi que
+ * el cliente puede ramificar por `code` y no por el status HTTP.
+ */
+export interface ApiErrorBody {
+  error: {
+    code: string;
+    message: string;
+    field?: string;
+  };
 }
 
 export const API_BASE = '/api/v1';

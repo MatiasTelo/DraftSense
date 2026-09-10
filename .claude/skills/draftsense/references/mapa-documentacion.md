@@ -56,7 +56,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ah√≠, cambian ac√
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (14 ADR) | v1 |
+| `13-adr/` (16 ADR) | v1 |
 | `20-tipos-de-pregunta.md` | v1 |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |

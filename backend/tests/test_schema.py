@@ -18,11 +18,14 @@ from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
+import sqlglot
+from sqlglot import expressions as exp
 
 from app.models import Base
 from app.models.enums import ALL_ENUMS
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
+DOCS = BACKEND_ROOT.parent / "docs"
 DATABASE_URL = os.getenv("DS_DATABASE_URL", "")
 
 
@@ -64,16 +67,26 @@ def test_migration_creates_every_model_table(offline_sql: str) -> None:
     assert expected <= created, f"tablas del modelo ausentes en la migración: {expected - created}"
 
 
+def _columns_in_migration(offline_sql: str, table_name: str) -> set[str]:
+    """Las columnas que la cadena de migraciones deja en una tabla.
+
+    Se miran las dos formas en que aparece una columna: el `CREATE TABLE` que la crea y los
+    `ALTER TABLE ... ADD COLUMN` de las migraciones posteriores. Sin la segunda, toda columna
+    agregada después de la 0001 se leería como ausente.
+    """
+    block = re.search(rf"CREATE TABLE {table_name} \((.*?)\n\);", offline_sql, re.S)
+    assert block, f"no se encontró el CREATE TABLE de {table_name}"
+    columns = set(re.findall(r"^\s+(\w+)\s", block.group(1), re.M))
+    columns |= set(re.findall(rf"ALTER TABLE {table_name} ADD COLUMN (\w+)\s", offline_sql))
+    return columns
+
+
 def test_migration_columns_match_models(offline_sql: str) -> None:
     """Cada tabla debe tener exactamente las columnas que declara su modelo."""
     for table_name, table in Base.metadata.tables.items():
-        block = re.search(
-            rf"CREATE TABLE {table_name} \((.*?)\n\);", offline_sql, re.S
-        )
-        assert block, f"no se encontró el CREATE TABLE de {table_name}"
-        body = block.group(1)
+        present = _columns_in_migration(offline_sql, table_name)
         for column in table.columns:
-            assert re.search(rf"^\s+{column.name}\s", body, re.M), (
+            assert column.name in present, (
                 f"{table_name}.{column.name} está en el modelo pero no en la migración"
             )
 
@@ -133,6 +146,57 @@ def test_pairwise_questions_are_canonically_ordered(offline_sql: str) -> None:
     assert "questions_canonical_order" in offline_sql
     assert "champion_a < champion_b" in offline_sql
 
+
+def _documented_schema() -> dict[str, set[str]]:
+    """Tablas y columnas tal como las declara el DDL de `docs/11-modelo-de-datos.md`.
+
+    Se parsea con sqlglot en vez de con expresiones regulares porque el DDL tiene CHECK
+    multilínea con paréntesis anidados, donde un regex confunde el cierre de la columna con
+    el de la restricción.
+    """
+    text = (DOCS / "11-modelo-de-datos.md").read_text(encoding="utf-8")
+    schema: dict[str, set[str]] = {}
+    for block in re.findall(r"```sql\n(.*?)```", text, re.DOTALL):
+        # El bloque de permisos usa variables de psql (:'clave'), que no son SQL puro.
+        if ":'" in block:
+            continue
+        for statement in sqlglot.parse(block, read="postgres"):
+            if not isinstance(statement, exp.Create) or statement.kind != "TABLE":
+                continue
+            table = statement.this.this.name
+            schema[table] = {
+                column.name
+                for column in statement.this.expressions
+                if isinstance(column, exp.ColumnDef)
+            }
+    return schema
+
+
+def test_models_match_documented_ddl() -> None:
+    """Los modelos y el DDL del documento tienen que declarar lo mismo.
+
+    Es el test que faltaba. `infra/check_docs.py` valida el DDL *del documento* y
+    `test_migration_columns_match_models` compara la migración contra los *modelos*: entre los
+    dos quedaba un hueco por el que la 0001 se salteó dos tablas, cinco columnas y un índice sin
+    que nada fallara. `docs/11-modelo-de-datos.md` es contrato en `v1`: manda el documento.
+    """
+    documented = _documented_schema()
+    implemented = {name: {c.name for c in t.columns} for name, t in Base.metadata.tables.items()}
+
+    assert set(documented) == set(implemented), (
+        f"sólo en el documento: {sorted(set(documented) - set(implemented))} · "
+        f"sólo en los modelos: {sorted(set(implemented) - set(documented))}"
+    )
+
+    divergences = {
+        table: {
+            "sólo en el documento": sorted(documented[table] - implemented[table]),
+            "sólo en los modelos": sorted(implemented[table] - documented[table]),
+        }
+        for table in sorted(documented)
+        if documented[table] != implemented[table]
+    }
+    assert not divergences, f"columnas que no coinciden: {divergences}"
 
 # --------------------------------------------------------------------------- con base de datos
 

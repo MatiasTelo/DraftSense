@@ -1,6 +1,6 @@
 # 12 — Contrato de la API REST
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 09/09/2026
 
 Base: `https://api.draftsense.dev/api/v1` · OpenAPI autogenerada en `/docs`.
 
@@ -35,6 +35,14 @@ Ninguna para el usuario final. La sesión anónima viaja en la cookie `ds_sessio
 `HttpOnly; Secure; SameSite=Lax; Max-Age=15552000` (180 días).
 
 Los endpoints `/admin/*` requieren el header `X-Admin-Key`.
+
+> **Agregado el 09/09/2026.** Los endpoints que necesitan identidad —`GET /me`, `POST /responses`,
+> `GET /questions/next`— **crean la sesión al vuelo** si la petición llega sin cookie o con una
+> cookie que ya no existe en la base, y devuelven `Set-Cookie` como lo haría `POST /sessions`.
+> No hay un código de error de «sesión faltante»: no tener sesión no es un error, es el estado
+> inicial de todo visitante, y la alternativa —un 401 que el cliente resuelve llamando a
+> `POST /sessions` y reintentando— agrega un viaje de red al camino crítico para no ganar nada.
+> El respondedor creado así es indistinguible de cualquier otro.
 
 ### 1.4 Lo que nunca sale de la API
 
