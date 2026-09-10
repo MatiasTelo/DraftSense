@@ -1,0 +1,11 @@
+champion_a_id,champion_a_key,champion_b_id,champion_b_key,duo_context,synergy,synergy_ci_low,synergy_ci_high,synergy_n,synergy_support,synergy_is_observed,lane_strength,lane_strength_ci_low,lane_strength_ci_high,lane_strength_n,lane_strength_support,lane_strength_is_observed,patch_window
+9,Jhin,30,Karma,bot,0.240,-0.393,0.873,11,limited,true,-0.350,-1.207,0.507,6,insufficient,true,16.18..16.20
+9,Jhin,48,Nami,bot,0.680,-0.020,1.380,9,limited,true,0.210,-0.729,1.149,5,insufficient,true,16.18..16.20
+30,Karma,41,Lucian,bot,0.870,0.288,1.452,13,limited,true,0.540,-0.202,1.282,8,limited,true,16.18..16.20
+41,Lucian,48,Nami,bot,1.120,0.672,1.568,22,limited,true,0.860,0.299,1.421,14,limited,true,16.18..16.20
+12,Alistar,41,Lucian,bot,0.930,0.405,1.455,16,limited,true,0.720,0.087,1.353,11,limited,true,16.18..16.20
+9,Jhin,12,Alistar,bot,-0.180,-0.974,0.614,7,insufficient,true,-0.240,-1.290,0.810,4,insufficient,true,16.18..16.20
+18,Darius,88,Sejuani,top_jungle,0.610,-0.132,1.352,8,limited,true,,,,0,insufficient,false,16.18..16.20
+25,Garen,88,Sejuani,top_jungle,0.340,-0.599,1.279,5,insufficient,true,,,,0,insufficient,false,16.18..16.20
+61,Syndra,88,Sejuani,mid_jungle,0.480,-0.377,1.337,6,insufficient,true,,,,0,insufficient,false,16.18..16.20
+72,Zed,88,Sejuani,mid_jungle,-0.220,-1.010,0.570,0,insufficient,false,,,,0,insufficient,false,16.18..16.20
