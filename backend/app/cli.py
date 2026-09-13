@@ -6,6 +6,7 @@
     draftsense seed-settings                   carga los parámetros operativos
     draftsense seed-pick-rate --patch 16.17    carga el snapshot y asigna el pool
     draftsense fetch-ddragon --out FILE        guarda un snapshot local de respaldo
+    draftsense refresh-question-stats          recalcula los denormalizados de questions
 """
 
 from __future__ import annotations
@@ -40,6 +41,7 @@ from app.seeds.champions import (
 )
 from app.seeds.pick_rate import load_pick_rate, seed_pick_rate, validate_pick_rate
 from app.seeds.settings import load_settings, seed_settings, validate_settings
+from app.services import question_stats
 
 DIMENSION_FIELDS = {"code", "label_en", "description_en", "prompt_en"}
 TRAIT_FIELDS = {"code", "label_en", "description_en"}
@@ -220,6 +222,27 @@ async def cmd_fetch_ddragon(args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_refresh_question_stats(_: argparse.Namespace) -> int:
+    """Corre el job `refresh_question_stats` una vez, a mano.
+
+    Es un `main()` que abre una sesión y llama a un service, que es la forma que ADR-015 le da a
+    los jobs de fondo. Programarlo cada 15 minutos en el proceso worker es parte del despliegue
+    (`docs/10-arquitectura.md` §1 y §4) y llega con la semana 7; hasta entonces se dispara desde
+    acá, que es suficiente para desarrollo y para el piloto cerrado.
+    """
+    async with get_sessionmaker()() as session:
+        result = await question_stats.refresh(session)
+
+    if result.patch is None:
+        print("AVISO  no hay parche vigente: no hay nada que recalcular", file=sys.stderr)
+        return 0
+    print(
+        f"OK  parche {result.patch}: {result.questions} preguntas recalculadas "
+        f"sobre {result.responses} respuestas"
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="draftsense", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -264,6 +287,11 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--out", required=True)
     fetch.add_argument("--ddragon-version")
     fetch.set_defaults(handler=cmd_fetch_ddragon)
+
+    stats = sub.add_parser(
+        "refresh-question-stats", help="recalcula los denormalizados de questions"
+    )
+    stats.set_defaults(handler=cmd_refresh_question_stats)
 
     return parser
 

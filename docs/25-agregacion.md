@@ -1,6 +1,6 @@
 # 25 — Pipeline de agregación: del respondedor al CSV
 
-> Estado: **v1** · Última revisión: 03/09/2026 · Ola 4 · Desbloquea la semana 9 del cronograma
+> Estado: **v1** · Última revisión: 15/09/2026 · Ola 4 · Desbloquea la semana 9 del cronograma
 
 Qué hace exactamente el sistema con cada dato que produce una persona —los tres que declara al
 entrar y cada respuesta que da después— desde que la fila entra a `responses` hasta que sale como
@@ -949,7 +949,7 @@ quedar anotadas donde corresponde.
 | 1 | La dupla se sigue tomando como competidor, pero su fuerza se parametriza como `a_A + a_B + i_AB`. **Sin esto no existen las filas predichas** que 26 §5 y 20 §5 ya prometen | 20 §5, 26 §5 | Precisión, no cambio. Anotar en ambos |
 | 2 | El tipo 4 usa Rao-Kupper de un umbral, no Bradley-Terry sin empates: `similar` es un dato | 20 §5 | Precisión. Anotar |
 | 3 | `exports` no tiene dónde guardar `power_sigma` ni los umbrales de `_support`, y 26 §2.4 y §3.3 dicen que quedan registrados ahí | 11 §3.11 | **Falta una columna `params jsonb`.** Requiere migración |
-| 4 | `declared_main_role` es `lane_role`, que no tiene valor `fill`, pero `/start` ofrece el botón *Fill*. Hoy un *fill* se guardaría como `NULL` y sería indistinguible de quien omitió | 11 §3.7, 30 §4 | **Inconsistencia.** O se saca el botón, o `declared_main_role` pasa a `text` con su propio `CHECK` |
+| 4 | `declared_main_role` es `lane_role`, que no tiene valor `fill`, pero `/start` ofrecía el botón *Fill*. Un *fill* se habría guardado como `NULL` y habría quedado indistinguible de quien omitió | 11 §3.7, 30 §4 | **Resuelta el 15/09/2026 al implementar `/start`:** se sacó el botón. El campo es una variable de segmentación, nunca un criterio de calidad, y no justificaba cambiar el tipo de una columna del esquema. Anotado en 30 §4 |
 | 5 | El bootstrap sobre comparaciones subestima la incertidumbre; el criterio y la fecha para decidir si se cambia están en §4.7 | 26 §3.2 | Límite declarado, con disparador |
 
 ---

@@ -25,7 +25,7 @@ Los **siete endpoints públicos** están implementados (semana 2), en cuatro cap
 | Carpeta | Qué hay |
 |---|---|
 | `app/routers/` | `health`, `sessions`, `questions`, `responses`, `profile` — montados en `/api/v1` |
-| `app/services/` | `sessions`, `questions`, `answers`, `responses`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias` |
+| `app/services/` | `sessions`, `questions`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias` |
 | `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno |
 | `app/` | `main.py`, `errors.py`, `dependencies.py`, además de `config.py`, `db.py`, `cli.py`, `models/` y `seeds/` |
 
@@ -33,13 +33,21 @@ La organización y sus razones están en
 [ADR-015](../../../docs/13-adr/ADR-015-estructura-en-capas-del-backend.md). **Un service no importa
 nada de `fastapi`**: es la regla que hace verificable todo lo demás.
 
+Desde la semana 3 existe además el **primero de los cuatro jobs de fondo**,
+`refresh_question_stats`, en `app/services/question_stats.py`: recalcula `answer_counts`,
+`exposure_count` y `entropy` de las preguntas del parche vigente, que es lo que hace que
+`build_feedback` deje de devolver `None` y el consenso post-respuesta se muestre. Cubre sólo el
+tipo 1 —es el único que existe— y **no calcula `coverage_deficit` ni retira honeypots**: las dos
+cosas dependen de módulos de la semana 5.
+
 **Lo que todavía no existe, y en qué semana llega:** el sampler completo (5 — hoy
 `GET /questions/next` sortea uniforme sobre el tipo 1), honeypots, retests y trust score (5), los
-`/admin/*` (7) y los cuatro jobs de fondo. `POST /responses` **nunca escribe `is_retest_of`**
-todavía, así que CA-205 está sin cubrir.
+`/admin/*` (7), los otros tres jobs de fondo y la programación del worker cada 15 minutos (7 — hoy
+`refresh_question_stats` se dispara a mano por CLI). `POST /responses` **nunca escribe
+`is_retest_of`** todavía, así que CA-205 está sin cubrir.
 
-50 tests en `tests/`: `test_schema`, `test_sessions`, `test_questions`, `test_responses`,
-`test_profile`, `test_leaderboard` y `test_api_contract`.
+63 tests en `tests/`: `test_schema`, `test_sessions`, `test_questions`, `test_responses`,
+`test_question_stats`, `test_profile`, `test_leaderboard` y `test_api_contract`.
 
 ## Comandos
 
@@ -59,6 +67,8 @@ python -m app.cli seed-settings                   # los 33 parámetros operativo
 python -m app.cli seed-champions --patch 16.17 --released-at 2026-08-25
 python -m app.cli seed-pick-rate --patch 16.17 --file ../infra/seeds/pick_rate_16.17.csv     --source lolalytics --source-url URL --captured-at 2026-09-09
 python -m app.cli fetch-ddragon --out ../infra/seeds/ddragon_champions_snapshot.json
+
+python -m app.cli refresh-question-stats          # recalcula answer_counts, exposure y entropía
 
 uvicorn app.main:app --reload                     # la API en :8000, OpenAPI en /docs
 ```
