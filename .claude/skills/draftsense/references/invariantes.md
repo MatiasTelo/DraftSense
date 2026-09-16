@@ -3,7 +3,7 @@
 Todo lo de acá está cerrado. No se replantea como si fuera una opción abierta; si hay que cambiarlo,
 se escribe un ADR nuevo que reemplace al viejo. Las rutas son relativas a `draftsense/docs/`.
 
-## Las 16 decisiones de arquitectura
+## Las 17 decisiones de arquitectura
 
 Cada línea es la decisión, no el razonamiento. El *por qué* y las alternativas descartadas están en
 el ADR; leerlo entero antes de contradecirlo.
@@ -26,6 +26,7 @@ el ADR; leerlo entero antes de contradecirlo.
 | **014** leaderboard filtra por confianza | La tabla excluye a los `is_flagged` y a los que están debajo de `export.min_trust` (0.30), usando **literalmente la misma clave de `app_settings`** que el filtro de exportación, no una copia |
 | **015** estructura en capas | Backend en cuatro capas con dependencia en un solo sentido: `routers → services → models`, y `schemas` transversal. **Un service no importa nada de `fastapi`.** Todo error sale por `ApiError` con el sobre de `12-api.md` §3; el rate limit se cuenta sobre `responses_by_respondent`, sin Redis |
 | **016** carga inicial del pool | La primera carga del snapshot aplica los cortes de `21-sampler.md` §7.1: top 12 de algún rol → tier 1, top 20 → tier 2, el resto tier 3. Sobre el snapshot de 16.17 da **58 y 96**, no los «~40» y «~80» que estimaba ADR-006, que quedan sin efecto |
+| **017** Tailwind | El frontend se estiliza con **Tailwind v4** vía `@tailwindcss/vite`. Los tokens del maquetado —paleta, las tres familias tipográficas y los tres tamaños del bisel— viven en un bloque `@theme` de `frontend/src/index.css`, que es su **única** representación en el código: un color literal dentro de un componente es un error |
 
 ## Los cinco tipos de pregunta
 
@@ -68,8 +69,6 @@ Hay que conocerlas para no "corregir" un documento hacia el lado equivocado.
 2. **Organización.** Es el **Laboratorio DHARMa**, y el equipo dueño de la línea de investigación se
    nombra como "el laboratorio". Ya no queda ninguna mención a la "Cátedra de Ciencia de Datos" en
    los documentos de entrega ni en la Especificación Técnica.
-3. **Tailwind.** La Especificación Técnica lo fija como sistema de estilos, pero
-   `frontend/package.json` no lo tiene instalado. Sin resolver — preguntar antes de introducirlo.
 
 ## Datos formales de la PPS
 

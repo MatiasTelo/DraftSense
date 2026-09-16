@@ -1,6 +1,6 @@
 # 30 — Flujos e interfaz
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 15/09/2026
 
 Mapa de navegación, maquetado de cada pantalla, estados y microcopy. Todo el texto de esta
 especificación es el literal que ve el usuario, en inglés
@@ -102,16 +102,19 @@ Tres preguntas en una pantalla, con **omitir siempre visible**.
 │  Your rank                  │
 │  [Iron][Bronze][Silver]     │
 │  [Gold][Plat][Emerald]      │
-│  [Diamond][Master+]         │
+│  [Diamond][Master]          │
+│  [Grandmaster][Challenger]  │
 │  [I don't play ranked]      │
 │                             │
 │  Main role                  │
 │  [Top][Jungle][Mid]         │
-│  [Bot][Support][Fill]       │
+│  [Bot][Support]             │
 │                             │
 │  Hours per week             │
 │  [<5][5-15][15-30][30+]     │
 │                             │
+│  Your progress lives in     │
+│  this browser.              │
 │   ┌───────────────────┐     │
 │   │     Continue      │     │
 │   └───────────────────┘     │
@@ -125,6 +128,27 @@ La segunda línea explica **por qué** se pregunta. Sin ella, tres preguntas per
 empezar se leen como un formulario; con ella, como una contribución.
 
 Ninguna respuesta es obligatoria: se puede tocar `Continue` con los tres vacíos.
+
+> **Corregido el 15/09/2026.** Dos chips de este maquetado no cerraban contra el esquema, y se
+> resolvieron al implementar la pantalla:
+>
+> - **`Fill` se saca.** `declared_main_role` es el enum `lane_role`, que no tiene ese valor: un
+>   *fill* se habría guardado como `NULL` y habría quedado indistinguible de quien omitió. Es la
+>   inconsistencia 4 de [`25-agregacion.md`](25-agregacion.md) §12, resuelta por la vía de recortar
+>   el botón y no la de migrar la columna: el campo es una variable de segmentación, nunca un
+>   criterio de calidad, y no justificaba cambiar el tipo de una columna del esquema.
+> - **`Master+` se abre en `Master`, `Grandmaster` y `Challenger`.** `VALID_RANKS` admite los once
+>   valores y el chip colapsado dejaba tres inalcanzables desde la interfaz. La agrupación en
+>   segmentos sigue siendo cosa de la agregación ([`25-agregacion.md`](25-agregacion.md) §3.5), no
+>   de la pantalla.
+>
+> Quedan once chips de rango y cinco de rol, que es exactamente el dominio de cada columna.
+
+> **Agregado el 15/09/2026.** Sobre el botón va una línea más:
+> `Your progress lives in this browser.` Es la única explicación que recibe el usuario de por qué no
+> hay cuenta y de qué pasa si borra las cookies, y cae justo donde se la va a hacer la pregunta.
+> Sale del maquetado de la semana 3 y es aditiva: no cambia ninguna decisión de §10 ni contradice a
+> [ADR-001](13-adr/ADR-001-sin-autenticacion.md).
 
 ---
 
@@ -274,6 +298,11 @@ sesgo que arruinaría los datos.
 | **Rate limit (429)** | Excedió el límite | `Slow down a little — try again in {n} seconds.` con cuenta regresiva |
 | **Pregunta duplicada (409)** | Carrera de doble toque | Se descarta en silencio y se avanza a la siguiente. El usuario no debe ver un error por tocar dos veces |
 | **Sesión perdida** | Cookie borrada | Vuelve a `/` sin mensaje de error; se crea una sesión nueva de forma transparente |
+
+> **Agregado el 15/09/2026.** La cuenta regresiva del `429` se acompaña de una barra de progreso
+> que se vacía con los segundos. El documento pedía «cuenta regresiva» sin fijar la forma; la barra
+> la aporta el maquetado de la semana 3 y además cumple §9, porque comunica la espera sin depender
+> sólo del número.
 
 **Las respuestas no se encolan para envío diferido.** Si una respuesta no se registra, se pierde y
 se le dice al usuario. Reintentar automáticamente al recuperar la conexión arriesga duplicados y

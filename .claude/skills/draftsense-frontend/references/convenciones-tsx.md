@@ -32,6 +32,17 @@ renderizar duplas y campeones individuales con el mismo componente — no escrib
 `RecordedResponse.feedback` es `Feedback | null`: **es `null` mientras la pregunta tiene menos de 20
 respuestas**, y ahí va el mensaje de "sos de los primeros en responder". No lo trates como un error.
 
+## Estilos
+
+Tailwind v4 con `@tailwindcss/vite` (ADR-017). No hay `tailwind.config.js`: los tokens están en el
+bloque `@theme` de `src/index.css` y las utilidades propias (`bevel-8/12/14`, `portrait-hatch`) en
+bloques `@utility` del mismo archivo.
+
+La regla práctica al escribir un componente: **si estás por poner un valor literal —un hex, un
+`clip-path`, un nombre de fuente— el token ya existe o hay que agregarlo a `@theme`**. Lo que sí va
+literal son las medidas del maquetado que no se repiten, con la sintaxis de corchetes:
+`h-[54px]`, `px-[22px]`, `tracking-[0.18em]`.
+
 ## Estado
 
 **Zustand**, para lo mínimo global: sesión, cola de preguntas y racha. El resto es estado local del

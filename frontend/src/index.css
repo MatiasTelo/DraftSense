@@ -1,0 +1,111 @@
+/**
+ * Tokens de diseño y utilidades propias.
+ *
+ * Los valores salen del maquetado de las cinco pantallas y no se re-derivan acá: este archivo es
+ * su única representación en el código (ADR-017). Escribir un color literal en un componente es un
+ * error, no una abreviatura — un cambio de paleta tiene que alcanzar a toda la aplicación desde
+ * este bloque.
+ */
+
+@import 'tailwindcss';
+
+@theme {
+  /* Tres familias, cada una con un trabajo. Se cargan en index.html. */
+  --font-display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+
+  /* Superficies, de la más honda a la más cercana. */
+  --color-void: #07090d;
+  --color-surface: #0b0f14;
+  --color-nav: #080b0f;
+  --color-panel: #0f1419;
+  --color-control: #12171e;
+  --color-rail: #171d25;
+  --color-skeleton: #141922;
+  --color-portrait: #1b2129;
+
+  /* Acentos. El dorado es el primario; el cyan marca lo informativo —la definición
+     desplegable, la espera del 429— y nunca compite con él por la acción. */
+  --color-gold: #e4b457;
+  --color-gold-bright: #f2ce86;
+  --color-cyan: #58c7d8;
+  --color-green: #7bd88f;
+
+  /* Texto, de más a menos contraste. */
+  --color-ink: #e9edf3;
+  --color-ink-2: #dde4ec;
+  --color-ink-3: #c3ccd8;
+  --color-ink-4: #aeb9c7;
+  --color-mute: #8a96a6;
+  --color-mute-2: #7c8797;
+  --color-label: #6e7a8a;
+  --color-faint: #5c6675;
+  --color-inert: #4b5666;
+
+  /* Bordes: siempre blanco con alfa, para que funcionen sobre cualquier superficie. */
+  --color-edge: rgb(255 255 255 / 0.08);
+  --color-edge-soft: rgb(255 255 255 / 0.06);
+  --color-edge-strong: rgb(255 255 255 / 0.16);
+}
+
+/**
+ * La esquina biselada es la firma visual del sistema: no hay `border-radius` en ninguna parte
+ * salvo el círculo del ícono de ayuda. Va como utilidad y no repetida en cada componente porque
+ * los tres tamaños tienen que moverse juntos si alguna vez cambian.
+ */
+@utility bevel-8 {
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+@utility bevel-12 {
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
+}
+
+@utility bevel-14 {
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+}
+
+/** El retrato de campeón mientras la imagen del CDN de Riot no llegó, o no va a llegar. */
+@utility portrait-hatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-skeleton) 0 6px,
+    var(--color-portrait) 6px 12px
+  );
+}
+
+@layer base {
+  html {
+    background: var(--color-void);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-void);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* El foco tiene que verse: en escritorio la tarjeta se responde con el teclado (§9). */
+  :focus-visible {
+    outline: 2px solid var(--color-cyan);
+    outline-offset: 2px;
+  }
+}

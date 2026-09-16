@@ -20,15 +20,23 @@ la difusión es por Reddit y Discord.
 
 ## Estado actual
 
-`src/` es andamiaje. `App.tsx` es sólo el landing —existe para que el pipeline de despliegue esté
-operativo desde la semana 1— y `api.ts` tiene los tipos del contrato. **Las pantallas se implementan
-desde la semana 3** según `docs/30-ux-flujos.md`.
+**Las cinco pantallas existen** desde la semana 3: `/` landing, `/start` onboarding, `/play` motor
+de tarjetas, `/me` perfil y `/leaderboard`. React Router monta las rutas en `App.tsx`; el maquetado
+sale del canvas de Claude Design, que las diseñó a partir de `docs/30-ux-flujos.md`.
 
-Desde la semana 2 `api.ts` cubre el contrato entero: la pregunta y su unión discriminada, más
-`SessionResponse`, `OnboardingRequest`, `QuestionBatch`, `ResponseRequest`, `MeResponse`,
-`LeaderboardResponse` y `ApiErrorBody`. **La API ya está en pie** (`uvicorn app.main:app --reload`
-en `:8000`, con el proxy de Vite apuntando ahí), así que las pantallas se escriben contra un
-servidor real y no contra mocks.
+| Carpeta | Qué hay |
+|---|---|
+| `src/lib/` | `client.ts` (una función por endpoint, `ApiError` y `NetworkError`) y `fingerprint.ts` |
+| `src/store/` | `session.ts` (identidad y contadores) y `queue.ts` (cola de preguntas y precarga) |
+| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `PairwiseDimensionCard`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
+| `src/screens/` | Una por ruta |
+
+**Del motor de tarjetas sólo está el tipo 1.** `QuestionCard` tiene una rama por tipo y las otras
+cuatro devuelven `null`: llegan en las semanas 4 y 8, y hoy el servidor no puede mandarlas.
+
+`api.ts` cubre el contrato entero y **es espejo de `docs/12-api.md`**. La API está en pie
+(`uvicorn app.main:app --reload` en `:8000`, con el proxy de Vite apuntando ahí), así que las
+pantallas se escriben y se prueban contra un servidor real.
 
 Dos cosas a tener en cuenta al escribirlas:
 
@@ -52,6 +60,23 @@ npm run build       # tsc --noEmit && vite build
 ```
 
 Las cuatro últimas son las que corre CI, en ese orden, más el presupuesto de bundle.
+
+## Estilos: Tailwind v4
+
+Decidido en [ADR-017](../../../docs/13-adr/ADR-017-tailwind-como-sistema-de-estilos.md). Se integra
+con `@tailwindcss/vite`, no con PostCSS, y **no hay `tailwind.config.js`**: todo vive en
+`src/index.css`.
+
+- **Los tokens están en el bloque `@theme`** y son la única representación de los valores de diseño
+  en el código. Escribir `#E4B457` dentro de un componente es un error, no una abreviatura: usá
+  `bg-gold`. Lo mismo con las tres familias (`font-display`, `font-sans`, `font-mono`).
+- **La esquina biselada es la firma visual** y va como utilidad propia: `bevel-8`, `bevel-12`,
+  `bevel-14`. **No hay `border-radius` en ninguna parte** salvo el círculo del ícono de ayuda y el
+  *thumb* del slider del tipo 2.
+- Los bordes son siempre blanco con alfa (`border-edge`, `border-white/7`…), nunca un gris opaco:
+  tienen que funcionar sobre cualquiera de las seis superficies.
+- El área táctil mínima es de 44 px (`min-h-11`) en toda opción seleccionable, y las opciones de
+  lista miden 52 (`min-h-[52px]`).
 
 ## Las reglas que no se negocian
 
@@ -88,14 +113,6 @@ va el mensaje de "sos de los primeros en responder"
 ([ADR-012](../../../docs/13-adr/ADR-012-sampler-uniforme-en-arranque-en-frio.md), texto exacto en
 `docs/30-ux-flujos.md`).
 
-## Preguntá antes de resolver esto
-
-**Tailwind CSS no está instalado.** La `DraftSense_Especificacion_Tecnica.md` lo fija como sistema de
-estilos mobile-first, pero `package.json` no lo tiene entre las dependencias y no hay
-`tailwind.config`. Antes de escribir estilos: preguntá si se instala Tailwind o si se va con CSS
-propio. **No lo agregues por tu cuenta ni empieces a acumular CSS ad-hoc dando por sentada la
-respuesta** — pesa sobre el presupuesto de bundle y es una decisión de stack.
-
 ## Cuándo leer la referencia
 
 - **`references/convenciones-tsx.md`** — al escribir cualquier `.ts`/`.tsx`: configuración de
@@ -107,5 +124,5 @@ el enunciado y la UI de cada tipo de pregunta, en `docs/20-tipos-de-pregunta.md`
 ## Mantener esta skill al día
 
 Si cambian `docs/30-ux-flujos.md`, `docs/20-tipos-de-pregunta.md`, `docs/12-api.md` o
-`frontend/package.json`, revisar que lo de acá siga siendo cierto — sobre todo la nota de Tailwind,
-que hay que borrar en cuanto se resuelva.
+`frontend/package.json`, revisar que lo de acá siga siendo cierto — sobre todo el inventario de
+`src/`, que crece con cada tipo de pregunta nuevo.

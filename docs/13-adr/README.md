@@ -27,6 +27,7 @@ escribe uno nuevo. El registro es histórico.
 | [014](ADR-014-leaderboard-filtra-por-confianza.md) | La tabla de posiciones filtra por confianza, sin exponerla | aceptada |
 | [015](ADR-015-estructura-en-capas-del-backend.md) | Backend en cuatro capas: routers, services, schemas, models | aceptada |
 | [016](ADR-016-carga-inicial-del-pool.md) | La carga inicial del pool usa los cortes de la regla de promoción | aceptada |
+| [017](ADR-017-tailwind-como-sistema-de-estilos.md) | Tailwind CSS como sistema de estilos del frontend | aceptada |
 
 ## Cuál merece un ADR
 
