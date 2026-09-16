@@ -25,8 +25,8 @@ Los **siete endpoints públicos** están implementados (semana 2), en cuatro cap
 | Carpeta | Qué hay |
 |---|---|
 | `app/routers/` | `health`, `sessions`, `questions`, `responses`, `profile` — montados en `/api/v1` |
-| `app/services/` | `sessions`, `questions`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias` |
-| `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno |
+| `app/services/` | `sessions`, `questions`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias` |
+| `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno; `common.is_absent` para omitir claves |
 | `app/` | `main.py`, `errors.py`, `dependencies.py`, además de `config.py`, `db.py`, `cli.py`, `models/` y `seeds/` |
 
 La organización y sus razones están en
@@ -36,18 +36,34 @@ nada de `fastapi`**: es la regla que hace verificable todo lo demás.
 Desde la semana 3 existe además el **primero de los cuatro jobs de fondo**,
 `refresh_question_stats`, en `app/services/question_stats.py`: recalcula `answer_counts`,
 `exposure_count` y `entropy` de las preguntas del parche vigente, que es lo que hace que
-`build_feedback` deje de devolver `None` y el consenso post-respuesta se muestre. Cubre sólo el
-tipo 1 —es el único que existe— y **no calcula `coverage_deficit` ni retira honeypots**: las dos
-cosas dependen de módulos de la semana 5.
+`build_feedback` deje de devolver `None` y el consenso post-respuesta se muestre. **No calcula
+`coverage_deficit` ni retira honeypots**: las dos cosas dependen de módulos de la semana 5.
 
-**Lo que todavía no existe, y en qué semana llega:** el sampler completo (5 — hoy
-`GET /questions/next` sortea uniforme sobre el tipo 1), honeypots, retests y trust score (5), los
-`/admin/*` (7), los otros tres jobs de fondo y la programación del worker cada 15 minutos (7 — hoy
-`refresh_question_stats` se dispara a mano por CLI). `POST /responses` **nunca escribe
+**Semana 4: los tipos 2 (`peak_timing`) y 3 variante 1v1 (`lane_matchup`)**, de punta a punta:
+
+- `GET /questions/next` sirve los tres tipos: las 3 primeras de un respondedor son de tipo 1 y
+  después el tipo se sortea con `TYPE_WEIGHTS` (50/20/15 renormalizado), uniforme adentro. Es
+  todavía el reemplazo provisorio del sampler; lee su docstring antes de tocarlo.
+- La respuesta es una unión discriminada (`QuestionOut`). Los textos de los tipos 2 y 3 son
+  constantes de `question_texts.py`, no filas de la base ([ADR-018](../../../docs/13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md)).
+- `build_feedback` devuelve la mediana entera en el tipo 2; el acuerdo del tipo 3 es contra el
+  nivel exacto. Las claves que no aplican se **omiten** con `Field(exclude_if=is_absent)`, que
+  exige `pydantic>=2.13`.
+- El job cubre los tres tipos, cada uno con su entropía (`docs/21-sampler.md` §3.2).
+- `champions.roles` sale del snapshot de pick rate
+  ([ADR-019](../../../docs/13-adr/ADR-019-roles-derivados-del-snapshot.md)): lo aplica
+  `seed-pick-rate`, y `sync-roles` sobre un snapshot ya cargado.
+
+**Lo que todavía no existe, y en qué semana llega:** el sampler completo con la regla de variedad
+(5), honeypots, retests y trust score (5), los `/admin/*` (7), los otros tres jobs de fondo y la
+programación del worker cada 15 minutos (7 — hoy `refresh_question_stats` se dispara a mano por
+CLI), la variante 2v2 del tipo 3 y los tipos 4 y 5 (8). `POST /responses` **nunca escribe
 `is_retest_of`** todavía, así que CA-205 está sin cubrir.
 
-63 tests en `tests/`: `test_schema`, `test_sessions`, `test_questions`, `test_responses`,
-`test_question_stats`, `test_profile`, `test_leaderboard` y `test_api_contract`.
+115 tests en `tests/`: `test_schema`, `test_sessions`, `test_questions`, `test_responses`,
+`test_question_stats`, `test_profile`, `test_leaderboard`, `test_seeds` y `test_api_contract`.
+Los que prueban el sorteo lo hacen con `random.Random(seed)` o forzando `TYPE_WEIGHTS`, y tienen
+que pasar igual contra la base vacía de CI y contra el pool real de staging.
 
 ## Comandos
 
@@ -66,6 +82,7 @@ python -m app.cli seed-catalog                    # 8 dimensiones y 7 atributos
 python -m app.cli seed-settings                   # los 33 parámetros operativos
 python -m app.cli seed-champions --patch 16.17 --released-at 2026-08-25
 python -m app.cli seed-pick-rate --patch 16.17 --file ../infra/seeds/pick_rate_16.17.csv     --source lolalytics --source-url URL --captured-at 2026-09-09
+python -m app.cli sync-roles --patch 16.17        # roles desde el snapshot ya cargado (ADR-019)
 python -m app.cli fetch-ddragon --out ../infra/seeds/ddragon_champions_snapshot.json
 
 python -m app.cli refresh-question-stats          # recalcula answer_counts, exposure y entropía
@@ -75,7 +92,10 @@ uvicorn app.main:app --reload                     # la API en :8000, OpenAPI en 
 
 `seed-settings` **no pisa** los valores existentes sin `--force`: `app_settings` es el estado
 actual del sistema y el seed es sólo el inicial. `seed-pick-rate` deriva `pool_tier` del snapshot
-con la regla de [ADR-016](../../../docs/13-adr/ADR-016-carga-inicial-del-pool.md).
+con la regla de [ADR-016](../../../docs/13-adr/ADR-016-carga-inicial-del-pool.md) y los roles con
+la de ADR-019. No se puede repetir sobre el mismo snapshot (restricción única por fuente, parche y
+fecha): para re-aplicar los roles está `sync-roles`, que **escribe en la base** y no crea ni cambia
+el parche vigente.
 
 La configuración se lee del entorno con prefijo `DS_` y desde `backend/.env`
 (`DS_DATABASE_URL`, `DS_ADMIN_KEY`, `DS_CORS_ORIGIN`, `DS_DDRAGON_BASE_URL`). **`.env` está en

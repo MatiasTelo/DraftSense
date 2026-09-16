@@ -26,9 +26,10 @@ async def next_questions(
 ) -> QuestionBatch:
     """El próximo lote. Se piden de a lotes para que la interfaz no espere entre tarjeta y tarjeta.
 
-    En la semana 2 devuelve sólo preguntas de tipo `pairwise_dimension`, sorteadas de forma
-    uniforme: es el régimen de arranque en frío de ADR-012, y el sampler completo es de la
-    semana 5. Ver el docstring de `app/services/questions.py`.
+    Desde la semana 4 mezcla los tipos 1, 2 y la variante 1v1 del 3, con las tres primeras
+    preguntas de tipo 1 y sorteo uniforme dentro de cada tipo: es el régimen de arranque en frío
+    de ADR-012, y el sampler completo es de la semana 5. Ver el docstring de
+    `app/services/questions.py`.
     """
     if not MIN_COUNT <= count <= MAX_COUNT:
         raise ApiError(

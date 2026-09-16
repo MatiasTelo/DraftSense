@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import type { Answer, Feedback, Question } from '../api';
+import type { PairwiseChoice } from '../components/PairwiseDimensionCard';
 import { AppFrame } from '../components/AppFrame';
 import { BottomNav, TopBar } from '../components/Chrome';
 import { FeedbackOverlay } from '../components/FeedbackOverlay';
@@ -35,20 +36,55 @@ interface Shown {
   labels: { key: string; label: string }[];
   yourKey: string;
   streak: number;
+  unit?: string;
+  layout: 'inline' | 'stacked';
 }
 
 /**
  * Las etiquetas de las barras del feedback.
  *
- * El servidor manda el consenso por clave (`a`, `b`, `unknown`); los nombres están en la pregunta
- * que el cliente ya tiene. No se compone ningún enunciado acá: se lee el que vino.
+ * El servidor manda el consenso por clave (`a`, `b`, `unknown`, o los cinco niveles del tipo 3);
+ * los textos están en la pregunta que el cliente ya tiene. No se compone ningún enunciado acá: se
+ * lee el que vino. El tipo 2 no tiene barras: su consenso es una mediana.
  */
 function optionLabels(question: Question): { key: string; label: string }[] {
-  if (question.type !== 'pairwise_dimension') return [];
-  return question.options.map((option) => ({
-    key: option.key,
-    label: option.champions[0]?.name ?? option.label ?? option.key,
-  }));
+  switch (question.type) {
+    case 'pairwise_dimension':
+      return question.options.map((option) => ({
+        key: option.key,
+        label: option.champions[0]?.name ?? option.label ?? option.key,
+      }));
+    case 'lane_matchup':
+      return question.options.map(({ key, label }) => ({ key, label }));
+    case 'peak_timing':
+    case 'duo_synergy':
+    case 'trait_multiselect':
+      return [];
+  }
+}
+
+/**
+ * Las teclas `1`–`5` eligen la opción en el orden de la tarjeta (§9), en los tipos que registran
+ * al primer toque. El tipo 2 confirma con `Enter`, y eso lo resuelve su propia tarjeta, que es la
+ * que conoce el valor del slider.
+ */
+function answerForDigit(question: Question, key: string): Answer | undefined {
+  const index = Number.parseInt(key, 10) - 1;
+  if (Number.isNaN(index)) return undefined;
+  switch (question.type) {
+    case 'pairwise_dimension': {
+      const option = question.options[index];
+      return option === undefined ? undefined : { choice: option.key as PairwiseChoice };
+    }
+    case 'lane_matchup': {
+      const option = question.options[index];
+      return option === undefined ? undefined : { choice: option.key };
+    }
+    case 'peak_timing':
+    case 'duo_synergy':
+    case 'trait_multiselect':
+      return undefined;
+  }
 }
 
 function chosenKey(answer: Answer): string {
@@ -76,6 +112,13 @@ export function Play() {
   const question = questions[0];
   /** Cuándo se pintó la tarjeta. Es el origen de `response_time_ms` (RF-109). */
   const shownAt = useRef(0);
+  /**
+   * Candado sincrónico contra el doble envío. El estado de React llega a los manejadores recién en
+   * el render siguiente, y en ese intervalo un segundo toque —o `Enter` justo después de un clic—
+   * pasaría la guarda. Se libera cuando cambia la tarjeta o cuando el envío falla y la tarjeta
+   * queda para volver a intentar.
+   */
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!ready) void bootstrap();
@@ -89,6 +132,7 @@ export function Play() {
   useEffect(() => {
     setHelpOpen(false);
     setSendError(null);
+    inFlight.current = false;
     shownAt.current = performance.now();
   }, [question?.question_id]);
 
@@ -107,22 +151,28 @@ export function Play() {
 
   const submit = useCallback(
     async (answer: Answer) => {
-      if (question === undefined || sending || shown !== null || cooldown !== null) return;
+      if (question === undefined || inFlight.current) return;
+      if (sending || shown !== null || cooldown !== null) return;
+      inFlight.current = true;
+      let recorded = false;
       setSending(true);
       setSendError(null);
       try {
-        const recorded = await postResponse({
+        const result = await postResponse({
           question_id: question.question_id,
           answer,
           response_time_ms: Math.round(performance.now() - shownAt.current),
         });
-        applyProgress(recorded.progress);
+        applyProgress(result.progress);
         setShown({
-          feedback: recorded.feedback,
+          feedback: result.feedback,
           labels: optionLabels(question),
           yourKey: chosenKey(answer),
-          streak: recorded.progress.current_streak,
+          streak: result.progress.current_streak,
+          unit: question.type === 'peak_timing' ? question.slider.unit : undefined,
+          layout: question.type === 'lane_matchup' ? 'stacked' : 'inline',
         });
+        recorded = true;
       } catch (error) {
         if (error instanceof ApiError && error.code === 'duplicate_response') {
           // CA-502 — carrera de doble toque. Se descarta en silencio y se sigue.
@@ -134,6 +184,8 @@ export function Play() {
           setSendError(error);
         }
       } finally {
+        // Registrada, la tarjeta se va y el candado se libera con la siguiente. Si no, queda.
+        if (!recorded) inFlight.current = false;
         setSending(false);
       }
     },
@@ -158,10 +210,11 @@ export function Play() {
         setHelpOpen((open) => !open);
         return;
       }
-      if (question?.type !== 'pairwise_dimension') return;
-      const index = Number.parseInt(event.key, 10) - 1;
-      const option = question.options[index];
-      if (option !== undefined) void submit({ choice: option.key as 'a' | 'b' | 'unknown' });
+      // `onKeyDown` es una declaración y se eleva: TypeScript no arrastra el estrechamiento de
+      // arriba hasta acá.
+      if (question === undefined) return;
+      const answer = answerForDigit(question, event.key);
+      if (answer !== undefined) void submit(answer);
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -173,7 +226,10 @@ export function Play() {
 
       <main className="relative flex flex-1 flex-col">
         {question !== undefined ? (
+          // La `key` por pregunta desmonta la tarjeta anterior: el valor del slider del tipo 2 es
+          // estado local y, sin esto, pasaría de un pico al siguiente.
           <QuestionCard
+            key={question.question_id}
             question={question}
             helpOpen={helpOpen}
             onToggleHelp={() => setHelpOpen((open) => !open)}
@@ -224,6 +280,8 @@ export function Play() {
             labels={shown.labels}
             yourKey={shown.yourKey}
             streak={shown.streak}
+            unit={shown.unit}
+            layout={shown.layout}
           />
         )}
       </main>

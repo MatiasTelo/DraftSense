@@ -1,6 +1,6 @@
 # 11 — Modelo de datos
 
-> Estado: **v1** · Última revisión: 09/09/2026 · Motor: PostgreSQL 16
+> Estado: **v1** · Última revisión: 16/09/2026 · Motor: PostgreSQL 16
 
 Esquema completo, diccionario de datos, esquemas de validación de las respuestas y estrategia de
 migraciones. El DDL de este documento es **ejecutable tal cual**: se corre contra un Postgres 16
@@ -126,6 +126,11 @@ CREATE INDEX champions_roles_gin   ON champions USING gin (roles);
 `pool_tier` implementa el pool escalonado: **1** = núcleo inicial (~40 campeones), **2** = expansión
 (~80), **3** = el resto. El sampler sólo genera preguntas sobre los tiers habilitados. Promover un
 campeón es un `UPDATE`, no un deploy. Ver [ADR-006](13-adr/ADR-006-pool-escalonado-por-pick-rate.md).
+
+> **Agregado el 16/09/2026.** `roles` se carga primero con valores provisorios derivados de las
+> clases de Data Dragon, y el snapshot de pick rate los reemplaza por los carriles en que el
+> campeón figura entre los 30 más elegidos
+> ([ADR-019](13-adr/ADR-019-roles-derivados-del-snapshot.md)).
 
 ### 3.4 `pick_rate_snapshots` y `pick_rate_entries`
 
@@ -392,6 +397,17 @@ CREATE INDEX questions_bridges   ON questions (patch_id, dimension_id) WHERE bri
 
 `answer_counts` guarda la distribución observada, por ejemplo `{"a": 231, "b": 74, "unknown": 12}`.
 La lee el feedback post-respuesta y de ella se deriva `entropy`.
+
+> **Agregado el 16/09/2026.** Las claves de `answer_counts` dependen del tipo:
+>
+> | Tipo | Claves | Ejemplo |
+> |---|---|---|
+> | `pairwise_dimension` | `a`, `b`, `unknown` | `{"a": 231, "b": 74, "unknown": 12}` |
+> | `peak_timing` | el minuto, como texto | `{"26": 14, "27": 9, "30": 3}` |
+> | `lane_matchup` | los cinco niveles de la escala | `{"a_strong": 8, "a_slight": 12, "even": 5}` |
+>
+> En `peak_timing` es un histograma: la clave es texto porque las claves de un objeto JSON lo son, y
+> quien lo lea tiene que ordenarlas como números. Una opción que nadie eligió no aparece.
 
 `coverage_deficit` es el tercer término de la función de prioridad del sampler: cuánto le falta al
 campeón peor cubierto de esta pregunta para llegar a la mediana global de cobertura. Está

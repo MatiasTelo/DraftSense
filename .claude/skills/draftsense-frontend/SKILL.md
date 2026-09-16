@@ -28,11 +28,23 @@ sale del canvas de Claude Design, que las diseñó a partir de `docs/30-ux-flujo
 |---|---|
 | `src/lib/` | `client.ts` (una función por endpoint, `ApiError` y `NetworkError`) y `fingerprint.ts` |
 | `src/store/` | `session.ts` (identidad y contadores) y `queue.ts` (cola de preguntas y precarga) |
-| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `PairwiseDimensionCard`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
+| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `PairwiseDimensionCard`, `PeakTimingCard`, `LaneMatchupCard`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
 | `src/screens/` | Una por ruta |
 
-**Del motor de tarjetas sólo está el tipo 1.** `QuestionCard` tiene una rama por tipo y las otras
-cuatro devuelven `null`: llegan en las semanas 4 y 8, y hoy el servidor no puede mandarlas.
+**Del motor de tarjetas están el tipo 1, el tipo 2 y la variante 1v1 del tipo 3** (semana 4).
+`QuestionCard` tiene una rama por tipo; `duo_synergy` y `trait_multiselect` devuelven `null` hasta
+la semana 8, igual que la variante 2v2, y hoy el servidor no puede mandarlos.
+
+Tres cosas de la semana 4 que no hay que deshacer:
+
+- **`Play` monta cada tarjeta con `key={question_id}`.** El valor del slider del tipo 2 es estado
+  local de `PeakTimingCard`: sin la `key`, pasa de un pico al siguiente. Hay un test que lo cuida.
+- **`Enter` lo maneja la tarjeta que tiene confirmación**, no `Play`, porque es la que conoce el
+  valor. Ignora el `Enter` sobre un botón con foco, que el navegador ya convierte en clic. `Play`
+  además tiene un candado sincrónico (`inFlight`) contra el doble envío.
+- **`FeedbackOverlay` tiene dos layouts.** `inline` es el del maquetado del tipo 1; `stacked` pone
+  la barra debajo de la etiqueta, porque «Nunu & Willump wins slightly» no entra en 78 px. El
+  tipo 2 no tiene barras: dice la mediana en una frase.
 
 `api.ts` cubre el contrato entero y **es espejo de `docs/12-api.md`**. La API está en pie
 (`uvicorn app.main:app --reload` en `:8000`, con el proxy de Vite apuntando ahí), así que las
@@ -72,7 +84,9 @@ con `@tailwindcss/vite`, no con PostCSS, y **no hay `tailwind.config.js`**: todo
   `bg-gold`. Lo mismo con las tres familias (`font-display`, `font-sans`, `font-mono`).
 - **La esquina biselada es la firma visual** y va como utilidad propia: `bevel-8`, `bevel-12`,
   `bevel-14`. **No hay `border-radius` en ninguna parte** salvo el círculo del ícono de ayuda y el
-  *thumb* del slider del tipo 2.
+  *thumb* del slider del tipo 2, que vive en la utilidad `range-slider` sobre el
+  `<input type="range">` nativo. La parte recorrida de la pista se pinta con la variable `--fill`,
+  que pone el componente.
 - Los bordes son siempre blanco con alfa (`border-edge`, `border-white/7`…), nunca un gris opaco:
   tienen que funcionar sobre cualquiera de las seis superficies.
 - El área táctil mínima es de 44 px (`min-h-11`) en toda opción seleccionable, y las opciones de

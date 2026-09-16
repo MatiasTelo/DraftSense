@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import is_absent
+
 
 class ResponseIn(BaseModel):
     question_id: int
@@ -16,12 +18,18 @@ class ResponseIn(BaseModel):
 
 
 class Feedback(BaseModel):
-    """Se omite entero cuando el soporte es menor a 20 (ADR-012, RF-114)."""
+    """Se omite entero cuando el soporte es menor a 20 (ADR-012, RF-114).
 
-    consensus: dict[str, float] | None = None
-    consensus_median: float | None = None
-    your_answer: float | None = None
-    agreed_with_majority: bool | None = None
+    Cada tipo usa un subconjunto de campos: los de elección, `consensus` y
+    `agreed_with_majority`; el tipo 2, `consensus_median` y `your_answer`. Los que no aplican no
+    viajan, ni siquiera en `null` (`docs/12-api.md` §2.4).
+    """
+
+    consensus: dict[str, float] | None = Field(default=None, exclude_if=is_absent)
+    #: Entero: la mediana sin ponderar de `answer_counts`, con el medio redondeado hacia arriba.
+    consensus_median: int | None = Field(default=None, exclude_if=is_absent)
+    your_answer: int | None = Field(default=None, exclude_if=is_absent)
+    agreed_with_majority: bool | None = Field(default=None, exclude_if=is_absent)
     sample_size: int
 
 

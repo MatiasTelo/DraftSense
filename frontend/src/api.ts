@@ -55,11 +55,16 @@ export interface PeakTimingQuestion extends QuestionBase {
   };
 }
 
+/** La escala del tipo 3, de «gana A por mucho» a «gana B por mucho». */
+export type LaneChoice = 'a_strong' | 'a_slight' | 'even' | 'b_slight' | 'b_strong';
+
 export interface LaneMatchupQuestion extends QuestionBase {
   type: 'lane_matchup';
+  /** `label` es el carril en mayúsculas (`TOP`, `MID`, `ADC`); el 2v2 manda `duo_context`. */
   context: { role?: string; duo_context?: string; label: string };
   sides: Side[];
-  options: { key: string; label: string }[];
+  /** Las cinco etiquetas llegan con los nombres ya puestos: «Syndra wins hard» (CA-104). */
+  options: { key: LaneChoice; label: string }[];
 }
 
 export interface DuoSynergyQuestion extends QuestionBase {
@@ -86,7 +91,7 @@ export type Question =
 export type Answer =
   | { choice: 'a' | 'b' | 'unknown' }
   | { minute: number }
-  | { choice: 'a_strong' | 'a_slight' | 'even' | 'b_slight' | 'b_strong' }
+  | { choice: LaneChoice }
   | { choice: 'pair_1' | 'pair_2' | 'similar' }
   | { traits: string[] };
 
@@ -100,6 +105,10 @@ export interface Progress {
   agreement_rate: number;
 }
 
+/**
+ * Cada tipo trae sólo sus claves: los de elección, `consensus` y `agreed_with_majority`; el tipo 2,
+ * `consensus_median` y `your_answer` (`docs/12-api.md` §2.4). Las que no aplican no vienen.
+ */
 export interface Feedback {
   consensus?: Record<string, number>;
   consensus_median?: number;

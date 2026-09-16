@@ -1,13 +1,16 @@
-"""Carga del snapshot de pick rate y asignación del pool escalonado.
+"""Carga del snapshot de pick rate: asignación del pool escalonado y de los roles.
 
 El snapshot es la única fuente del pool: `pool_tier` se deriva de él con la regla de
-`docs/21-sampler.md` §7.1, no de un juicio del administrador (ADR-006, ADR-016).
+`docs/21-sampler.md` §7.1, no de un juicio del administrador (ADR-006, ADR-016). También es la
+fuente de `champions.roles`: un campeón juega los carriles en los que figura (ADR-019).
 """
 
 from __future__ import annotations
 
 import csv
 import datetime as dt
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import NamedTuple
@@ -72,6 +75,76 @@ def validate_pick_rate(rows: list[SnapshotRow]) -> list[str]:
     return problems
 
 
+@dataclass(slots=True)
+class PickRateResult:
+    """Lo que el comando informa al terminar la carga."""
+
+    loaded: int
+    #: Campeones por tier, sobre el catálogo entero.
+    tiers: dict[int, int]
+    #: Nombres del snapshot sin correspondencia en el catálogo.
+    unmatched: list[str]
+    #: Campeones cuyos roles se tomaron del snapshot.
+    roles_updated: int
+
+
+def roles_by_champion(entries: Iterable[tuple[int, LaneRole]]) -> dict[int, list[LaneRole]]:
+    """Los roles de cada campeón: todos los carriles en los que aparece (ADR-019).
+
+    Se ordenan por valor, igual que los roles provisorios de `seed-champions`, para que dos cargas
+    del mismo snapshot escriban exactamente el mismo arreglo.
+    """
+    roles: dict[int, set[LaneRole]] = {}
+    for champion_id, role in entries:
+        roles.setdefault(champion_id, set()).add(LaneRole(role))
+    return {
+        champion_id: sorted(values, key=lambda r: r.value) for champion_id, values in roles.items()
+    }
+
+
+async def write_roles(session: AsyncSession, roles: Mapping[int, list[LaneRole]]) -> int:
+    """Reemplaza `roles` de los campeones indicados. **No hace commit.**
+
+    Los campeones que no están en `roles` no se tocan: si un campeón no figura en el snapshot,
+    conserva lo que tenía. Los objetos ya cargados en la sesión quedan desactualizados; quien los
+    necesite tiene que refrescarlos.
+    """
+    if not roles:
+        return 0
+    await session.execute(
+        sa.update(Champion),
+        [{"champion_id": champion_id, "roles": values} for champion_id, values in roles.items()],
+    )
+    return len(roles)
+
+
+async def latest_snapshot_id(session: AsyncSession, patch_id: int) -> int | None:
+    """El snapshot más reciente del parche. A igual fecha de captura, el último cargado."""
+    result = await session.execute(
+        sa.select(PickRateSnapshot.snapshot_id)
+        .where(PickRateSnapshot.patch_id == patch_id)
+        .order_by(PickRateSnapshot.captured_at.desc(), PickRateSnapshot.snapshot_id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def sync_roles(session: AsyncSession, snapshot_id: int) -> int:
+    """Aplica los roles de un snapshot que ya está en la base. **No hace commit.**
+
+    Existe porque el snapshot de 16.17 se cargó antes de ADR-019, y `seed-pick-rate` no se puede
+    repetir: `pick_rate_snapshots` tiene una restricción única por fuente, parche y fecha.
+    """
+    entries = (
+        await session.execute(
+            sa.select(PickRateEntry.champion_id, PickRateEntry.role).where(
+                PickRateEntry.snapshot_id == snapshot_id
+            )
+        )
+    ).all()
+    return await write_roles(session, roles_by_champion((c, r) for c, r in entries))
+
+
 def tier_for(best_rank: int) -> int:
     """El tier que le corresponde a un campeón según su mejor puesto entre todos sus roles."""
     if best_rank <= TIER_1_RANK:
@@ -90,10 +163,9 @@ async def seed_pick_rate(
     source_url: str,
     captured_at: dt.date,
     notes: str | None = None,
-) -> tuple[int, dict[int, int], list[str]]:
-    """Registra el snapshot y reasigna `pool_tier`.
+) -> PickRateResult:
+    """Registra el snapshot, reasigna `pool_tier` y reemplaza los roles de los que aparecen.
 
-    Devuelve (entradas cargadas, campeones por tier, nombres sin correspondencia en el catálogo).
     Los nombres que no resuelven **no se descartan en silencio**: se devuelven para que el
     comando los informe. Un campeón que el snapshot menciona y el catálogo no tiene significa
     que `seed-champions` corrió contra otro parche.
@@ -149,5 +221,11 @@ async def seed_pick_rate(
         )
     counts[3] = len(by_name) - counts[1] - counts[2]
 
+    roles_updated = await write_roles(
+        session, roles_by_champion((by_name[r.champion_name], r.role) for r in matched)
+    )
+
     await session.commit()
-    return len(matched), counts, unmatched
+    return PickRateResult(
+        loaded=len(matched), tiers=counts, unmatched=unmatched, roles_updated=roles_updated
+    )

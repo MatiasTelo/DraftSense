@@ -14,7 +14,16 @@ from httpx import AsyncClient
 from sqlalchemy import Engine, event
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Champion, Dimension, Patch, Question, QuestionType, Respondent, Response
+from app.models import (
+    Champion,
+    Dimension,
+    LaneRole,
+    Patch,
+    Question,
+    QuestionType,
+    Respondent,
+    Response,
+)
 from app.services import profile, streaks
 from tests.conftest import as_respondent, requires_db
 
@@ -203,6 +212,53 @@ async def test_cobertura_por_tipo(
     assert coverage["pairwise_dimension"] == 1
     assert coverage["peak_timing"] == 0
     assert set(coverage) == {t.value for t in QuestionType}
+
+
+@requires_db
+async def test_la_tasa_de_acuerdo_incluye_el_matchup_y_no_el_pico(
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+) -> None:
+    """`docs/23-gamificacion.md` §3 — el tipo 3 tiene mayoría; el tipo 2 tiene una mediana.
+
+    El respondedor coincide en el matchup y se aleja de la mediana en el pico. Si el pico entrara
+    en la tasa, daría 0.5 en vez de 1.
+    """
+    row, _ = respondent
+    low, high = sorted(c.champion_id for c in champions[:2])
+    lane = Question(
+        type=QuestionType.LANE_MATCHUP,
+        champion_a=low,
+        champion_b=high,
+        role=LaneRole.MID,
+        patch_id=patch.patch_id,
+        answer_counts={"a_slight": 15, "even": 5},
+    )
+    peak = Question(
+        type=QuestionType.PEAK_TIMING,
+        champion_a=low,
+        patch_id=patch.patch_id,
+        answer_counts={"25": 20},
+    )
+    db.add_all([lane, peak])
+    await db.commit()
+    for question, answer in ((lane, {"choice": "a_slight"}), (peak, {"minute": 38})):
+        await db.refresh(question)
+        db.add(
+            Response(
+                respondent_id=row.respondent_id,
+                question_id=question.question_id,
+                type=question.type,
+                patch_id=patch.patch_id,
+                answer=answer,
+                response_time_ms=3000,
+            )
+        )
+    await db.commit()
+
+    assert await profile.agreement_rate(db, row) == 1.0
 
 
 @requires_db
