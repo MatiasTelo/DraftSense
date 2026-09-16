@@ -67,7 +67,7 @@ alcance viejo.
   *pregunta → documento y sección*, más el estado real de cada documento. Evita leer 347 KB para
   encontrar un dato.
 - **`references/invariantes.md`** — antes de proponer un cambio de diseño o de responder "por qué
-  está hecho así". Las 14 ADR resumidas en una línea cada una, y las contradicciones vivas del
+  está hecho así". Las 19 ADR resumidas en una línea cada una, y las contradicciones vivas del
   proyecto.
 - **`references/cronograma.md`** — antes de estimar, de planificar una semana o de decidir si algo
   ya debería estar hecho. Tiene el estado real del avance.

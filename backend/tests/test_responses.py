@@ -9,13 +9,23 @@ agenda los retests es el módulo de calidad de la semana 5; el criterio se cubre
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Champion, Dimension, Patch, Question, QuestionType, Respondent, Response
+from app.models import (
+    Champion,
+    Dimension,
+    LaneRole,
+    Patch,
+    Question,
+    QuestionType,
+    Respondent,
+    Response,
+)
 from app.services import responses as responses_service
 from tests.conftest import as_respondent, requires_db
 
@@ -26,11 +36,28 @@ async def _question(
     champions: list[Champion],
     dimension: Dimension | None = None,
     question_type: QuestionType = QuestionType.PAIRWISE_DIMENSION,
+    answer_counts: dict[str, int] | None = None,
 ) -> Question:
-    """Una pregunta concreta, respetando el orden canónico y la forma de cada tipo."""
+    """Una pregunta concreta, respetando el orden canónico y la forma de cada tipo.
+
+    `answer_counts` permite fabricar el consenso sin escribir veinte respuestas: el feedback lee
+    esa columna, no `responses`.
+    """
     low, high = sorted(c.champion_id for c in champions[:2])
+    counts = answer_counts or {}
     if question_type is QuestionType.PEAK_TIMING:
-        row = Question(type=question_type, champion_a=low, patch_id=patch.patch_id)
+        row = Question(
+            type=question_type, champion_a=low, patch_id=patch.patch_id, answer_counts=counts
+        )
+    elif question_type is QuestionType.LANE_MATCHUP:
+        row = Question(
+            type=question_type,
+            champion_a=low,
+            champion_b=high,
+            role=LaneRole.MID,
+            patch_id=patch.patch_id,
+            answer_counts=counts,
+        )
     else:
         assert dimension is not None
         row = Question(
@@ -39,6 +66,7 @@ async def _question(
             champion_b=high,
             dimension_id=dimension.dimension_id,
             patch_id=patch.patch_id,
+            answer_counts=counts,
         )
     db.add(row)
     await db.commit()
@@ -251,3 +279,167 @@ async def test_el_crudo_conserva_su_parche(
 
     assert stored.patch_id == patch.patch_id
     assert stored.type is QuestionType.PAIRWISE_DIMENSION
+
+
+# -------------------------------------------------------------------------- tipos 2 y 3
+
+
+async def _post(
+    client: AsyncClient, token: str, question: Question, answer: object
+) -> dict[str, Any]:
+    response = await as_respondent(client, token).post(
+        "/responses",
+        json={"question_id": question.question_id, "answer": answer, "response_time_ms": 4000},
+    )
+    return {"status": response.status_code, "body": response.json()}
+
+
+async def _stored(db: AsyncSession, question: Question) -> list[Response]:
+    statement = sa.select(Response).where(Response.question_id == question.question_id)
+    return list((await db.execute(statement)).scalars())
+
+
+@requires_db
+async def test_registro_de_un_pico(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+) -> None:
+    """CA-201 para el tipo 2 — el minuto se guarda tal cual, con el tipo de la pregunta."""
+    _, token = respondent
+    question = await _question(db, patch, champions, question_type=QuestionType.PEAK_TIMING)
+
+    result = await _post(client, token, question, {"minute": 27})
+
+    assert result["status"] == 201
+    [stored] = await _stored(db, question)
+    assert stored.answer == {"minute": 27}
+    assert stored.type is QuestionType.PEAK_TIMING
+
+
+@requires_db
+async def test_registro_de_un_matchup(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+) -> None:
+    _, token = respondent
+    question = await _question(db, patch, champions, question_type=QuestionType.LANE_MATCHUP)
+
+    result = await _post(client, token, question, {"choice": "a_slight"})
+
+    assert result["status"] == 201
+    [stored] = await _stored(db, question)
+    assert stored.answer == {"choice": "a_slight"}
+    assert stored.type is QuestionType.LANE_MATCHUP
+
+
+@requires_db
+@pytest.mark.parametrize("minute", [41, -1, 27.5, True, "27"])
+async def test_forma_invalida_de_pico_rechazada(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+    minute: object,
+) -> None:
+    """`docs/11-modelo-de-datos.md` §5 — entero entre 0 y 40. `true` no es el minuto 1."""
+    _, token = respondent
+    question = await _question(db, patch, champions, question_type=QuestionType.PEAK_TIMING)
+
+    result = await _post(client, token, question, {"minute": minute})
+
+    assert result["status"] == 400
+    assert result["body"]["error"]["code"] == "answer_shape_mismatch"
+    assert await _stored(db, question) == []
+
+
+@requires_db
+async def test_forma_invalida_de_matchup_rechazada(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+) -> None:
+    """La escala del tipo 3 no admite las opciones del tipo 1."""
+    _, token = respondent
+    question = await _question(db, patch, champions, question_type=QuestionType.LANE_MATCHUP)
+
+    result = await _post(client, token, question, {"choice": "a"})
+
+    assert result["status"] == 400
+    assert result["body"]["error"]["code"] == "answer_shape_mismatch"
+    assert await _stored(db, question) == []
+
+
+@requires_db
+async def test_el_feedback_de_eleccion_no_lleva_claves_nulas(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+    dimension: Dimension,
+) -> None:
+    """`docs/12-api.md` §2.4 — las claves del tipo 2 no viajan en `null` en los demás tipos."""
+    _, token = respondent
+    question = await _question(
+        db, patch, champions, dimension, answer_counts={"a": 15, "b": 4, "unknown": 1}
+    )
+
+    result = await _post(client, token, question, {"choice": "a"})
+
+    assert set(result["body"]["feedback"]) == {"consensus", "agreed_with_majority", "sample_size"}
+
+
+@requires_db
+async def test_el_feedback_del_pico_tiene_la_forma_del_contrato(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+) -> None:
+    """`docs/12-api.md` §2.4, literal: `{consensus_median, your_answer, sample_size}`."""
+    _, token = respondent
+    question = await _question(
+        db,
+        patch,
+        champions,
+        question_type=QuestionType.PEAK_TIMING,
+        answer_counts={"25": 5, "26": 6, "27": 5, "30": 4},
+    )
+
+    result = await _post(client, token, question, {"minute": 27})
+
+    assert result["body"]["feedback"] == {
+        "consensus_median": 26,
+        "your_answer": 27,
+        "sample_size": 20,
+    }
+
+
+@requires_db
+async def test_sin_soporte_el_feedback_es_null_explicito(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+) -> None:
+    """Omitir claves vale adentro del feedback; el feedback ausente se dice con `null`."""
+    _, token = respondent
+    question = await _question(
+        db, patch, champions, question_type=QuestionType.PEAK_TIMING, answer_counts={"20": 3}
+    )
+
+    result = await _post(client, token, question, {"minute": 20})
+
+    assert "feedback" in result["body"]
+    assert result["body"]["feedback"] is None

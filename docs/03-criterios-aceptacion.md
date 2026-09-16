@@ -1,6 +1,6 @@
 # 03 — Criterios de aceptación
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 16/09/2026
 
 Criterios verificables en formato Dado/Cuando/Entonces. Tienen doble uso: son la **definición de
 «terminado»** de cada funcionalidad y el **guion de los tests automatizados**.
@@ -279,6 +279,11 @@ según el decaimiento configurado.
 **Dado** cualquier pregunta con concepto medido
 **Cuando** se toca el ícono de ayuda
 **Entonces** se despliega la definición correspondiente, tomada de la base y no del código.
+
+> **Agregado el 16/09/2026.** «De la base» se refiere a los catálogos `dimensions` y `traits` (tipos
+> 1 y 5). Los tipos 2 y 3 miden un concepto fijo y su definición es una constante del backend: para
+> ellos se verifica que la ayuda llegue compuesta desde el servidor
+> ([ADR-018](13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md)).
 
 ---
 

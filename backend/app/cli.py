@@ -4,7 +4,8 @@
     draftsense seed-catalog                    carga dimensiones y atributos
     draftsense seed-champions --patch 16.17    puebla el catálogo desde Data Dragon
     draftsense seed-settings                   carga los parámetros operativos
-    draftsense seed-pick-rate --patch 16.17    carga el snapshot y asigna el pool
+    draftsense seed-pick-rate --patch 16.17    carga el snapshot, asigna el pool y los roles
+    draftsense sync-roles --patch 16.17        toma los roles de un snapshot ya cargado
     draftsense fetch-ddragon --out FILE        guarda un snapshot local de respaldo
     draftsense refresh-question-stats          recalcula los denormalizados de questions
 """
@@ -39,7 +40,13 @@ from app.seeds.champions import (
     roles_without_champions,
     seed_champions,
 )
-from app.seeds.pick_rate import load_pick_rate, seed_pick_rate, validate_pick_rate
+from app.seeds.pick_rate import (
+    latest_snapshot_id,
+    load_pick_rate,
+    seed_pick_rate,
+    sync_roles,
+    validate_pick_rate,
+)
 from app.seeds.settings import load_settings, seed_settings, validate_settings
 from app.services import question_stats
 
@@ -48,8 +55,9 @@ TRAIT_FIELDS = {"code", "label_en", "description_en"}
 
 ROLE_WARNING = (
     "       Data Dragon clasifica por clase, no por carril: el rol que asigna el seeder es",
-    "       provisional. Cargá el snapshot de pick rate antes de habilitar los tipos de",
-    "       pregunta 3 y 4, o el sampler no va a encontrar candidatas.",
+    "       provisional. Cargá el snapshot de pick rate (o corré `sync-roles` si ya está",
+    "       cargado) antes de habilitar los tipos de pregunta 3 y 4, o el sampler no va a",
+    "       encontrar candidatas.",
 )
 
 
@@ -180,7 +188,7 @@ async def cmd_seed_pick_rate(args: argparse.Namespace) -> int:
 
     async with get_sessionmaker()() as session:
         patch = await _ensure_patch(session, args.patch, _released_at(args))
-        loaded, counts, unmatched = await seed_pick_rate(
+        result = await seed_pick_rate(
             session,
             patch_id=patch.patch_id,
             rows=rows,
@@ -190,14 +198,16 @@ async def cmd_seed_pick_rate(args: argparse.Namespace) -> int:
             notes=args.notes,
         )
 
+    counts = result.tiers
     print(
-        f"OK  parche {args.patch}: {loaded} entradas de pick rate · "
-        f"pool tier 1: {counts[1]}, tier 2: {counts[2]}, tier 3: {counts[3]}"
+        f"OK  parche {args.patch}: {result.loaded} entradas de pick rate · "
+        f"pool tier 1: {counts[1]}, tier 2: {counts[2]}, tier 3: {counts[3]} · "
+        f"roles de {result.roles_updated} campeones tomados del snapshot"
     )
-    if unmatched:
+    if result.unmatched:
         print(
-            f"AVISO  {len(unmatched)} nombres del snapshot no están en el catálogo: "
-            f"{', '.join(unmatched)}",
+            f"AVISO  {len(result.unmatched)} nombres del snapshot no están en el catálogo: "
+            f"{', '.join(result.unmatched)}",
             file=sys.stderr,
         )
         print(
@@ -205,6 +215,41 @@ async def cmd_seed_pick_rate(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
     return 0
+
+
+async def cmd_sync_roles(args: argparse.Namespace) -> int:
+    """Aplica ADR-019 sobre un snapshot que ya está en la base.
+
+    No usa `_ensure_patch`: sincronizar roles no debe crear un parche ni cambiar cuál es el
+    vigente. Si el parche no existe, no hay snapshot que leer y el comando falla.
+    """
+    async with get_sessionmaker()() as session:
+        patch = (
+            await session.execute(sa.select(Patch).where(Patch.version == args.patch))
+        ).scalar_one_or_none()
+        if patch is None:
+            print(f"ERROR no existe el parche {args.patch}", file=sys.stderr)
+            return 1
+        snapshot_id = await latest_snapshot_id(session, patch.patch_id)
+        if snapshot_id is None:
+            print(
+                f"ERROR el parche {args.patch} no tiene snapshot de pick rate: "
+                "corré `seed-pick-rate` primero",
+                file=sys.stderr,
+            )
+            return 1
+        updated = await sync_roles(session, snapshot_id)
+        await session.commit()
+        missing = await roles_without_champions(session)
+
+    print(
+        f"OK  parche {args.patch}: roles de {updated} campeones tomados del snapshot {snapshot_id}"
+    )
+    if missing:
+        roles = ", ".join(role.value for role in missing)
+        print(f"AVISO  ningún campeón activo declara el rol: {roles}.", file=sys.stderr)
+    return 0
+
 
 async def cmd_fetch_ddragon(args: argparse.Namespace) -> int:
     """Guarda un snapshot del catálogo, como respaldo para cuando Data Dragon no responda."""
@@ -282,6 +327,12 @@ def build_parser() -> argparse.ArgumentParser:
     pick.add_argument("--released-at", help="fecha de salida del parche, AAAA-MM-DD")
     pick.add_argument("--notes")
     pick.set_defaults(handler=cmd_seed_pick_rate)
+
+    sync = sub.add_parser(
+        "sync-roles", help="toma los roles del último snapshot de pick rate del parche"
+    )
+    sync.add_argument("--patch", required=True, help="versión del parche, p. ej. 16.17")
+    sync.set_defaults(handler=cmd_sync_roles)
 
     fetch = sub.add_parser("fetch-ddragon", help="guarda un snapshot local de respaldo")
     fetch.add_argument("--out", required=True)

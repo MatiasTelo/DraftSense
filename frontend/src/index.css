@@ -51,8 +51,9 @@
 
 /**
  * La esquina biselada es la firma visual del sistema: no hay `border-radius` en ninguna parte
- * salvo el círculo del ícono de ayuda. Va como utilidad y no repetida en cada componente porque
- * los tres tamaños tienen que moverse juntos si alguna vez cambian.
+ * salvo el círculo del ícono de ayuda y el pulgar del slider del tipo 2. Va como utilidad y no
+ * repetida en cada componente porque los tres tamaños tienen que moverse juntos si alguna vez
+ * cambian.
  */
 @utility bevel-8 {
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
@@ -87,6 +88,66 @@
     var(--color-skeleton) 0 6px,
     var(--color-portrait) 6px 12px
   );
+}
+
+/**
+ * El slider del tipo 2 (`docs/20-tipos-de-pregunta.md` §3), sobre el `<input type="range">`
+ * nativo: el teclado, el lector de pantalla y el arrastre táctil vienen del navegador y no se
+ * reimplementan.
+ *
+ * El input mide 44 px de alto aunque la pista mida 6: el área táctil es el input entero (§9). La
+ * parte recorrida se pinta con `--fill`, un porcentaje que pone el componente, porque WebKit no
+ * tiene un pseudo-elemento de progreso como el `::-moz-range-progress` de Firefox.
+ */
+@utility range-slider {
+  appearance: none;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  &::-webkit-slider-runnable-track {
+    height: 6px;
+    background: linear-gradient(
+      to right,
+      var(--color-gold) var(--fill, 50%),
+      var(--color-rail) var(--fill, 50%)
+    );
+  }
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    margin-top: -9px;
+    border: 2px solid var(--color-surface);
+    border-radius: 9999px;
+    background: var(--color-gold);
+    box-shadow: 0 0 0 1px var(--color-edge-strong);
+  }
+
+  &::-moz-range-track {
+    height: 6px;
+    background: var(--color-rail);
+  }
+
+  &::-moz-range-progress {
+    height: 6px;
+    background: var(--color-gold);
+  }
+
+  &::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-surface);
+    border-radius: 9999px;
+    background: var(--color-gold);
+    box-shadow: 0 0 0 1px var(--color-edge-strong);
+  }
 }
 
 @layer base {

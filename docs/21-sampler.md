@@ -1,6 +1,6 @@
 # 21 — Sampling adaptativo
 
-> Estado: **v1** · Última revisión: 01/09/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 16/09/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
 
 Cómo el sistema decide **qué pregunta mostrar a continuación**. Es el componente que convierte un
 presupuesto chico de respuestas —1 000 comprometidas, unos miles como meta de trabajo— en un
@@ -72,6 +72,21 @@ RETURNING question_id, exposure_count, entropy;
 El `DO UPDATE` con una asignación que no cambia nada es intencional: `ON CONFLICT DO NOTHING` no
 devuelve fila cuando hay conflicto, y acá se necesita el `question_id` tanto si la pregunta es nueva
 como si ya existía. Es la forma estándar de un *upsert con RETURNING* en Postgres.
+
+> **Errata del 16/09/2026.** La sentencia de arriba **no corre tal cual**: `questions_identity` es
+> un índice único creado con `CREATE UNIQUE INDEX` (`11-modelo-de-datos.md` §3.8), no una
+> restricción, y `ON CONFLICT ON CONSTRAINT` sólo acepta restricciones. Postgres la rechaza con
+> «constraint does not exist».
+>
+> Lo que está implementado desde la semana 2, y lo que siguen los tipos 2 y 3, es:
+>
+> 1. `SELECT` por las nueve columnas de la identidad, comparando con `IS NULL` las que el tipo no usa;
+> 2. si no existe, `INSERT … ON CONFLICT DO NOTHING`, sin objetivo, de modo que el árbitro es el
+>    índice `NULLS NOT DISTINCT`;
+> 3. `SELECT` otra vez, que encuentra la fila propia o la que insertó una petición concurrente.
+>
+> Las consecuencias listadas debajo no cambian. La semana 5, al reescribir el sampler, parte de este
+> patrón.
 
 Consecuencias:
 
@@ -148,6 +163,15 @@ define su propia normalización a ese rango. La calcula `refresh_question_stats`
 | 4 — sinergia | Entropía de Shannon sobre `{pair_1, similar, pair_2}` dividida por `log₂ 3` |
 | 2 — pico | `min(1, IQR / 12)` sobre los minutos declarados: la dispersión hace de entropía |
 | 5 — atributos | Promedio de las entropías binarias de los 7 atributos |
+
+> **Agregado el 16/09/2026.** Precisiones de la implementación de la semana 4:
+>
+> - **Tipo 2.** Los cuartiles se calculan con interpolación lineal,
+>   `statistics.quantiles(minutos, n=4, method="inclusive")`, que equivale al método por defecto de
+>   numpy (tipo 7 de Hyndman y Fan). Con menos de 2 respuestas la entropía queda en `NULL`.
+> - **Tipo 3.** El colapso es `{a_strong, a_slight} → gana A`, `even → parejo`,
+>   `{b_slight, b_strong} → gana B`. Sin respuestas, `NULL`.
+> - Como en el tipo 1, `NULL` significa «todavía no se sabe» y se distingue de una entropía cero.
 
 **`unknown` se excluye del cálculo, no se cuenta como una tercera opción.** Una pregunta con 40 %
 de `unknown` y el resto repartido 50-50 está tan disputada como una sin ningún `unknown`: la

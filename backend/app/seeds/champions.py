@@ -20,11 +20,13 @@ from app.models import Champion, LaneRole, Patch
 
 #: Data Dragon clasifica a los campeones por *clase* (Marksman, Tank…), no por carril. Este mapa
 #: produce un rol **provisional** para que la fila cumpla `champions_has_roles` desde el primer
-#: seed. La fuente autoritativa de roles es el snapshot de pick rate, que sí viene por carril y
-#: pisa estos valores al cargarse.
+#: seed. La fuente autoritativa de roles es el snapshot de pick rate, que sí viene por carril:
+#: `seed-pick-rate` —o `sync-roles`, si el snapshot ya estaba cargado— reemplaza estos valores
+#: para cada campeón que figura en él (ADR-019). Contra el snapshot de 16.17, este mapa se
+#: equivoca en 38 de los 58 campeones del tier 1.
 #:
 #: Ninguna clase de Data Dragon corresponde a `jungle`: la jungla es una decisión de partida, no
-#: una propiedad del campeón. Por eso `assert_roles_covered` avisa y por eso el snapshot de pick
+#: una propiedad del campeón. Por eso `roles_without_champions` avisa y por eso el snapshot de pick
 #: rate es un requisito, no una mejora opcional, antes de habilitar los tipos 3 y 4.
 PROVISIONAL_ROLE_BY_TAG: dict[str, LaneRole] = {
     "Marksman": LaneRole.ADC,

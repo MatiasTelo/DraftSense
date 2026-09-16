@@ -17,9 +17,9 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Question, Respondent, Response
+from app.models import Question, QuestionType, Respondent, Response
 from app.schemas.responses import Feedback, Progress
-from app.services import app_settings, streaks
+from app.services import app_settings, question_stats, streaks
 
 #: Los dos límites del contrato (`docs/12-api.md` §4). Son holgados para una persona —una
 #: respuesta cada 5 a 10 segundos son unas 10 por minuto— y cortan el scripting trivial.
@@ -138,15 +138,26 @@ async def build_feedback(
 
     Con menos de `sampler.consensus_threshold` respuestas se devuelve `None` y la interfaz dice
     *"you're one of the first to answer this"*, para no anclar a los primeros sobre ruido
-    (ADR-012, RF-114). **En la semana 2 ese job todavía no existe**, así que `answer_counts` está
-    vacío y esta función devuelve `None` siempre: es el comportamiento correcto para un piloto
-    que arranca sin datos.
+    (ADR-012, RF-114). Al arrancar el piloto todas las preguntas están en ese caso.
+
+    La forma depende del tipo (`docs/12-api.md` §2.4). En el tipo 2 el consenso es la mediana de
+    los minutos. En los tipos de elección es el reparto de opciones, y el acuerdo se mide contra
+    la opción exacta más votada: en el tipo 3, *wins hard* y *wins slightly* del mismo campeón son
+    respuestas distintas.
     """
     threshold = await app_settings.get(session, "sampler.consensus_threshold", 20)
     counts: dict[str, int] = question.answer_counts or {}
     sample_size = sum(counts.values())
-    if sample_size < threshold:
+    # El `== 0` cubre un umbral configurado en 0: sin él, `max()` sobre un dict vacío revienta.
+    if sample_size == 0 or sample_size < threshold:
         return None
+
+    if question.type is QuestionType.PEAK_TIMING:
+        return Feedback(
+            consensus_median=question_stats.peak_median(counts),
+            your_answer=answer["minute"],
+            sample_size=sample_size,
+        )
 
     consensus = {key: value / sample_size for key, value in counts.items()}
     majority = max(counts, key=lambda k: counts[k])

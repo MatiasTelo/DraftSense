@@ -28,6 +28,8 @@ escribe uno nuevo. El registro es histórico.
 | [015](ADR-015-estructura-en-capas-del-backend.md) | Backend en cuatro capas: routers, services, schemas, models | aceptada |
 | [016](ADR-016-carga-inicial-del-pool.md) | La carga inicial del pool usa los cortes de la regla de promoción | aceptada |
 | [017](ADR-017-tailwind-como-sistema-de-estilos.md) | Tailwind CSS como sistema de estilos del frontend | aceptada |
+| [018](ADR-018-textos-fijos-de-los-tipos-2-y-3.md) | Los textos de los tipos 2 y 3 viven en el backend, no en la base | aceptada |
+| [019](ADR-019-roles-derivados-del-snapshot.md) | Los roles de cada campeón salen del snapshot de pick rate | aceptada |
 
 ## Cuál merece un ADR
 

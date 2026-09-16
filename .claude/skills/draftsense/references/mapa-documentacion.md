@@ -22,6 +22,10 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Por qué una decisión de diseño es la que es | `13-adr/` — ver `invariantes.md` |
 | El enunciado, la UI, el payload y los casos borde de un tipo de pregunta | `20-tipos-de-pregunta.md` §2 a §6 (uno por tipo) |
 | En qué orden se implementan los 5 tipos | `20-tipos-de-pregunta.md` §8 |
+| Dónde viven los textos de los tipos 2 y 3 | `13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md` |
+| De dónde salen los roles de un campeón | `13-adr/ADR-019-roles-derivados-del-snapshot.md` |
+| Qué claves tiene `answer_counts` en cada tipo | `11-modelo-de-datos.md` §3.8 (nota del 16/09) |
+| La forma exacta del feedback de cada tipo | `12-api.md` §2.4 (nota del 16/09) |
 | Cómo elige el sampler la próxima pregunta | `21-sampler.md` §3 (prioridad) y §4 (regímenes y exploración) |
 | Cómo se generan las preguntas sin enumerarlas todas | `21-sampler.md` §2 |
 | El pseudocódigo completo del sampler | `21-sampler.md` §10 |
@@ -56,7 +60,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (17 ADR) | v1 |
+| `13-adr/` (19 ADR) | v1 |
 | `20-tipos-de-pregunta.md` | v1 |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |

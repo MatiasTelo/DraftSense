@@ -1,6 +1,6 @@
 # 12 — Contrato de la API REST
 
-> Estado: **v1** · Última revisión: 09/09/2026
+> Estado: **v1** · Última revisión: 16/09/2026
 
 Base: `https://api.draftsense.dev/api/v1` · OpenAPI autogenerada en `/docs`.
 
@@ -208,6 +208,16 @@ tarjeta y tarjeta.
 }
 ```
 
+> **Agregado el 16/09/2026.** Dos precisiones que el ejemplo no dejaba explícitas:
+>
+> - En la variante 1v1, `context.label` es el rol en mayúsculas: `TOP`, `MID` o `ADC`.
+> - Un elemento de `options` o de `sides` lleva `label` **sólo si lo necesita** —la opción
+>   `unknown` del tipo 1, las cinco del tipo 3—. Los lados que ya muestran campeones no llevan la
+>   clave, ni siquiera con valor `null`.
+>
+> Los textos de este tipo y del anterior son constantes del backend, no filas de la base
+> ([ADR-018](13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md)).
+
 #### `lane_matchup` — variante 2v2
 
 Misma forma; `sides` lleva dos campeones por lado y las etiquetas hablan de parejas.
@@ -324,6 +334,18 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 ```jsonc
 "feedback": { "consensus_median": 26, "your_answer": 27, "sample_size": 88 }
 ```
+
+> **Agregado el 16/09/2026.** La forma exacta del `feedback`:
+>
+> - Lleva **sólo las claves que corresponden al tipo**. Las demás se omiten, no viajan en `null`.
+>   Cuando no hay feedback, en cambio, la clave sí está y vale `null`.
+> - `consensus_median` es un **entero**: la mediana **sin ponderar** de los minutos acumulados en
+>   `answer_counts`, redondeada con el medio hacia arriba (26,5 → 27). La mediana ponderada por
+>   confianza es de la agregación ([`25-agregacion.md`](25-agregacion.md)), no del feedback.
+> - `your_answer` es el minuto que acaba de responder la persona.
+> - En `lane_matchup`, `consensus` tiene las cinco claves de la escala y `agreed_with_majority`
+>   compara contra el **nivel exacto** más votado: *wins hard* y *wins slightly* del mismo campeón
+>   son respuestas distintas.
 
 ---
 

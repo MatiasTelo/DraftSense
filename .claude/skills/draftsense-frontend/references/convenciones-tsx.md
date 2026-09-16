@@ -35,8 +35,8 @@ respuestas**, y ahí va el mensaje de "sos de los primeros en responder". No lo 
 ## Estilos
 
 Tailwind v4 con `@tailwindcss/vite` (ADR-017). No hay `tailwind.config.js`: los tokens están en el
-bloque `@theme` de `src/index.css` y las utilidades propias (`bevel-8/12/14`, `portrait-hatch`) en
-bloques `@utility` del mismo archivo.
+bloque `@theme` de `src/index.css` y las utilidades propias (`bevel-8/12/14`, `portrait-hatch`,
+`range-slider`) en bloques `@utility` del mismo archivo.
 
 La regla práctica al escribir un componente: **si estás por poner un valor literal —un hex, un
 `clip-path`, un nombre de fuente— el token ya existe o hay que agregarlo a `@theme`**. Lo que sí va
@@ -62,9 +62,11 @@ Vitest con `globals: true` y entorno `jsdom`; `src/test-setup.ts` carga los matc
 `@testing-library/jest-dom`. `vite.config.ts` importa `defineConfig` de `vitest/config`, no de
 `vite`: es la variante que acepta el bloque `test`.
 
-El estilo está en `src/App.test.tsx`: `describe` con el nombre del componente, `it` describiendo la
-conducta **en español**, y consultas por texto visible (`screen.getByText`) en vez de por clase o por
-test-id. Se testea lo que ve el usuario.
+El estilo está en `src/screens/Play.test.tsx` y en los tests de `src/components/`: `describe` con
+el nombre del componente, `it` describiendo la conducta **en español**, y consultas por rol o por
+texto visible (`screen.getByRole`, `screen.getByText`) en vez de por clase o por test-id. Se testea
+lo que ve el usuario. Las preguntas de prueba salen de `src/test-fixtures.ts` (`pairwise`,
+`peakTiming`, `laneMatchup`), con la forma exacta de `docs/12-api.md`.
 
 ## ESLint
 

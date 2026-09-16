@@ -1,6 +1,6 @@
 # 20 — Los cinco tipos de pregunta
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 16/09/2026
 
 Especifica cada tipo de pregunta de punta a punta: qué mide, cómo se enuncia, cómo se ve, qué
 payload produce, cómo se generan las candidatas, cómo se agrega y qué pasa en los casos borde.
@@ -25,6 +25,11 @@ Consecuencias de diseño que se aplican a todos los tipos:
 - La respuesta se registra al primer toque, sin botón de confirmar. Excepción: el tipo 5, que es
   multi-selección y necesita un cierre explícito.
 
+> **Corregido el 16/09/2026.** La excepción alcanza a **los tipos 2 y 5**, no sólo al 5: un slider
+> tampoco tiene un "primer toque" que valga como respuesta. Es lo que ya decían §3 de este mismo
+> documento y la decisión cerrada de [`30-ux-flujos.md`](30-ux-flujos.md) §10; esta línea era la que
+> estaba desactualizada.
+
 ### 1.2 Enunciado corto, definición a un toque
 
 El enunciado es una línea en tipografía grande. Al lado, un ícono `?` que despliega la definición
@@ -36,6 +41,11 @@ lo mismo para todos. Dejarla a un toque de distancia resuelve la tensión entre 
 consistencia: quien ya sabe no la abre, quien duda la consulta.
 
 El texto de las definiciones vive en las tablas `dimensions` y `traits`, no en el código.
+
+> **Agregado el 16/09/2026.** La regla vale para esos dos catálogos, que crecen insertando filas.
+> Los tipos 2 y 3 miden un concepto fijo y no tienen catálogo: su enunciado, su ayuda y sus
+> etiquetas son constantes del backend, que las compone antes de enviarlas
+> ([ADR-018](13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md)).
 
 ### 1.3 Los honeypots son indistinguibles
 
@@ -275,6 +285,10 @@ a ícono.
 Pares de campeones que **comparten un rol** en {`top`, `mid`, `adc`}, según el arreglo
 `champions.roles`. Una pregunta por (par, rol, parche): el mismo par puede preguntarse en top y en
 mid si ambos juegan los dos.
+
+> **Agregado el 16/09/2026.** `champions.roles` sale del snapshot de pick rate: un campeón tiene un
+> rol si está entre los 30 más elegidos de ese carril
+> ([ADR-019](13-adr/ADR-019-roles-derivados-del-snapshot.md)).
 
 **La jungla no entra.** Un jungla no tiene oponente fijo con quien intercambiar durante diez
 minutos, así que la pregunta no tiene una respuesta que la gente pueda dar con confianza. Los
