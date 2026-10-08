@@ -30,6 +30,8 @@ escribe uno nuevo. El registro es histórico.
 | [017](ADR-017-tailwind-como-sistema-de-estilos.md) | Tailwind CSS como sistema de estilos del frontend | aceptada |
 | [018](ADR-018-textos-fijos-de-los-tipos-2-y-3.md) | Los textos de los tipos 2 y 3 viven en el backend, no en la base | aceptada |
 | [019](ADR-019-roles-derivados-del-snapshot.md) | Los roles de cada campeón salen del snapshot de pick rate | aceptada |
+| [020](ADR-020-estado-de-cadencias-en-el-servidor.md) | Las cadencias de calidad y lo pendiente se guardan en el servidor | aceptada |
+| [021](ADR-021-puentes-en-cadena.md) | Los puentes del grafo se materializan como una cadena de k−1 preguntas | aceptada |
 
 ## Cuál merece un ADR
 

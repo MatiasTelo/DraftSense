@@ -37,16 +37,24 @@ export function QuestionPrompt({ prompt, subtitle, help, open, onToggle, size = 
           )}
         </div>
         {help !== null && (
+          // El botón mide 44 px (30-ux-flujos §9) y el círculo que se ve, 36, como en el
+          // maquetado. El margen negativo hace que el botón ocupe en el layout lo mismo que el
+          // círculo: sin él, el enunciado pierde 8 px de ancho y cambia dónde corta la línea.
           <button
             type="button"
             onClick={onToggle}
             aria-expanded={open}
             aria-label={`What ${help.label.toLowerCase()} means`}
-            className={`flex size-9 shrink-0 items-center justify-center rounded-full border font-mono text-[15px] font-semibold ${
-              open ? 'border-cyan text-cyan' : 'border-edge-strong text-mute'
-            }`}
+            className="-m-1 flex size-11 shrink-0 items-center justify-center"
           >
-            ?
+            <span
+              aria-hidden="true"
+              className={`flex size-9 items-center justify-center rounded-full border font-mono text-[15px] font-semibold ${
+                open ? 'border-cyan text-cyan' : 'border-edge-strong text-mute'
+              }`}
+            >
+              ?
+            </span>
           </button>
         )}
       </div>

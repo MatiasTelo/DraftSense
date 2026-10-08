@@ -127,6 +127,21 @@ tarjeta y tarjeta.
 
 **Parámetros:** `count` entero, 1–10, por defecto 5.
 
+> **Agregado el 17/09/2026.** `queued`: los `question_id` que el cliente tiene en su cola **sin
+> contestar** al pedir el lote, separados por coma (`queued=88412,88415`), hasta 10; por defecto,
+> ninguno. Sirve para dos cosas
+> ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)):
+>
+> - **La posición.** La primera pregunta nueva del lote cae en `answers_count + len(queued)` de la
+>   historia del respondedor, que es de lo que dependen la cadencia de las honeypots y la de los
+>   retests.
+> - **No repetir.** El lote no incluye ninguna de esas preguntas. Sin esto, una pregunta en cola que
+>   el usuario contestaba mientras viajaba el lote volvía a aparecer.
+>
+> Un valor que no sea una lista de enteros positivos, o que tenga más de 10, devuelve
+> `400 invalid_parameter` con `field: "queued"`. Omitirlo es válido: el servidor supone la cola
+> vacía.
+
 **`200 OK`** — un arreglo `questions` cuyos elementos siguen una de estas cinco formas.
 
 #### Envoltura común
@@ -522,6 +537,13 @@ Formato uniforme, compatible con el manejador de excepciones de FastAPI:
 `responses (respondent_id, question_id) WHERE is_retest_of IS NULL`. La restricción vive en la base,
 no en el código, así que una carrera entre dos requests simultáneos falla correctamente en vez de
 insertar dos filas.
+
+> **Agregado el 16/09/2026.** «Marcada como retest» quiere decir **marcada por el servidor**, no
+> por el cliente: el cuerpo de `POST /responses` no cambia. Cuando el sampler sirve un retest,
+> guarda en `respondents.pending_retest_of` la respuesta original. El `POST` de esa misma pregunta
+> se registra con `is_retest_of` y cualquier otra repetición devuelve este `409`
+> ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)). El cliente nunca sabe cuál
+> pregunta era un retest (§1.4, [`23-gamificacion.md`](23-gamificacion.md) §3).
 
 ---
 

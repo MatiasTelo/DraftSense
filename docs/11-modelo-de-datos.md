@@ -241,6 +241,12 @@ CREATE TABLE respondents (
     fast_answers      int NOT NULL DEFAULT 0,
     straightline_runs int NOT NULL DEFAULT 0,
 
+    -- Cadencias de calidad y lo pendiente (ADR-020): estado del sampler, no medición
+    next_honeypot_at  int,
+    next_retest_at    int,
+    pending_honeypot  bigint,   -- la FK a questions se agrega en §3.9, que se crea después
+    pending_retest_of bigint,   -- la FK a responses se agrega en §3.9, que se crea después
+
     -- Gamificación
     answers_count      int  NOT NULL DEFAULT 0,
     current_streak     int  NOT NULL DEFAULT 0,
@@ -289,6 +295,17 @@ segunda sin consultar `responses` en el camino crítico; son reconstruibles desd
 **Ninguna recompensa depende del contenido de la respuesta**, sólo del volumen y de la constancia.
 Una racha por coincidir con el consenso rompería la independencia entre anotadores, que es un
 supuesto del alfa de Krippendorff y del modelo de Bradley-Terry.
+
+> **Agregado el 16/09/2026 y ampliado el 17/09.** Las cuatro columnas de cadencia son el estado
+> que necesitan las honeypots y los retests
+> ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)). `next_honeypot_at` y
+> `next_retest_at` son la posición —el índice, desde cero, de la respuesta en la historia del
+> respondedor— a partir de la cual toca la próxima honeypot o el próximo retest; `NULL` quiere
+> decir que la ventana todavía no se abrió, y el sampler la abre en el primer lote.
+> `pending_honeypot` es la honeypot servida y no contestada: mientras exista no se sirve otra, y
+> sin ella la precarga del cliente producía honeypots dobles. `pending_retest_of` es la respuesta
+> original que se sirvió como retest y no se contestó: es lo que le permite a `POST /responses`
+> escribir `is_retest_of` sin que el cliente lo sepa. Las cuatro las crea la migración `0003`.
 
 **Privacidad.** No se guarda IP en claro, ni email, ni nombre, ni identificador de cuenta de Riot.
 El sistema no tiene login. `fingerprint_hash` es SHA-256 de user-agent + hash de IP + resolución de
@@ -477,6 +494,16 @@ CREATE INDEX responses_by_patch_type ON responses (patch_id, type);
 
 -- Ventanas de día y semana de la tabla de posiciones
 CREATE INDEX responses_recent ON responses (created_at DESC);
+
+-- La honeypot y el retest servidos y todavía no contestados (ADR-020). Se declaran acá porque
+-- respondents se crea antes que questions y que responses.
+ALTER TABLE respondents
+    ADD CONSTRAINT respondents_pending_honeypot_fk
+    FOREIGN KEY (pending_honeypot) REFERENCES questions (question_id);
+
+ALTER TABLE respondents
+    ADD CONSTRAINT respondents_pending_retest_fk
+    FOREIGN KEY (pending_retest_of) REFERENCES responses (response_id);
 ```
 
 Dos campos son **redundantes a propósito**: `type` y `patch_id` ya se pueden deducir de
@@ -619,7 +646,7 @@ Claves iniciales, por bloque:
 | Prefijo | Claves | Documento que las define |
 |---|---|---|
 | `sampler.` | `enabled_pool_tiers`, `epsilon`, `weights`, `cold_threshold`, `consensus_threshold`, `candidate_limit`, `max_rejection_retries` | [`21-sampler.md`](21-sampler.md) §9 |
-| `quality.` | `honeypot_every`, `honeypot_min_pass_rate`, `retest_every`, `retest_min_distance`, `fast_answer_ms`, `straightline_run`, `fingerprint_max_identities`, `trust_weights`, `trust_smoothing` | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §8 |
+| `quality.` | `honeypot_every`, `honeypot_min_pass_rate`, `honeypot_min_attempts`, `retest_every`, `retest_min_distance`, `fast_answer_ms`, `straightline_run`, `fingerprint_max_identities`, `trust_weights`, `trust_smoothing` | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §8 |
 | `gamification.` | `streak_gap_minutes`, `day_streak_min_answers`, `streak_timezone`, `leaderboard_size`, `leaderboard_cache_seconds` | [`23-gamificacion.md`](23-gamificacion.md) §7 |
 | `export.` | `min_trust` | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §8 |
 | `aggregation.` | `decay_halflife_days`, `bootstrap_samples`, `power_sigma`, `bt_prior`, `duo_lambda_champion`, `duo_lambda_interaction`, `max_iter`, `tol`, `support_thresholds`, `segment_min_respondents`, `segment_min_comparisons` | [`25-agregacion.md`](25-agregacion.md) §9 |

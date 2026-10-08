@@ -24,8 +24,19 @@ describe('client', () => {
     await fetchQuestions(5);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/questions/next?count=5',
+      '/api/v1/questions/next?count=5&queued=',
       expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('manda los ids de las preguntas que quedan en la cola (`docs/12-api.md` §2.3)', async () => {
+    const fetchMock = respondWith(200, { questions: [] });
+
+    await fetchQuestions(5, [88412, 88415]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/questions/next?count=5&queued=88412,88415',
+      expect.anything(),
     );
   });
 

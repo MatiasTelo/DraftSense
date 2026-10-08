@@ -38,6 +38,29 @@ describe('LaneMatchupCard', () => {
     expect(screen.queryByText(/\bA wins\b/)).not.toBeInTheDocument();
   });
 
+  it('dibuja la escala en el orden en que llega, sin reordenarla', () => {
+    // El straightlining se cuenta por la clave de la opción (`docs/22-calidad-de-datos.md` §5.2):
+    // eso vale sólo si la tarjeta muestra cada clave siempre en el mismo lugar, el que manda el
+    // servidor. Si la tarjeta ordenara por su cuenta, la posición en pantalla dejaría de ser la clave.
+    const question = laneMatchup(1);
+    const reversed = { ...question, options: [...question.options].reverse() };
+    render(
+      <LaneMatchupCard
+        question={reversed}
+        helpOpen={false}
+        onToggleHelp={() => undefined}
+        onChoose={() => undefined}
+        disabled={false}
+      />,
+    );
+
+    const labels = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent)
+      .filter((text) => text !== '?');
+    expect(labels).toEqual(reversed.options.map((option) => option.label));
+  });
+
   it('muestra el carril y a los dos campeones', () => {
     renderCard();
 

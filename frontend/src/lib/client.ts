@@ -130,8 +130,16 @@ export async function saveOnboarding(body: OnboardingRequest): Promise<{ onboard
   return postJson<{ onboarding_seen: boolean }>('/sessions/onboarding', body);
 }
 
-export async function fetchQuestions(count = 5): Promise<QuestionBatch> {
-  return request<QuestionBatch>(`/questions/next?count=${count}`);
+/**
+ * `queued` son los ids de las preguntas que quedan en la cola sin contestar. El servidor los usa
+ * para saber en qué posición cae cada pregunta nueva —de eso dependen las cadencias de calidad— y
+ * para no volver a mandarlas (`docs/12-api.md` §2.3, nota del 17/09).
+ */
+export async function fetchQuestions(
+  count = 5,
+  queued: readonly number[] = [],
+): Promise<QuestionBatch> {
+  return request<QuestionBatch>(`/questions/next?count=${count}&queued=${queued.join(',')}`);
 }
 
 export async function postResponse(body: ResponseRequest): Promise<RecordedResponse> {

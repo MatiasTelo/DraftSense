@@ -35,13 +35,24 @@ sale del canvas de Claude Design, que las diseñó a partir de `docs/30-ux-flujo
 `QuestionCard` tiene una rama por tipo; `duo_synergy` y `trait_multiselect` devuelven `null` hasta
 la semana 8, igual que la variante 2v2, y hoy el servidor no puede mandarlos.
 
-Tres cosas de la semana 4 que no hay que deshacer:
+Cosas de las semanas 4 y 5 que no hay que deshacer:
 
 - **`Play` monta cada tarjeta con `key={question_id}`.** El valor del slider del tipo 2 es estado
   local de `PeakTimingCard`: sin la `key`, pasa de un pico al siguiente. Hay un test que lo cuida.
 - **`Enter` lo maneja la tarjeta que tiene confirmación**, no `Play`, porque es la que conoce el
   valor. Ignora el `Enter` sobre un botón con foco, que el navegador ya convierte en clic. `Play`
   además tiene un candado sincrónico (`inFlight`) contra el doble envío.
+- **La posición de cada opción es fija** (semana 5). `PairwiseDimensionCard` pone `a` a la
+  izquierda por su clave, no por el orden del arreglo, y `LaneMatchupCard` dibuja la escala en el
+  orden en que llega. El *straightlining* del backend se cuenta por la clave de la opción
+  (`docs/22-calidad-de-datos.md` §5.2) y depende de eso. Hay tests que lo cuidan.
+- **La precarga manda los ids de la cola** (`fetchQuestions(BATCH_SIZE, queued)` en
+  `store/queue.ts`). El servidor los usa para ubicar las preguntas nuevas —de eso dependen las
+  cadencias de honeypots y retests— y para no repetirlas (`docs/12-api.md` §2.3, ADR-020). Si
+  cambia la cola, tiene que seguir mandándolos.
+- **Toda cosa que se toca mide 44 px**, también el `?` de ayuda (un botón de 44 con el círculo de
+  36 adentro), `Skip` y las pestañas del leaderboard. Se corrigió al cerrar la semana 4
+  (`docs/30-ux-flujos.md` §9).
 - **`FeedbackOverlay` tiene dos layouts.** `inline` es el del maquetado del tipo 1; `stacked` pone
   la barra debajo de la etiqueta, porque «Nunu & Willump wins slightly» no entra en 78 px. El
   tipo 2 no tiene barras: dice la mediana en una frase.

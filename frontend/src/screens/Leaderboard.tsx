@@ -61,7 +61,7 @@ export function Leaderboard() {
               type="button"
               onClick={() => setRange(value)}
               aria-pressed={range === value}
-              className={`flex min-h-10 items-center px-3.5 font-mono text-xs tracking-[0.1em] uppercase ${
+              className={`flex min-h-11 items-center px-3.5 font-mono text-xs tracking-[0.1em] uppercase ${
                 range === value
                   ? 'bg-gold font-semibold text-surface'
                   : 'border border-edge font-medium text-label'

@@ -291,7 +291,7 @@ sesgo que arruinaría los datos.
 | Estado | Cuándo | Qué se muestra |
 |---|---|---|
 | **Carga inicial** | Primer render de `/play` | Esqueleto de la tarjeta, sin *spinner* centrado. La forma de la tarjeta ya visible reduce la sensación de espera |
-| **Carga entre tarjetas** | Nunca visible | La cola se precarga cuando quedan 2 preguntas |
+| **Carga entre tarjetas** | Nunca visible | La cola se precarga cuando quedan 2 preguntas, y el pedido dice cuáles quedan (`queued`, nota del 17/09 en `12-api.md` §2.3) |
 | **Cola vacía** | El sampler no devuelve candidatas | `Nothing left to ask right now. Come back after the next patch.` con enlace al perfil |
 | **Sin conexión** | `navigator.onLine === false` o fallo de red | `You're offline. Your last answer wasn't saved.` con botón `Retry` |
 | **Base caída (503)** | La API responde 503 | `Something broke on our end. Try again in a minute.` con `Retry` |
@@ -322,6 +322,13 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
 - **El color nunca es el único portador de información**: las opciones se distinguen por posición y
   etiqueta, no por color.
 - Los íconos de campeón llevan `alt` con el nombre del campeón.
+
+> **Agregado el 16/09/2026.** La prueba a 360 px del cierre de la semana 4 encontró tres objetivos
+> táctiles por debajo de 44 px: el ícono de ayuda `?` (36 × 36), `Skip` en `/start` (32 de alto) y
+> las pestañas de ventana de `/leaderboard` (40 de alto). Se corrigieron los tres **sin cambiar lo
+> que se ve**: el círculo del `?` sigue midiendo 36 px dentro de un botón de 44, `Skip` crece con
+> margen negativo para no mover el encabezado, y las pestañas pasan a 44. El criterio de 44 px se
+> aplica a todo lo que se toca, no sólo a las opciones de respuesta.
 
 ---
 

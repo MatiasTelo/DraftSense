@@ -57,5 +57,8 @@ Para ver qué DSN está usando la aplicación sin filtrar la contraseña:
 `ruff check .` → `mypy app` → `python -m app.cli check-seeds --seeds-dir ../infra/seeds` →
 `alembic upgrade head` → `alembic downgrade base && alembic upgrade head` → `pytest -q`.
 
-Levanta un `postgres:17` como service con `DS_DATABASE_URL` apuntando a localhost. Reproducirlo
-local es correr los mismos comandos con un `.env` configurado.
+Levanta un `postgres:17` como service con `DS_DATABASE_URL` apuntando a localhost. Para
+reproducirlo local, **no uses el `.env`**, que apunta a staging: `alembic downgrade base` le
+borraría el esquema. Levantá un Postgres 17 descartable en Docker y pasá su URL por el entorno,
+como muestra el `SKILL.md`. Contra ese mismo contenedor, sembrado con los seeds de `infra/seeds/`,
+se reproduce además el escenario de staging.

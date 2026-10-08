@@ -3,7 +3,7 @@
 Todo lo de acá está cerrado. No se replantea como si fuera una opción abierta; si hay que cambiarlo,
 se escribe un ADR nuevo que reemplace al viejo. Las rutas son relativas a `draftsense/docs/`.
 
-## Las 19 decisiones de arquitectura
+## Las 21 decisiones de arquitectura
 
 Cada línea es la decisión, no el razonamiento. El *por qué* y las alternativas descartadas están en
 el ADR; leerlo entero antes de contradecirlo.
@@ -29,6 +29,8 @@ el ADR; leerlo entero antes de contradecirlo.
 | **017** Tailwind | El frontend se estiliza con **Tailwind v4** vía `@tailwindcss/vite`. Los tokens del maquetado —paleta, las tres familias tipográficas y los tres tamaños del bisel— viven en un bloque `@theme` de `frontend/src/index.css`, que es su **única** representación en el código: un color literal dentro de un componente es un error |
 | **018** textos de los tipos 2 y 3 | El enunciado, la ayuda, la escala del slider y las plantillas de opciones de los tipos 2 y 3 son **constantes del backend** (`app/services/question_texts.py`), no filas de la base. CA-506 y 20 §1.2 («de la base, no del código») aplican a los catálogos `dimensions` y `traits`. La misma regla alcanza al 2v2 y al tipo 4 |
 | **019** roles desde el snapshot | `champions.roles` = todos los carriles en que el campeón figura en el **último snapshot de pick rate del parche** (top 30 por rol). Los ausentes conservan los suyos. Lo aplican `seed-pick-rate` y `sync-roles`; `seed-champions` nunca toca `roles`. Los provisorios de Data Dragon estaban mal en 38 de 58 campeones del tier 1 |
+| **020** cadencias en el servidor | El retest lo marca **el servidor**, nunca el cliente: al servirlo, el sampler guarda la respuesta original en `respondents.pending_retest_of` y el `POST` de esa pregunta se registra con `is_retest_of` (cualquier otra repetición es `409`). `next_honeypot_at` y `next_retest_at` guardan la posición —índice desde cero en la historia del respondedor— a partir de la cual toca cada cadencia, y `pending_honeypot` impide una segunda honeypot mientras la primera no se contesta. **`GET /questions/next?queued=`** lleva los ids que el cliente tiene en cola: dan la posición exacta y el lote nunca los repite |
+| **021** puentes en cadena | `check_graph_connectivity` **materializa** como mucho **k−1 puentes por dimensión**: una cadena en orden aleatorio entre componentes, sin honeypots, que se desmarcan cuando dejan de hacer falta. En frío, con el tier 1, son 456. Mientras el grafo esté partido, casi todo el tipo 1 sale como puente, por encima de ε |
 
 ## Los cinco tipos de pregunta
 

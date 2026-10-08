@@ -1,30 +1,27 @@
-"""Entrega de preguntas — versión reducida, de la semana 2 a la 4.
+"""Generación perezosa y render de preguntas (`docs/21-sampler.md` §2 y `docs/12-api.md` §2.3).
 
-**Esto NO es el sampler.** El sampler completo —función de prioridad por escasez, entropía,
-cobertura y puentes, exploración con epsilon, honeypots, retests y la regla de variedad— es el
-entregable de la semana 5 y está especificado en `docs/21-sampler.md` §10. Acá está sólo lo que
-hace falta para que los tipos implementados funcionen de punta a punta:
+Acá está lo que no depende de *cuál* pregunta toca:
 
-- tres tipos: `pairwise_dimension`, `peak_timing` y la variante 1v1 de `lane_matchup`, que es el
-  orden que fija `docs/20-tipos-de-pregunta.md` §8;
-- la composición de la sesión reducida a dos reglas de §7: las tres primeras preguntas de un
-  respondedor son de tipo 1 (CA-102), y después el tipo se sortea con los pesos 50/20/15,
-  renormalizados sobre los tipos que tienen candidatas;
-- sorteo uniforme dentro del tipo, que es literalmente el régimen de arranque en frío que manda
-  [ADR-012] mientras una pregunta tiene menos de `sampler.cold_threshold` respuestas — y al
-  arrancar el piloto **todas** están en ese caso;
-- generación bajo demanda: la pregunta se materializa cuando se la sortea, nunca se precomputa el
-  producto cartesiano (RF-111).
+- el espacio de combinaciones habilitado (`Space`) y lo que el pool actual admite servir;
+- el sorteo uniforme de una combinación sin enumerar el espacio (§4.4);
+- la materialización bajo demanda, que nunca precomputa el producto cartesiano (RF-111);
+- el render, que manda el enunciado ya compuesto (`docs/12-api.md` §1.1).
 
-Cuando llegue la semana 5, lo que se agrega es la rama de explotación y las reglas de composición
-que faltan; esta rama se conserva.
+La composición de la sesión y la elección de la pregunta —prioridad, exploración, honeypots,
+retests, variedad— están en `sampler.py` desde la semana 5.
+
+Se sirven tres tipos: `pairwise_dimension`, `peak_timing` y la variante 1v1 de `lane_matchup`,
+que es el orden de `docs/20-tipos-de-pregunta.md` §8. La 2v2 y los tipos 4 y 5 llegan en la
+semana 8.
 """
 
 from __future__ import annotations
 
+import math
 import random
-from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+import uuid
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any, Final
 
 import sqlalchemy as sa
@@ -39,7 +36,6 @@ from app.models import (
     Patch,
     Question,
     QuestionType,
-    Respondent,
     Response,
 )
 from app.schemas.questions import (
@@ -58,25 +54,16 @@ from app.schemas.questions import (
 )
 from app.services import app_settings, question_texts
 
-#: Cuántas preguntas de tipo 1 abren la sesión de un respondedor nuevo: son las más fáciles de
-#: entender sin instrucciones (`docs/20-tipos-de-pregunta.md` §7, CA-102).
-WARMUP_PAIRWISE: Final = 3
-
-#: La mezcla de `docs/20-tipos-de-pregunta.md` §7, restringida a los tipos que existen.
-#: `random.choices` renormaliza sola sobre los disponibles: 50/20/15 da ≈59/24/18 %.
-#: En la semana 8 hay que separar por **variante** y no por tipo, porque el 1v1 (15 %) y el
-#: 2v2 (5 %) comparten `QuestionType.LANE_MATCHUP`.
-TYPE_WEIGHTS: dict[QuestionType, int] = {
-    QuestionType.PAIRWISE_DIMENSION: 50,
-    QuestionType.PEAK_TIMING: 20,
-    QuestionType.LANE_MATCHUP: 15,
-}
+#: Los tipos que el sistema sabe servir y renderizar.
+SERVED_TYPES: Final = (
+    QuestionType.PAIRWISE_DIMENSION,
+    QuestionType.PEAK_TIMING,
+    QuestionType.LANE_MATCHUP,
+)
 
 #: Los roles del 1v1. La jungla no entra: no tiene un oponente fijo con quien intercambiar
 #: durante diez minutos (`docs/20-tipos-de-pregunta.md` §4.1).
 LANE_1V1_ROLES: Final = (LaneRole.TOP, LaneRole.MID, LaneRole.ADC)
-
-_rng = random.Random()
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +81,25 @@ class Combination:
     role: LaneRole | None = None
 
 
+def _role_names(champion: Champion) -> set[str]:
+    """Los roles como texto: el driver puede devolver los elementos del arreglo como `str`."""
+    return {str(r) for r in champion.roles}
+
+
+def lane_pools(champions: Sequence[Champion]) -> dict[LaneRole, list[Champion]]:
+    """Los candidatos del 1v1 por rol, sólo para los roles con al menos dos campeones.
+
+    Un rol con menos de dos no genera preguntas de tipo 3; no es un error, el tipo simplemente
+    tiene menos roles donde sortear (`docs/21-sampler.md` §8).
+    """
+    pools: dict[LaneRole, list[Champion]] = {}
+    for role in LANE_1V1_ROLES:
+        members = [c for c in champions if role.value in _role_names(c)]
+        if len(members) >= 2:
+            pools[role] = members
+    return pools
+
+
 @dataclass(frozen=True, slots=True)
 class Space:
     """El espacio de combinaciones habilitado (`docs/21-sampler.md` §2.3).
@@ -105,10 +111,27 @@ class Space:
     champions: Sequence[Champion]
     dimensions: Sequence[Dimension]
     lanes: Mapping[LaneRole, Sequence[Champion]]
+    champion_ids: frozenset[int] = field(default_factory=frozenset)
+    dimension_ids: frozenset[int] = field(default_factory=frozenset)
+    lane_ids: Mapping[LaneRole, frozenset[int]] = field(default_factory=dict)
 
     @classmethod
     def of(cls, champions: Sequence[Champion], dimensions: Sequence[Dimension]) -> Space:
-        return cls(champions, dimensions, lane_pools(champions))
+        lanes = lane_pools(champions)
+        return cls(
+            champions=champions,
+            dimensions=dimensions,
+            lanes=lanes,
+            champion_ids=frozenset(c.champion_id for c in champions),
+            dimension_ids=frozenset(d.dimension_id for d in dimensions),
+            lane_ids={
+                role: frozenset(c.champion_id for c in members) for role, members in lanes.items()
+            },
+        )
+
+    def roles_without_pair(self) -> list[LaneRole]:
+        """Los roles del 1v1 que este pool no puede servir, para el registro de §8."""
+        return [role for role in LANE_1V1_ROLES if role not in self.lanes]
 
     def available_types(self) -> frozenset[QuestionType]:
         """Los tipos que tienen al menos una combinación posible."""
@@ -121,36 +144,31 @@ class Space:
             available.add(QuestionType.LANE_MATCHUP)
         return frozenset(available)
 
+    def admits(self, question: Question) -> bool:
+        """Si el pool actual todavía puede servir esta pregunta ya materializada.
 
-def lane_pools(champions: Sequence[Champion]) -> dict[LaneRole, list[Champion]]:
-    """Los candidatos del 1v1 por rol, sólo para los roles con al menos dos campeones.
-
-    Un rol con menos de dos no genera preguntas de tipo 3; no es un error, el tipo simplemente
-    tiene menos roles donde sortear (`docs/21-sampler.md` §8). Los roles se comparan como texto
-    porque el driver puede devolver los elementos del arreglo como `str` y no como `LaneRole`.
-    """
-    pools: dict[LaneRole, list[Champion]] = {}
-    for role in LANE_1V1_ROLES:
-        members = [c for c in champions if role.value in {str(r) for r in c.roles}]
-        if len(members) >= 2:
-            pools[role] = members
-    return pools
-
-
-def choose_type(
-    position: int, available: Collection[QuestionType], rng: random.Random
-) -> QuestionType | None:
-    """El tipo de la pregunta número `position` del respondedor, contando desde cero.
-
-    Lee `TYPE_WEIGHTS` en cada llamada, no al importar: es lo que permite a los tests forzar un
-    tipo sin tocar el sorteo.
-    """
-    if position < WARMUP_PAIRWISE and QuestionType.PAIRWISE_DIMENSION in available:
-        return QuestionType.PAIRWISE_DIMENSION
-    candidates = [t for t in TYPE_WEIGHTS if t in available]
-    if not candidates:
-        return None
-    return rng.choices(candidates, weights=[TYPE_WEIGHTS[t] for t in candidates])[0]
+        Una pregunta se generó con el pool de ese momento. Si después un campeón bajó de tier,
+        una dimensión se desactivó o un campeón dejó de tener el rol (ADR-019), la fila sigue en
+        la base —y sus respuestas siguen valiendo— pero no se vuelve a mostrar (21 §8).
+        """
+        if question.type not in SERVED_TYPES:
+            return False
+        members = [c for c in (question.champion_a, question.champion_b) if c is not None]
+        if question.champion_c is not None or question.champion_d is not None:
+            # La variante 2v2 del tipo 3 se sirve desde la semana 8.
+            return False
+        if not all(c in self.champion_ids for c in members):
+            return False
+        if question.dimension_id is not None and question.dimension_id not in self.dimension_ids:
+            return False
+        if question.type is QuestionType.PAIRWISE_DIMENSION and question.dimension_id is None:
+            return False
+        if question.type is QuestionType.LANE_MATCHUP:
+            if question.role is None:
+                return False
+            lane = self.lane_ids.get(LaneRole(str(question.role)))
+            return lane is not None and all(c in lane for c in members)
+        return True
 
 
 def _canonical(a: Champion, b: Champion) -> tuple[int, int]:
@@ -173,8 +191,12 @@ def draw_combination(
         case QuestionType.PEAK_TIMING:
             return Combination(question_type, rng.choice(space.champions).champion_id)
         case QuestionType.LANE_MATCHUP:
-            # Primero el rol y después el par: el par tiene que compartir el rol que se muestra.
-            role = rng.choice(list(space.lanes))
+            # Primero el rol y después el par, que tiene que compartir el rol que se muestra. El
+            # rol se pesa por su cantidad de pares (errata de §4.4 del 16/09): con un rol
+            # uniforme, un par del rol más chico saldría más seguido que uno del más grande.
+            roles = list(space.lanes)
+            weights = [math.comb(len(space.lanes[role]), 2) for role in roles]
+            role = rng.choices(roles, weights=weights)[0]
             a, b = rng.sample(list(space.lanes[role]), 2)
             low, high = _canonical(a, b)
             return Combination(question_type, low, champion_b=high, role=role)
@@ -188,7 +210,8 @@ async def current_patch(session: AsyncSession) -> Patch | None:
     ).scalar_one_or_none()
 
 
-async def _enabled_champions(session: AsyncSession) -> list[Champion]:
+async def enabled_champions(session: AsyncSession) -> list[Champion]:
+    """Los campeones activos dentro de `sampler.enabled_pool_tiers` (ADR-006)."""
     tiers = await app_settings.get(session, "sampler.enabled_pool_tiers", 1)
     return list(
         (
@@ -201,7 +224,7 @@ async def _enabled_champions(session: AsyncSession) -> list[Champion]:
     )
 
 
-async def _active_dimensions(session: AsyncSession) -> list[Dimension]:
+async def active_dimensions(session: AsyncSession) -> list[Dimension]:
     return list(
         (
             await session.execute(
@@ -213,18 +236,21 @@ async def _active_dimensions(session: AsyncSession) -> list[Dimension]:
     )
 
 
-async def _answered_question_ids(session: AsyncSession, respondent: Respondent) -> set[int]:
-    """Las preguntas que este respondedor ya contestó.
+async def load_space(session: AsyncSession) -> Space:
+    return Space.of(await enabled_champions(session), await active_dimensions(session))
+
+
+async def answered_question_ids(session: AsyncSession, respondent_id: uuid.UUID) -> set[int]:
+    """Las preguntas que este respondedor ya contestó, en una sola consulta por lote (§5).
 
     Se excluyen del lote porque `responses_one_per_question` haría fallar el `POST` con 409:
-    servirlas sería garantizar un error de ida y vuelta.
+    servirlas sería garantizar un error de ida y vuelta. La única excepción es el retest, que
+    sale de su propio camino.
     """
     return set(
         (
             await session.execute(
-                sa.select(Response.question_id).where(
-                    Response.respondent_id == respondent.respondent_id
-                )
+                sa.select(Response.question_id).where(Response.respondent_id == respondent_id)
             )
         )
         .scalars()
@@ -232,16 +258,11 @@ async def _answered_question_ids(session: AsyncSession, respondent: Respondent) 
     )
 
 
-async def materialize(session: AsyncSession, patch_id: int, combination: Combination) -> Question:
-    """Devuelve la pregunta, creándola si es la primera vez que se sortea (RF-111).
+def identity(combination: Combination, patch_id: int) -> list[sa.ColumnElement[bool]]:
+    """Las nueve columnas de `questions_identity`, con `IS NULL` en las que el tipo no usa.
 
-    El `ON CONFLICT DO NOTHING` más el `SELECT` posterior es lo que hace la operación segura
-    entre peticiones simultáneas: el árbitro es el índice `questions_identity` de la migración,
-    con `NULLS NOT DISTINCT`, no el código (`docs/21-sampler.md` §2.2, errata del 16/09).
-
-    La búsqueda compara las nueve columnas de la identidad. Las que el tipo no usa se comparan con
-    `IS NULL`: un `= NULL` nunca es verdadero, y sin la comparación explícita un pico de Kayle
-    podría confundirse con cualquier otra pregunta que empiece por Kayle.
+    Un `= NULL` nunca es verdadero: sin la comparación explícita, un pico de Kayle podría
+    confundirse con cualquier otra pregunta que empiece por Kayle.
     """
     columns: tuple[tuple[InstrumentedAttribute[Any], object], ...] = (
         (Question.type, combination.type),
@@ -254,95 +275,77 @@ async def materialize(session: AsyncSession, patch_id: int, combination: Combina
         (Question.role, combination.role),
         (Question.duo_ctx, None),
     )
-    identity = [
-        column.is_(None) if value is None else column == value for column, value in columns
-    ]
-    existing = (await session.execute(sa.select(Question).where(*identity))).scalar_one_or_none()
+    return [column.is_(None) if value is None else column == value for column, value in columns]
+
+
+def _values(combination: Combination, patch_id: int) -> dict[str, Any]:
+    return {
+        "type": combination.type,
+        "patch_id": patch_id,
+        "champion_a": combination.champion_a,
+        "champion_b": combination.champion_b,
+        "dimension_id": combination.dimension_id,
+        "role": combination.role,
+    }
+
+
+async def materialize(session: AsyncSession, patch_id: int, combination: Combination) -> Question:
+    """Devuelve la pregunta, creándola si es la primera vez que se sortea (RF-111).
+
+    El `ON CONFLICT DO NOTHING` más el `SELECT` posterior es lo que hace la operación segura
+    entre peticiones simultáneas: el árbitro es el índice `questions_identity` de la migración,
+    con `NULLS NOT DISTINCT`, no el código (`docs/21-sampler.md` §2.2, errata del 16/09).
+    """
+    conditions = identity(combination, patch_id)
+    existing = (await session.execute(sa.select(Question).where(*conditions))).scalar_one_or_none()
     if existing is not None:
         return existing
 
     await session.execute(
-        pg_insert(Question)
-        .values(
-            type=combination.type,
-            patch_id=patch_id,
-            champion_a=combination.champion_a,
-            champion_b=combination.champion_b,
-            dimension_id=combination.dimension_id,
-            role=combination.role,
-        )
-        .on_conflict_do_nothing()
+        pg_insert(Question).values(_values(combination, patch_id)).on_conflict_do_nothing()
     )
     await session.commit()
-    return (await session.execute(sa.select(Question).where(*identity))).scalar_one()
+    return (await session.execute(sa.select(Question).where(*conditions))).scalar_one()
 
 
-async def _draw_unseen(
-    session: AsyncSession,
-    patch_id: int,
-    question_type: QuestionType,
-    space: Space,
-    excluded: Collection[int],
-    retries: int,
-    rng: random.Random,
-) -> Question | None:
-    """Rechazo con reintento (`docs/21-sampler.md` §5): una pregunta del tipo, no excluida."""
-    for _ in range(retries):
-        question = await materialize(session, patch_id, draw_combination(question_type, space, rng))
-        if question.question_id not in excluded:
-            return question
-    return None
+async def materialize_many(
+    session: AsyncSession, patch_id: int, combinations: Sequence[Combination]
+) -> dict[Combination, Question]:
+    """`materialize` para muchas combinaciones del tipo 1 de una vez. No hace commit.
 
-
-async def next_batch(
-    session: AsyncSession,
-    respondent: Respondent,
-    count: int,
-    rng: random.Random | None = None,
-) -> list[QuestionOut]:
-    """Sortea hasta `count` preguntas distintas y las devuelve ya renderizadas.
-
-    Un tipo que agota sus reintentos queda descartado **para el resto del lote** y el sorteo sigue
-    entre los demás. Puede pasar por mala suerte con un pool chico; el costo es un lote con otra
-    mezcla, que es inofensivo. Si se agotan todos, el lote sale más corto y, si queda vacío, la
-    interfaz muestra el estado de cola vacía.
+    Lo usa `check_graph_connectivity`, que en el arranque crea cientos de puentes: de a uno
+    serían cuatro idas a la base por pregunta. Un solo `INSERT … ON CONFLICT DO NOTHING` y una
+    sola búsqueda por tupla dan el mismo resultado con el mismo árbitro, el índice
+    `questions_identity`.
     """
-    rng = rng or _rng
-    patch = await current_patch(session)
-    if patch is None:
-        return []
-    space = Space.of(await _enabled_champions(session), await _active_dimensions(session))
-    available = space.available_types()
-    if not available:
-        return []
-
-    retries = await app_settings.get(session, "sampler.max_rejection_retries", 10)
-    answered = await _answered_question_ids(session, respondent)
-
-    chosen: list[Question] = []
-    seen: set[int] = set()
-    exhausted: set[QuestionType] = set()
-    for index in range(count):
-        question: Question | None = None
-        while question is None:
-            question_type = choose_type(
-                respondent.answers_count + index, available - exhausted, rng
+    unique = list(dict.fromkeys(combinations))
+    if not unique:
+        return {}
+    if any(c.type is not QuestionType.PAIRWISE_DIMENSION or c.role is not None for c in unique):
+        raise ValueError("materialize_many only handles pairwise_dimension combinations")
+    await session.execute(
+        pg_insert(Question)
+        .values([_values(c, patch_id) for c in unique])
+        .on_conflict_do_nothing()
+    )
+    keys = [(c.champion_a, c.champion_b, c.dimension_id) for c in unique]
+    rows = (
+        await session.execute(
+            sa.select(Question).where(
+                Question.type == QuestionType.PAIRWISE_DIMENSION,
+                Question.patch_id == patch_id,
+                Question.champion_c.is_(None),
+                Question.champion_d.is_(None),
+                Question.role.is_(None),
+                Question.duo_ctx.is_(None),
+                sa.tuple_(Question.champion_a, Question.champion_b, Question.dimension_id).in_(
+                    keys
+                ),
             )
-            if question_type is None:
-                break
-            question = await _draw_unseen(
-                session, patch.patch_id, question_type, space, answered | seen, retries, rng
-            )
-            if question is None:
-                exhausted.add(question_type)
-        if question is None:
-            break
-        seen.add(question.question_id)
-        chosen.append(question)
-
-    champions = {c.champion_id: c for c in space.champions}
-    dimensions = {d.dimension_id: d for d in space.dimensions}
-    return [render(q, champions, dimensions) for q in chosen]
+        )
+    ).scalars()
+    by_key = {(q.champion_a, q.champion_b, q.dimension_id): q for q in rows}
+    return {c: by_key[(c.champion_a, c.champion_b, c.dimension_id)] for c in unique}
 
 
 def champion_ref(champion: Champion) -> ChampionRef:

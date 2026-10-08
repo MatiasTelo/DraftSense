@@ -52,6 +52,11 @@
   value: 0.85
   description: Bajo este pass rate la honeypot se retira sola.
 
+# Agregada el 16/09/2026 (22 §3.4). Sin piso, el primer fallo retiraría la honeypot.
+- key: quality.honeypot_min_attempts
+  value: 40
+  description: Intentos, sin unknown ni marcados, antes de evaluar el pass rate de una honeypot.
+
 - key: quality.retest_every
   value: 30
   description: Cadencia de retests, en preguntas.

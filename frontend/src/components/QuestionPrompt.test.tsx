@@ -45,6 +45,12 @@ describe('QuestionPrompt', () => {
     expect(screen.queryByText(HELP.text)).not.toBeInTheDocument();
   });
 
+  it('el área táctil del ícono mide 44 px aunque el círculo visible mida 36', () => {
+    // jsdom no calcula layout: se verifica la clase que fija la medida (30-ux-flujos §9).
+    render(<Harness />);
+    expect(screen.getByRole('button', { name: 'What engage means' })).toHaveClass('size-11');
+  });
+
   it('sin definición no hay ícono que tocar', () => {
     render(
       <QuestionPrompt prompt="Who has more engage?" help={null} open={false} onToggle={() => {}} />,

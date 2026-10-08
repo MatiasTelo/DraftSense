@@ -125,11 +125,13 @@ export function Onboarding() {
           <h1 className="font-display text-[23px] leading-tight font-semibold text-ink">
             A bit about you
           </h1>
+          {/* 44 px de área táctil (30-ux-flujos §9). El margen negativo conserva la altura del
+              encabezado del maquetado, que se armó con el botón de 32 px. */}
           <button
             type="button"
             onClick={() => void submit(true)}
             disabled={sending}
-            className="px-1 py-2 font-mono text-xs font-semibold tracking-[0.14em] text-gold uppercase"
+            className="-my-1.5 flex min-h-11 min-w-11 items-center justify-center px-1 font-mono text-xs font-semibold tracking-[0.14em] text-gold uppercase"
           >
             Skip
           </button>

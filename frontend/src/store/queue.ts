@@ -50,7 +50,10 @@ export const useQueue = create<QueueState>((set, get) => ({
     inFlight ??= (async () => {
       set((state) => ({ status: state.questions.length === 0 ? 'loading' : state.status }));
       try {
-        const batch = await fetchQuestions(BATCH_SIZE);
+        // Lo que queda en la cola todavía no se contestó: las preguntas nuevas van después, y el
+        // servidor no las repite.
+        const queued = get().questions.map((q) => q.question_id);
+        const batch = await fetchQuestions(BATCH_SIZE, queued);
         set((state) => {
           // El servidor no repite dentro de un lote, pero sí puede devolver algo que ya está en
           // la cola local si dos precargas se cruzaron. Deduplicar acá es barato y evita que el

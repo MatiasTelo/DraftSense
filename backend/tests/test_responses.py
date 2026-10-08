@@ -1,9 +1,7 @@
 """Registro de respuestas — CA-201, CA-202, CA-204 y CA-209 de `03-criterios-aceptacion.md` §3.
 
-**CA-205 (el retest sí se admite) no está cubierto y no puede estarlo todavía.** El request de
-`docs/12-api.md` §2.4 no tiene campo para marcar una respuesta como repetición, y deducirlo en el
-servidor haría que todo duplicado fuera un retest y que el 409 de CA-204 no ocurriera nunca. Quién
-agenda los retests es el módulo de calidad de la semana 5; el criterio se cubre entonces.
+CA-205 (el retest sí se admite) está en `test_retests.py`: desde la semana 5 el retest lo marca el
+servidor al servirlo (ADR-020), así que se prueba junto con el sampler que lo agenda.
 """
 
 from __future__ import annotations

@@ -27,10 +27,17 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Qué claves tiene `answer_counts` en cada tipo | `11-modelo-de-datos.md` §3.8 (nota del 16/09) |
 | La forma exacta del feedback de cada tipo | `12-api.md` §2.4 (nota del 16/09) |
 | Cómo elige el sampler la próxima pregunta | `21-sampler.md` §3 (prioridad) y §4 (regímenes y exploración) |
+| Cómo se calcula `coverage_deficit` en los tipos 2 y 3 | `21-sampler.md` §3.3 (nota del 16/09) |
+| Qué puentes crea el job de conectividad y cuántos | `13-adr/ADR-021-puentes-en-cadena.md` y `21-sampler.md` §3.4 |
+| Dónde se guardan las cadencias y cómo sabe el servidor que algo es un retest | `13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md` y `11-modelo-de-datos.md` §3.7 |
+| Qué es `queued` en `GET /questions/next` y por qué existe | `12-api.md` §2.3 (nota del 17/09) y ADR-020 |
+| Cómo se aplican variedad, honeypot y retest en un lote | `21-sampler.md` §6 (nota del 16/09) |
 | Cómo se generan las preguntas sin enumerarlas todas | `21-sampler.md` §2 |
 | El pseudocódigo completo del sampler | `21-sampler.md` §10 |
-| Qué es una honeypot y de dónde sale el catálogo | `22-calidad-de-datos.md` §3 |
-| Cómo se detecta un patrón degenerado o un duplicado | `22-calidad-de-datos.md` §5 y §6 |
+| Qué es una honeypot y de dónde sale el catálogo | `22-calidad-de-datos.md` §3; el de 16.17 está en `infra/seeds/honeypots_16.17.yaml` |
+| Por qué `waveclear` no tiene honeypots y qué cuenta como daño a distancia en `poke` | `22-calidad-de-datos.md` §3.2 (nota del 16/09) |
+| Cuándo se retira una honeypot (piso de 40 intentos) y cómo se recarga el catálogo | `22-calidad-de-datos.md` §3.3 y §3.4 (notas del 16/09) |
+| Cómo se detecta un patrón degenerado o un duplicado | `22-calidad-de-datos.md` §5 y §6 (cómo se cuenta el *straightlining*: nota del 16/09 en §5.2) |
 | La fórmula del trust score y cuándo se recalcula | `22-calidad-de-datos.md` §7 |
 | Cómo funcionan las rachas, el perfil o la tabla de posiciones | `23-gamificacion.md` §2, §3, §5 |
 | El panel de administración | `24-panel-admin.md` — **pendiente** |
@@ -60,7 +67,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (19 ADR) | v1 |
+| `13-adr/` (21 ADR) | v1 |
 | `20-tipos-de-pregunta.md` | v1 |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |

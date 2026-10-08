@@ -18,9 +18,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import QuestionType, Trait
 
-PAIRWISE_CHOICES = ("a", "b", "unknown")
+UNKNOWN_CHOICE = "unknown"
+PAIRWISE_CHOICES = ("a", "b", UNKNOWN_CHOICE)
 LANE_MATCHUP_CHOICES = ("a_strong", "a_slight", "even", "b_slight", "b_strong")
 DUO_SYNERGY_CHOICES = ("pair_1", "pair_2", "similar")
+
+#: El colapso de la escala del tipo 3 a quién gana. *Wins hard* y *wins slightly* dicen lo mismo
+#: sobre el ganador: lo usan la entropía (`docs/21-sampler.md` §3.2) y la consistencia del retest
+#: (`docs/22-calidad-de-datos.md` §4), que miden desacuerdo sobre eso y no sobre el margen.
+LANE_OUTCOME: dict[str, str] = {
+    "a_strong": "a",
+    "a_slight": "a",
+    "even": "even",
+    "b_slight": "b",
+    "b_strong": "b",
+}
 
 PEAK_MIN_MINUTE = 0
 PEAK_MAX_MINUTE = 40

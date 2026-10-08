@@ -4,7 +4,8 @@ Hasta la semana 3 `questions.answer_counts` no lo refrescaba nadie, así que `bu
 devolvía `None` siempre y el panel de consenso de `docs/30-ux-flujos.md` §5.1 no se mostraba nunca.
 Estos tests cubren las dos mitades: que el job calcule bien, y que el umbral de RF-114 y de ADR-012
 se respete en los dos sentidos. Desde la semana 4 cubren también el tipo 2, cuyo consenso es una
-mediana, y la variante 1v1 del tipo 3.
+mediana, y la variante 1v1 del tipo 3; desde la 5, el déficit de cobertura y la exclusión de los
+retests. El retiro de honeypots, que también corre en este job, está en `test_honeypots.py`.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from app.services.question_stats import (
     peak_entropy,
     peak_median,
 )
-from tests.conftest import requires_db
+from tests.conftest import add_response, pairwise_question, requires_db, restrict_pool
 
 
 async def _question(
@@ -422,3 +423,109 @@ async def test_el_acuerdo_del_matchup_es_exacto_sobre_los_cinco_niveles(
     slight = await responses_service.build_feedback(db, question, {"choice": "a_slight"})
     assert slight is not None
     assert slight.agreed_with_majority is True
+
+
+# ------------------------------------------------ el déficit de cobertura — §3.3, nota del 16/09
+
+
+@requires_db
+async def test_el_deficit_es_el_del_campeon_peor_cubierto(
+    db: AsyncSession, patch: Patch, champions: list[Champion], dimension: Dimension
+) -> None:
+    """Cuatro celdas con 2, 2, 0 y 0 respuestas decisivas: mediana 1."""
+    await restrict_pool(db, champions, [dimension])
+    covered = await _question(db, patch, champions, dimension)
+    empty = await _question(db, patch, champions, dimension, offset=2)
+    mixed = await pairwise_question(db, patch, champions[0], champions[2], dimension)
+    await _answer_many(db, covered, ["a", "b"])
+
+    result = await question_stats.refresh(db)
+    for row in (covered, empty, mixed):
+        await db.refresh(row)
+
+    assert result.coverage_medians["pairwise_dimension"] == 1.0
+    assert covered.coverage_deficit == Decimal("0.0000")
+    assert empty.coverage_deficit == Decimal("1.0000")
+    assert mixed.coverage_deficit == Decimal("1.0000")
+
+
+@requires_db
+async def test_con_mediana_cero_el_deficit_queda_vacio(
+    db: AsyncSession, patch: Patch, champions: list[Champion], dimension: Dimension
+) -> None:
+    """Un solo campeón con picos de cuatro: más de la mitad de las celdas vacías."""
+    await restrict_pool(db, champions, [dimension])
+    peak = await _typed_question(db, patch, champions, QuestionType.PEAK_TIMING)
+    await _answer_minutes(db, peak, [20, 22])
+
+    result = await question_stats.refresh(db)
+    await db.refresh(peak)
+
+    assert result.coverage_medians["peak_timing"] == 0.0
+    assert peak.coverage_deficit is None
+
+
+@requires_db
+async def test_unknown_y_marcados_no_cubren(
+    db: AsyncSession, patch: Patch, champions: list[Champion], dimension: Dimension
+) -> None:
+    """`n` cuenta las respuestas que entrarían a la agregación: decisivas y de no marcados."""
+    await restrict_pool(db, champions, [dimension])
+    question = await _question(db, patch, champions, dimension)
+    await _answer_many(db, question, ["unknown", "unknown"])
+    flagged, _ = await sessions.create(db, "huella-marcada-cobertura")
+    flagged.is_flagged = True
+    await responses_service.record(
+        db, flagged, question, {"choice": "a"}, 2000, dt.datetime.now(dt.UTC)
+    )
+
+    result = await question_stats.refresh(db)
+    await db.refresh(question)
+
+    assert question.exposure_count == 3
+    assert result.coverage_medians["pairwise_dimension"] == 0.0
+    assert question.coverage_deficit is None
+
+
+@requires_db
+async def test_el_1v1_se_cubre_por_campeon_y_rol(
+    db: AsyncSession, patch: Patch, champions: list[Champion], dimension: Dimension
+) -> None:
+    await restrict_pool(db, champions, [dimension])
+    lane = await _typed_question(db, patch, champions, QuestionType.LANE_MATCHUP)
+    low, high = sorted(c.champion_id for c in champions[2:4])
+    other = Question(
+        type=QuestionType.LANE_MATCHUP,
+        champion_a=low,
+        champion_b=high,
+        role=LaneRole.MID,
+        patch_id=patch.patch_id,
+    )
+    db.add(other)
+    await db.commit()
+    await _answer_many(db, lane, ["even", "a_slight"])
+
+    result = await question_stats.refresh(db)
+    await db.refresh(lane)
+    await db.refresh(other)
+
+    assert result.coverage_medians["lane_matchup"] == 1.0
+    assert lane.coverage_deficit == Decimal("0.0000")
+    assert other.coverage_deficit == Decimal("1.0000")
+
+
+@requires_db
+async def test_los_retests_no_cuentan_en_el_consenso(
+    db: AsyncSession, patch: Patch, champions: list[Champion], dimension: Dimension
+) -> None:
+    """25 §1.3 — la misma persona contestando otra vez no es una opinión más."""
+    question = await _question(db, patch, champions, dimension)
+    person, _ = await sessions.create(db, "huella-retest-consenso")
+    original = await add_response(db, person, question, {"choice": "a"})
+    await add_response(db, person, question, {"choice": "b"}, is_retest_of=original.response_id)
+
+    await question_stats.refresh(db)
+    await db.refresh(question)
+
+    assert question.answer_counts == {"a": 1}
+    assert question.exposure_count == 1
