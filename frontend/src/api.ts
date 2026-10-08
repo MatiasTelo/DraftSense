@@ -37,9 +37,18 @@ interface QuestionBase {
   help: Help | null;
 }
 
+/**
+ * Tipo 1: cinco campeones para ordenar en una dimensión (ADR-022). `question_id` es el par ancla
+ * que eligió el sampler y es lo que viaja en `queued`; `ranking_id` identifica el ranking servido.
+ * Los campeones llegan en orden aleatorio.
+ */
 export interface PairwiseDimensionQuestion extends QuestionBase {
   type: 'pairwise_dimension';
-  options: Side[];
+  ranking_id: number;
+  /** La segunda línea del enunciado: cómo se ordena. */
+  instruction: string;
+  champions: ChampionRef[];
+  unknown_label: string;
 }
 
 export interface PeakTimingQuestion extends QuestionBase {
@@ -89,7 +98,9 @@ export type Question =
   | TraitMultiselectQuestion;
 
 export type Answer =
-  | { choice: 'a' | 'b' | 'unknown' }
+  /** Tipo 1: los cinco ids de más a menos, o *Not sure* para el ranking entero. */
+  | { order: number[] }
+  | { choice: 'unknown' }
   | { minute: number }
   | { choice: LaneChoice }
   | { choice: 'pair_1' | 'pair_2' | 'similar' }
@@ -114,6 +125,10 @@ export interface Feedback {
   consensus_median?: number;
   your_answer?: number;
   agreed_with_majority?: boolean;
+  /** Tipo 1: en cuántos de los pares con soporte coincide el orden con la mayoría. */
+  pairs_agreed?: number;
+  /** Tipo 1: cuántos pares del ranking tienen soporte suficiente. */
+  pairs_compared?: number;
   sample_size: number;
 }
 
@@ -148,6 +163,8 @@ export interface QuestionBatch {
 
 export interface ResponseRequest {
   question_id: number;
+  /** Sólo el tipo 1: el ranking servido, cuyo ancla es `question_id` (ADR-022). */
+  ranking_id?: number;
   answer: Answer;
   response_time_ms: number;
 }

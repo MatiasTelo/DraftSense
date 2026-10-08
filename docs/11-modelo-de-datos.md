@@ -1,6 +1,10 @@
 # 11 — Modelo de datos
 
-> Estado: **v1** · Última revisión: 16/09/2026 · Motor: PostgreSQL 16
+> Estado: **v1** · Última revisión: 08/10/2026 · Motor: PostgreSQL 16
+>
+> **08/10/2026:** tabla `rankings` (§3.14), columna `responses.ranking_id` y los tipos de archivo
+> nuevos de `exports` ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
+> [ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Migración `0004`.
 
 Esquema completo, diccionario de datos, esquemas de validación de las respuestas y estrategia de
 migraciones. El DDL de este documento es **ejecutable tal cual**: se corre contra un Postgres 16
@@ -48,6 +52,9 @@ erDiagram
     respondents ||--o{ responses : ""
     questions ||--o{ responses : ""
     responses ||--o{ responses : "is_retest_of"
+    respondents ||--o{ rankings : ""
+    questions ||--o{ rankings : "anchor_question_id"
+    rankings ||--o{ responses : "ranking_id"
 ```
 
 ---
@@ -449,6 +456,7 @@ CREATE TABLE responses (
     answer           jsonb  NOT NULL,
     response_time_ms int    NOT NULL,
     is_retest_of     bigint REFERENCES responses (response_id),
+    ranking_id       bigint,   -- tipo 1: el ranking que la produjo; FK en §3.14 (ADR-022)
     created_at       timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT responses_time_sane CHECK (response_time_ms >= 0 AND response_time_ms < 600000),
@@ -495,6 +503,9 @@ CREATE INDEX responses_by_patch_type ON responses (patch_id, type);
 -- Ventanas de día y semana de la tabla de posiciones
 CREATE INDEX responses_recent ON responses (created_at DESC);
 
+-- Las diez filas de un ranking del tipo 1 (ADR-022)
+CREATE INDEX responses_by_ranking ON responses (ranking_id) WHERE ranking_id IS NOT NULL;
+
 -- La honeypot y el retest servidos y todavía no contestados (ADR-020). Se declaran acá porque
 -- respondents se crea antes que questions y que responses.
 ALTER TABLE respondents
@@ -514,6 +525,14 @@ aplicación en el `INSERT`; una migración de verificación puede auditarla con 
 
 **El rango de `response_time_ms`** corta en 10 minutos: por encima de eso la tarjeta quedó abierta
 en una pestaña olvidada y el tiempo no mide nada.
+
+> **Agregado el 08/10/2026.** Desde que el tipo 1 es un ranking de cinco campeones
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), **un envío de tipo 1 inserta diez filas**,
+> una por par, todas con el mismo `ranking_id` y el mismo `response_time_ms`. Cada fila sigue
+> siendo una respuesta `pairwise_dimension` con `{"choice"}`, así que la restricción de forma no
+> cambia. Un par que el respondedor ya había contestado se ignora con `ON CONFLICT DO NOTHING`
+> sobre `responses_one_per_question`. **Para contar respuestas de una persona se cuentan envíos**,
+> no filas: la fila sin `ranking_id`, o la del par ancla del ranking.
 
 ### 3.10 `aggregates`
 
@@ -612,13 +631,18 @@ CREATE TABLE exports (
     created_at timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT exports_kind_valid CHECK (
-        file_kind IN ('champion_features','matchup_matrix','duo_features','quality_report')
+        file_kind IN ('champion_dimensions','peak_timing','champion_lane_strength',
+                      'champion_traits','matchup_matrix','duo_features','quality_report')
     ),
     CONSTRAINT exports_sha256_format CHECK (sha256 ~ '^[0-9a-f]{64}$')
 );
 
 CREATE INDEX exports_by_patch ON exports (patch_id, created_at DESC);
 ```
+
+> **Cambiado el 08/10/2026.** `champion_features` se reemplazó por los cuatro archivos por campeón
+> de [`26-esquema-de-salida.md`](26-esquema-de-salida.md) §3
+> ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)).
 
 ### 3.12 `app_settings`
 
@@ -692,6 +716,48 @@ es un registro de auditoría. No guarda quién —el panel se autentica con una 
 (`X-Admin-Key`), no con identidades— sino **qué cambió y cuándo**, que es lo que hace falta para
 explicar por qué dos corridas del pipeline sobre el mismo crudo dieron distinto.
 
+### 3.14 `rankings`
+
+> **Agregado el 08/10/2026** ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Migración
+> `0004`.
+
+Cada tarjeta de tipo 1 que se sirve: cinco campeones para ordenar en una dimensión. Las diez
+comparaciones que produce se guardan en `responses`, una por par; esta tabla es la que permite
+validar el orden recibido y reconocer cuál de los diez pares es el ancla.
+
+```sql
+CREATE TABLE rankings (
+    ranking_id         bigserial PRIMARY KEY,
+    respondent_id      uuid   NOT NULL REFERENCES respondents (respondent_id),
+    patch_id           int    NOT NULL REFERENCES patches (patch_id),
+    dimension_id       int    NOT NULL REFERENCES dimensions (dimension_id),
+    -- El par que eligió el sampler: puente, honeypot, retest, explotación o exploración
+    anchor_question_id bigint NOT NULL REFERENCES questions (question_id),
+    champions          int[]  NOT NULL,   -- los cinco, en el orden en que se mostraron
+    submitted_order    int[],             -- de más a menos; NULL sin contestar o con Not sure
+    created_at         timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT rankings_five_champions CHECK (cardinality(champions) = 5),
+    CONSTRAINT rankings_order_complete CHECK (
+        submitted_order IS NULL OR cardinality(submitted_order) = 5
+    )
+);
+
+CREATE INDEX rankings_by_respondent ON rankings (respondent_id, created_at DESC);
+
+ALTER TABLE responses
+    ADD CONSTRAINT responses_ranking_fk
+    FOREIGN KEY (ranking_id) REFERENCES rankings (ranking_id);
+```
+
+**`rankings` no es append-only**: `submitted_order` se completa al contestar. Es lo que usa el
+retest para encontrar el par de las puntas —el primero contra el último del orden del usuario— sin
+reconstruir el orden a partir de las diez filas, que pueden ser menos de diez si algún par se
+ignoró por repetido. El dato irremplazable sigue estando en `responses`.
+
+Un ranking que se sirvió y nunca se contestó queda con `submitted_order` en `NULL` y sin filas en
+`responses`, igual que una pregunta servida y no contestada.
+
 ---
 
 ## 4. Permisos: cómo se garantiza el append-only
@@ -712,6 +778,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO draftsense_app;
 GRANT INSERT                 ON responses   TO draftsense_app;
 GRANT INSERT, UPDATE         ON respondents TO draftsense_app;
 GRANT INSERT, UPDATE         ON questions   TO draftsense_app;
+GRANT INSERT, UPDATE         ON rankings    TO draftsense_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO draftsense_app;
 
 -- Configuración: la aplicación la lee, sólo el panel la escribe
@@ -745,7 +812,7 @@ puede expresar cómodamente: que `minute` sea entero y que cada código de `trai
 
 | Tipo | `answer` | Validación adicional en la API |
 |---|---|---|
-| `pairwise_dimension` | `{"choice": "a" \| "b" \| "unknown"}` | — |
+| `pairwise_dimension` | `{"choice": "a" \| "b" \| "unknown"}`, una fila por par | la API recibe `{"order": [5 ids]}` o `{"choice": "unknown"}` y lo convierte en diez filas (ADR-022) |
 | `peak_timing` | `{"minute": 27}` | entero, no decimal |
 | `lane_matchup` | `{"choice": "a_strong" \| "a_slight" \| "even" \| "b_slight" \| "b_strong"}` | — |
 | `duo_synergy` | `{"choice": "pair_1" \| "pair_2" \| "similar"}` | — |
@@ -780,9 +847,14 @@ comparación es una igualdad de `jsonb`.
 `responses_by_respondent`, que ya existe:
 
 ```sql
-SELECT count(*) FROM responses
-WHERE respondent_id = $1 AND created_at > now() - interval '1 minute';
+SELECT count(*) FROM responses r
+LEFT JOIN rankings k ON k.ranking_id = r.ranking_id
+WHERE r.respondent_id = $1 AND r.created_at > now() - interval '1 minute'
+  AND (r.ranking_id IS NULL OR r.question_id = k.anchor_question_id);
 ```
+
+> **Cambiado el 08/10/2026.** Cuenta envíos, no filas: un ranking del tipo 1 son diez filas y una
+> sola respuesta ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 Con el índice, es un recorrido de unas pocas decenas de filas. No hace falta Redis ni un contador
 en memoria, lo que además evita que el límite se reinicie en cada despliegue.

@@ -1,6 +1,10 @@
 # 30 — Flujos e interfaz
 
-> Estado: **v1** · Última revisión: 15/09/2026
+> Estado: **v1** · Última revisión: 08/10/2026
+>
+> **08/10/2026:** mensaje nuevo para el soporte bajo, feedback por pares del tipo 1 y confirmación
+> en el tipo 1 (§5.1, §6, §9, §10), por las correcciones de la reunión del 05/10 con el tutor de la
+> organización ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 Mapa de navegación, maquetado de cada pantalla, estados y microcopy. Todo el texto de esta
 especificación es el literal que ve el usuario, en inglés
@@ -197,6 +201,26 @@ Con soporte insuficiente (`sample_size < 20`):
 ┌─────────────────────────────┐
 │   ⚡ You're one of the       │
 │      first to answer this   │
+│                             │
+│  There aren't enough answers│
+│  yet to show how the        │
+│  community compares.        │
+└─────────────────────────────┘
+```
+
+> **Cambiado el 08/10/2026.** Se agregó la segunda línea. Con la primera sola no quedaba claro por
+> qué no aparecía la comparación con la comunidad; fue un pedido de la reunión del 05/10.
+
+En el tipo 1, que es un ranking de cinco campeones
+([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), la comparación es **por pares**: de los
+pares del ranking que ya tienen soporte, en cuántos el orden del usuario coincide con la mayoría.
+
+```
+┌─────────────────────────────┐
+│   You agree with the        │
+│   community on 7 of 9 pairs │
+│                             │
+│        412 answers          │
 └─────────────────────────────┘
 ```
 
@@ -209,7 +233,8 @@ durante los primeros días **todas** las preguntas van a caer ahí.
 |---|---|
 | Coincide con la mayoría | `74% agree with you` |
 | No coincide | `You're in the 19%` |
-| Soporte bajo | `You're one of the first to answer this` |
+| Soporte bajo | `You're one of the first to answer this` + `There aren't enough answers yet to show how the community compares.` |
+| Tipo 1 (pares) | `You agree with the community on 7 of 9 pairs` |
 | Racha en múltiplo de 10 | `10 in a row 🔥` sobre el feedback normal |
 | Tipo 2 (mediana) | `Most players said 26 min. You said 27.` |
 
@@ -237,7 +262,7 @@ motivación como la calidad de las respuestas siguientes.
 │   Top 9% of contributors    │
 │                             │
 │   What you've answered      │
-│   Champion pairs      96    │
+│   Champion rankings   96    │
 │   Power spikes        21    │
 │   Lane matchups       18    │
 │   Duos                 5    │
@@ -253,6 +278,9 @@ motivación como la calidad de las respuestas siguientes.
 respuestas seguidas dentro de una sesión; la de días es constancia entre sesiones. Ninguna de las dos
 depende del contenido de las respuestas: premiar coincidir con el consenso rompería la independencia
 entre anotadores ([`23-gamificacion.md`](23-gamificacion.md) §2.3).
+
+> **Cambiado el 08/10/2026.** `Champion pairs` pasa a `Champion rankings`: desde ADR-022 el
+> contador del tipo 1 cuenta rankings contestados, igual que `answers`.
 
 **No se muestra el trust score**, ni ninguna señal derivada de él, ni el resultado de los honeypots.
 Exponerlo convertiría la calidad en un juego a optimizar en vez de una consecuencia de responder
@@ -318,7 +346,9 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
 - **Área táctil mínima de 44 px** en toda opción seleccionable.
 - **Contraste AA** en todo texto sobre fondo.
 - **Navegación por teclado** en escritorio: `1`–`5` seleccionan opción, `?` abre la definición,
-  `Enter` confirma en los tipos que lo requieren.
+  `Enter` confirma en los tipos que lo requieren. En el ranking del tipo 1 los campeones se
+  reordenan con el teclado que provee `@dnd-kit` (espacio para tomar, flechas para mover, espacio
+  para soltar) y los dígitos no seleccionan nada.
 - **El color nunca es el único portador de información**: las opciones se distinguen por posición y
   etiqueta, no por color.
 - Los íconos de campeón llevan `alt` con el nombre del campeón.
@@ -338,7 +368,7 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
 |---|---|---|
 | Registro | No hay | Máxima conversión ([ADR-001](13-adr/ADR-001-sin-autenticacion.md)) |
 | Onboarding | Al inicio, salteable | Segmentación completa desde la primera respuesta, con salida visible |
-| Confirmación de respuesta | Sólo tipos 2 y 5 | Los demás registran al primer toque; un slider y una multi-selección no tienen "primer toque" que valga |
+| Confirmación de respuesta | Tipos 1, 2 y 5 | Los demás registran al primer toque; un ranking, un slider y una multi-selección no tienen "primer toque" que valga. El tipo 1 entró el 08/10/2026 (ADR-022) |
 | Duración del feedback | 1,2 s | Suficiente para leer el porcentaje, corto para no romper el ritmo |
 | Orden del leaderboard | Cantidad de respuestas | Premiar acuerdo induciría a responder lo popular |
 | Trust score visible | No | Convertiría la calidad en una métrica a optimizar |

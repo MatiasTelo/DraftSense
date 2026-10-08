@@ -10,9 +10,9 @@ from fastapi import Response as HttpResponse
 
 from app.dependencies import CurrentSessionDep, SessionDep
 from app.errors import ApiError
-from app.models import Question, QuestionType
-from app.schemas.responses import RecordedResponse, ResponseIn
-from app.services import answers, profile, responses
+from app.models import Question, QuestionType, Ranking
+from app.schemas.responses import Feedback, RecordedResponse, ResponseIn
+from app.services import answers, profile, rankings, responses
 
 router = APIRouter(tags=["responses"])
 
@@ -47,9 +47,33 @@ async def create_response(
             "question_id",
         )
 
+    # El tipo 1 es un ranking (ADR-022): la pregunta es el ancla y el ranking dice qué se mostró.
+    ranking: Ranking | None = None
+    order: list[int] | None = None
+    if question.type is QuestionType.PAIRWISE_DIMENSION:
+        ranking = (
+            await session.get(Ranking, payload.ranking_id)
+            if payload.ranking_id is not None
+            else None
+        )
+        if (
+            ranking is None
+            or ranking.respondent_id != current.respondent.respondent_id
+            or ranking.anchor_question_id != question.question_id
+        ):
+            raise ApiError(
+                "ranking_not_found",
+                f"ranking {payload.ranking_id} does not exist for question {question.question_id}",
+                status.HTTP_404_NOT_FOUND,
+                "ranking_id",
+            )
+
     # La forma se valida contra el tipo REAL de la pregunta, no contra lo que declare el cliente.
     try:
-        answers.validate_shape(question.type, payload.answer)
+        if ranking is not None:
+            order = rankings.validate_answer(payload.answer, ranking.champions)
+        else:
+            answers.validate_shape(question.type, payload.answer)
         if question.type is QuestionType.TRAIT_MULTISELECT:
             await answers.validate_trait_codes(session, payload.answer)
     except answers.AnswerShapeError as exc:
@@ -84,9 +108,17 @@ async def create_response(
             },
         ) from exc
 
-    await responses.record(
-        session, current.respondent, question, payload.answer, payload.response_time_ms, now
-    )
+    feedback: Feedback | None
+    if ranking is not None:
+        recorded = await responses.record_ranking(
+            session, current.respondent, ranking, question, order, payload.response_time_ms, now
+        )
+        feedback = await responses.build_ranking_feedback(session, recorded)
+    else:
+        await responses.record(
+            session, current.respondent, question, payload.answer, payload.response_time_ms, now
+        )
+        feedback = await responses.build_feedback(session, question, payload.answer)
 
     http_response.headers["X-RateLimit-Limit"] = str(rate.limit)
     http_response.headers["X-RateLimit-Remaining"] = str(rate.remaining)
@@ -94,7 +126,7 @@ async def create_response(
 
     return RecordedResponse(
         recorded=True,
-        feedback=await responses.build_feedback(session, question, payload.answer),
+        feedback=feedback,
         progress=responses.build_progress(
             current.respondent, await profile.agreement_rate(session, current.respondent)
         ),

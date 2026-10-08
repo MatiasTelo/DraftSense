@@ -18,7 +18,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import type { Answer, Feedback, Question } from '../api';
-import type { PairwiseChoice } from '../components/PairwiseDimensionCard';
 import { AppFrame } from '../components/AppFrame';
 import { BottomNav, TopBar } from '../components/Chrome';
 import { FeedbackOverlay } from '../components/FeedbackOverlay';
@@ -43,19 +42,16 @@ interface Shown {
 /**
  * Las etiquetas de las barras del feedback.
  *
- * El servidor manda el consenso por clave (`a`, `b`, `unknown`, o los cinco niveles del tipo 3);
- * los textos están en la pregunta que el cliente ya tiene. No se compone ningún enunciado acá: se
- * lee el que vino. El tipo 2 no tiene barras: su consenso es una mediana.
+ * El servidor manda el consenso por clave (los cinco niveles del tipo 3); los textos están en la
+ * pregunta que el cliente ya tiene. No se compone ningún enunciado acá: se lee el que vino. Los
+ * tipos 1 y 2 no tienen barras: el 1 informa en cuántos pares coincide (ADR-022) y el 2, una
+ * mediana.
  */
 function optionLabels(question: Question): { key: string; label: string }[] {
   switch (question.type) {
-    case 'pairwise_dimension':
-      return question.options.map((option) => ({
-        key: option.key,
-        label: option.champions[0]?.name ?? option.label ?? option.key,
-      }));
     case 'lane_matchup':
       return question.options.map(({ key, label }) => ({ key, label }));
+    case 'pairwise_dimension':
     case 'peak_timing':
     case 'duo_synergy':
     case 'trait_multiselect':
@@ -65,21 +61,18 @@ function optionLabels(question: Question): { key: string; label: string }[] {
 
 /**
  * Las teclas `1`–`5` eligen la opción en el orden de la tarjeta (§9), en los tipos que registran
- * al primer toque. El tipo 2 confirma con `Enter`, y eso lo resuelve su propia tarjeta, que es la
- * que conoce el valor del slider.
+ * al primer toque. Los tipos 1 y 2 confirman con `Enter`, y eso lo resuelve su propia tarjeta, que
+ * es la que conoce el orden o el valor del slider.
  */
 function answerForDigit(question: Question, key: string): Answer | undefined {
   const index = Number.parseInt(key, 10) - 1;
   if (Number.isNaN(index)) return undefined;
   switch (question.type) {
-    case 'pairwise_dimension': {
-      const option = question.options[index];
-      return option === undefined ? undefined : { choice: option.key as PairwiseChoice };
-    }
     case 'lane_matchup': {
       const option = question.options[index];
       return option === undefined ? undefined : { choice: option.key };
     }
+    case 'pairwise_dimension':
     case 'peak_timing':
     case 'duo_synergy':
     case 'trait_multiselect':
@@ -160,6 +153,8 @@ export function Play() {
       try {
         const result = await postResponse({
           question_id: question.question_id,
+          // El tipo 1 se contesta sobre el ranking servido, cuyo ancla es la pregunta (ADR-022).
+          ...(question.type === 'pairwise_dimension' ? { ranking_id: question.ranking_id } : {}),
           answer,
           response_time_ms: Math.round(performance.now() - shownAt.current),
         });

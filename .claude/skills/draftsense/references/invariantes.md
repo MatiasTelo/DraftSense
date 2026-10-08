@@ -14,14 +14,14 @@ el ADR; leerlo entero antes de contradecirlo.
 | **002** responses append-only | Una respuesta **nunca** se modifica ni se borra. Las correcciones de calidad son *pesos* en la agregación y *filtros parametrizados* en el export. Se garantiza con permisos de Postgres: al rol `draftsense_app` se le revoca `UPDATE`, `DELETE` y `TRUNCATE` |
 | **003** Bradley-Terry | Comparaciones pareadas ajustadas con Bradley-Terry por dimensión, ponderado por trust, vía `choix.ilsr_pairwise`. IC por bootstrap (2 000 remuestreos). El tipo 3 usa la generalización de **Rao-Kupper**, que admite empates y margen |
 | **004** ventana de parches con decaimiento | El crudo se versiona por parche siempre (`responses.patch_id` nunca se pierde). La agregación corre sobre una **ventana** de parches, ponderando por recencia con decaimiento exponencial de vida media configurable |
-| **005** alcance | **DraftSense mide campeones y entrega esa medición.** No consume el dataset de partidas, no construye features por partida, no se integra con el modelo, no interpreta resultados. Salida: tres archivos + Informe de Calidad de Datos |
+| **005** alcance | **DraftSense mide campeones y entrega esa medición.** No consume el dataset de partidas, no construye features por partida, no se integra con el modelo, no interpreta resultados. Salida: tres archivos + Informe de Calidad de Datos. **La lista de archivos y la métrica las sustituyó ADR-023** |
 | **006** pool escalonado | `champions.pool_tier` define 3 niveles: 1 núcleo, 2 expansión, 3 el resto (tamaños reales en ADR-016: 58 y 96). El sampler sólo usa los habilitados. **Promover un campeón es un `UPDATE`, no un despliegue.** El núcleo sale de un snapshot manual de pick rate versionado en `infra/seeds/` |
 | **007** FastAPI | Backend FastAPI 0.115+ sobre Python 3.12, SQLAlchemy 2.0 async (`asyncpg`), Pydantic v2, Alembic |
 | **008** conectividad por componentes | Un job horario `check_graph_connectivity` calcula las componentes conexas del grafo de comparaciones por dimensión y marca `bridge_priority = true` en las preguntas que las unirían; el sampler las pone por encima de escasez y entropía. **No se designan campeones ancla** |
 | **009** curva de poder gaussiana | `power_at(t) = exp(-(t - peak_minute)² / (2·σ²))`, con `σ` global calibrado en el piloto y registrado en `exports` |
 | **010** interfaz en inglés | La interfaz pública se construye en inglés desde el día 1; el español entra por i18n hacia la semana 8. Documentación e informes en español; código, identificadores y textos de interfaz en inglés. `dimensions` y `traits` tienen `label_en` obligatorio y `label_es` nulable |
 | **011** support_level en vez de excluir | **Se exporta todo.** Cada magnitud lleva valor, IC 95 %, `_n` y `_support` (`solid` / `limited` / `insufficient`). Una magnitud sin datos se escribe **celda vacía, nunca `0`**, con `_n = 0` y `_support = insufficient` |
-| **012** sampler uniforme en arranque en frío | Con menos de **5 respuestas** una pregunta se sortea uniforme, sin función de prioridad; desde la quinta entra la prioridad completa. El feedback de consenso se omite con menos de **20 respuestas** y la interfaz muestra *"you're one of the first to answer this"* |
+| **012** sampler uniforme en arranque en frío | Con menos de **5 respuestas** una pregunta se sortea uniforme, sin función de prioridad; desde la quinta entra la prioridad completa. El feedback de consenso se omite con menos de **20 respuestas** y la interfaz muestra *"you're one of the first to answer this"* y, debajo, *"There aren't enough answers yet to show how the community compares."* (08/10) |
 | **013** honeypots verificables desde el kit | Cada honeypot sale de un hecho verificable del kit del campeón, escrito en un campo `rationale` obligatorio del seed. Sólo **6 de las 8 dimensiones** admiten honeypots: `mobility`, `cc`, `poke`, `waveclear`, `engage`, `peel`. **`scaling` y `pick` no tienen ninguna** |
 | **014** leaderboard filtra por confianza | La tabla excluye a los `is_flagged` y a los que están debajo de `export.min_trust` (0.30), usando **literalmente la misma clave de `app_settings`** que el filtro de exportación, no una copia |
 | **015** estructura en capas | Backend en cuatro capas con dependencia en un solo sentido: `routers → services → models`, y `schemas` transversal. **Un service no importa nada de `fastapi`.** Todo error sale por `ApiError` con el sobre de `12-api.md` §3; el rate limit se cuenta sobre `responses_by_respondent`, sin Redis |
@@ -31,6 +31,8 @@ el ADR; leerlo entero antes de contradecirlo.
 | **019** roles desde el snapshot | `champions.roles` = todos los carriles en que el campeón figura en el **último snapshot de pick rate del parche** (top 30 por rol). Los ausentes conservan los suyos. Lo aplican `seed-pick-rate` y `sync-roles`; `seed-champions` nunca toca `roles`. Los provisorios de Data Dragon estaban mal en 38 de 58 campeones del tier 1 |
 | **020** cadencias en el servidor | El retest lo marca **el servidor**, nunca el cliente: al servirlo, el sampler guarda la respuesta original en `respondents.pending_retest_of` y el `POST` de esa pregunta se registra con `is_retest_of` (cualquier otra repetición es `409`). `next_honeypot_at` y `next_retest_at` guardan la posición —índice desde cero en la historia del respondedor— a partir de la cual toca cada cadencia, y `pending_honeypot` impide una segunda honeypot mientras la primera no se contesta. **`GET /questions/next?queued=`** lleva los ids que el cliente tiene en cola: dan la posición exacta y el lote nunca los repite |
 | **021** puentes en cadena | `check_graph_connectivity` **materializa** como mucho **k−1 puentes por dimensión**: una cadena en orden aleatorio entre componentes, sin honeypots, que se desmarcan cuando dejan de hacer falta. En frío, con el tier 1, son 456. Mientras el grafo esté partido, casi todo el tipo 1 sale como puente, por encima de ε |
+| **022** tipo 1 como ranking | La tarjeta del tipo 1 ordena **cinco campeones** (`@dnd-kit` + *Confirm*; *Not sure* para todo el ranking) y el servidor guarda **diez filas** `pairwise_dimension`, una por par, con el mismo `ranking_id` (tabla `rankings`, migración `0004`). El sampler elige el **par ancla** como antes elegía la pregunta y suma tres al azar; el ancla nunca es par de un ranking pendiente. Los pares ya contestados se ignoran. Honeypot = el ancla; retest = el par de las puntas; el tipo 1 sale del *straightlining*. **Un ranking cuenta como una respuesta**: todo lo que cuenta respuestas de alguien cuenta envíos (`services/submissions.py`) |
+| **023** salida en formato largo | `champion_features` (126 col.) pasa a **cuatro archivos**: `champion_dimensions` (8 filas por campeón), `peak_timing` (1), `champion_lane_strength` (siempre 3) y `champion_traits` (7). Sin `synergy_mean`. `duo_features` cambia `duo_context` por `role_a` / `role_b`. Métrica: **19 magnitudes por campeón**, sin conteo de columnas |
 
 ## Los cinco tipos de pregunta
 
@@ -39,24 +41,27 @@ en `12-api.md` §2.3, estimador de cada uno en `25-agregacion.md` §5.
 
 | # | Tipo | `type` de la API | Alimenta |
 |---|---|---|---|
-| 1 | Comparación pareada por dimensión | `pairwise_dimension` | Las 8 dimensiones funcionales |
+| 1 | Ranking de cinco por dimensión, guardado como diez comparaciones (ADR-022) | `pairwise_dimension` | Las 8 dimensiones funcionales |
 | 2 | Slider de pico de poder | `peak_timing` | `peak_minute` y la curva de poder |
 | 3 | Enfrentamiento de línea (1v1 y 2v2) | `lane_matchup` | Fuerza de línea, `matchup_matrix`, `duo_features.lane_strength` |
-| 4 | Sinergia de dupla | `duo_synergy` | `synergy` y `synergy_mean` |
+| 4 | Sinergia de dupla | `duo_synergy` | `synergy` |
 | 5 | Multi-selección de atributos | `trait_multiselect` | Los 7 atributos |
 
 ## La salida
 
-Tres CSV por parche más el Informe de Calidad de Datos. Contrato completo en
+Seis CSV por parche más el Informe de Calidad de Datos (ADR-023). Contrato completo en
 `26-esquema-de-salida.md`; los conteos de columnas los **verifica `infra/check_docs.py` en CI**.
 
 | Archivo | Grano | Columnas |
 |---|---|---|
-| `champion_features_v<patch>.csv` | un campeón | 126 (7 identificación + 56 dimensiones + 10 pico + 15 línea + 3 sinergia + 35 atributos) |
+| `champion_dimensions_v<patch>.csv` | campeón × dimensión (8 filas) | 15 |
+| `peak_timing_v<patch>.csv` | un campeón | 17 |
+| `champion_lane_strength_v<patch>.csv` | campeón × rol (siempre 3 filas) | 13 |
+| `champion_traits_v<patch>.csv` | campeón × atributo (7 filas) | 13 |
 | `matchup_matrix_v<patch>.csv` | campeón_a × campeón_b × rol | 12 |
-| `duo_features_v<patch>.csv` | una dupla | 18 |
+| `duo_features_v<patch>.csv` | una dupla, con `role_a` y `role_b` | 19 |
 
-20 magnitudes medidas por campeón: 8 dimensiones + 1 pico + 3 líneas + 1 sinergia + 7 atributos.
+19 magnitudes medidas por campeón: 8 dimensiones + 1 pico + 3 líneas + 7 atributos.
 
 ## Contradicciones vivas del proyecto
 

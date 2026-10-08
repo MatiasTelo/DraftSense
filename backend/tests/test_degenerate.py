@@ -2,20 +2,33 @@
 
 Cómo se cuenta el *straightlining* está en la nota del 16/09 de `22-calidad-de-datos.md` §5.2:
 por tipo, sobre la clave de la opción, con `unknown` cortando la racha, y un tramo largo como una
-sola racha.
+sola racha. Desde el 08/10 el tipo 1 quedó afuera: es un ranking sin posición (ADR-022).
 """
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Dimension, Patch, Question, QuestionType, Respondent, Response
+from app.models import (
+    Dimension,
+    LaneRole,
+    Patch,
+    Question,
+    QuestionType,
+    Ranking,
+    Respondent,
+    Response,
+)
 from app.services import degenerate, sessions
+from app.services import questions as questions_service
+from app.services import responses as responses_service
 from app.services.degenerate import HistoryRow, count, straightline_runs
+from app.services.questions import Combination
 from tests.conftest import add_response, make_champions, pairwise_question, requires_db
 
 PAIRWISE = QuestionType.PAIRWISE_DIMENSION
@@ -60,9 +73,15 @@ def test_la_racha_se_cuenta_dentro_de_cada_tipo() -> None:
     """La regla de variedad impide 8 seguidas del mismo tipo: la racha se busca por tipo."""
     rows: list[HistoryRow] = []
     for _ in range(8):
-        rows.append(_row(PAIRWISE, {"choice": "a"}))
+        rows.append(_row(LANE, {"choice": "a_slight"}))
         rows.append(_row(PEAK, {"minute": 20}))
     assert count(rows, 800, 8) == (0, 1)
+
+
+def test_el_tipo_1_ya_no_tiene_posicion() -> None:
+    """22 §5.2, cambio del 08/10 — el ranking llega en orden aleatorio y se ordena arrastrando."""
+    rows = [_row(PAIRWISE, {"choice": "a"}) for _ in range(20)]
+    assert count(rows, 800, 8) == (0, 0)
 
 
 def test_el_tipo_2_no_tiene_posicion() -> None:
@@ -88,9 +107,17 @@ def test_apurada_es_estrictamente_menos_de_800() -> None:
 async def _questions(
     db: AsyncSession, patch: Patch, dimension: Dimension, n: int
 ) -> list[Question]:
+    """Preguntas de tipo 3: desde el 08/10 es el único tipo con *straightlining* (ADR-022)."""
     pool = await make_champions(db, patch, 6, prefix="Deg")
     pairs = [(a, b) for i, a in enumerate(pool) for b in pool[i + 1 :]]
-    return [await pairwise_question(db, patch, a, b, dimension) for a, b in pairs[:n]]
+    return [
+        await questions_service.materialize(
+            db,
+            patch.patch_id,
+            Combination(LANE, *sorted((a.champion_id, b.champion_id)), role=LaneRole.MID),
+        )
+        for a, b in pairs[:n]
+    ]
 
 
 async def _respondent(db: AsyncSession, tag: str) -> Respondent:
@@ -104,8 +131,12 @@ async def test_ca304_una_apurada_sube_el_contador_y_recalcula_el_trust(
 ) -> None:
     questions = await _questions(db, patch, dimension, 2)
     respondent = await _respondent(db, "apurada")
-    await add_response(db, respondent, questions[0], {"choice": "a"}, response_time_ms=450)
-    await add_response(db, respondent, questions[1], {"choice": "b"}, response_time_ms=2400)
+    await add_response(
+        db, respondent, questions[0], {"choice": "a_slight"}, response_time_ms=450
+    )
+    await add_response(
+        db, respondent, questions[1], {"choice": "b_slight"}, response_time_ms=2400
+    )
 
     result = await degenerate.detect(db)
 
@@ -123,7 +154,7 @@ async def test_ca305_ocho_en_la_misma_posicion_marcan_la_racha(
     questions = await _questions(db, patch, dimension, 8)
     respondent = await _respondent(db, "racha")
     for question in questions:
-        await add_response(db, respondent, question, {"choice": "a"})
+        await add_response(db, respondent, question, {"choice": "a_slight"})
 
     await degenerate.detect(db)
 
@@ -140,7 +171,9 @@ async def test_correrlo_dos_veces_no_duplica_nada(
     questions = await _questions(db, patch, dimension, 8)
     respondent = await _respondent(db, "idempotente")
     for question in questions:
-        await add_response(db, respondent, question, {"choice": "b"}, response_time_ms=300)
+        await add_response(
+            db, respondent, question, {"choice": "b_slight"}, response_time_ms=300
+        )
 
     await degenerate.detect(db)
     await db.refresh(respondent)
@@ -160,7 +193,9 @@ async def test_ninguna_respuesta_se_toca(
     questions = await _questions(db, patch, dimension, 3)
     respondent = await _respondent(db, "intacta")
     for question in questions:
-        await add_response(db, respondent, question, {"choice": "a"}, response_time_ms=100)
+        await add_response(
+            db, respondent, question, {"choice": "a_slight"}, response_time_ms=100
+        )
 
     await degenerate.detect(db)
 
@@ -172,3 +207,31 @@ async def test_ninguna_respuesta_se_toca(
         )
     ).scalar_one()
     assert stored == 3
+
+
+@requires_db
+async def test_un_ranking_apurado_es_una_sola_respuesta_apurada(
+    db: AsyncSession, patch: Patch, dimension: Dimension
+) -> None:
+    """ADR-022 — las diez filas comparten el tiempo, pero la persona tocó una sola vez."""
+    five = await make_champions(db, patch, 5, prefix="Rkdeg")
+    ids = [c.champion_id for c in five]
+    respondent = await _respondent(db, "ranking")
+    anchor = await pairwise_question(db, patch, five[0], five[1], dimension)
+    ranking = Ranking(
+        respondent_id=respondent.respondent_id,
+        patch_id=patch.patch_id,
+        dimension_id=dimension.dimension_id,
+        anchor_question_id=anchor.question_id,
+        champions=ids,
+    )
+    db.add(ranking)
+    await db.commit()
+    await responses_service.record_ranking(
+        db, respondent, ranking, anchor, ids, 500, dt.datetime.now(dt.UTC)
+    )
+
+    await degenerate.detect(db)
+
+    await db.refresh(respondent)
+    assert respondent.fast_answers == 1

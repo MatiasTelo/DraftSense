@@ -47,7 +47,7 @@ describe('client', () => {
 
     const failure = await postResponse({
       question_id: 1,
-      answer: { choice: 'a' },
+      answer: { choice: 'a_slight' },
       response_time_ms: 100,
     }).catch((error: unknown) => error);
 
@@ -63,7 +63,7 @@ describe('client', () => {
 
     const error = (await postResponse({
       question_id: 1,
-      answer: { choice: 'a' },
+      answer: { choice: 'a_slight' },
       response_time_ms: 100,
     }).catch((caught: unknown) => caught)) as ApiError;
 
@@ -80,7 +80,7 @@ describe('client', () => {
 
     const error = (await postResponse({
       question_id: 1,
-      answer: { choice: 'a' },
+      answer: { choice: 'a_slight' },
       response_time_ms: 100,
     }).catch((caught: unknown) => caught)) as ApiError;
 

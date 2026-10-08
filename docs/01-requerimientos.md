@@ -1,6 +1,10 @@
 # 01 — Requerimientos
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 08/10/2026
+>
+> **08/10/2026:** RF-102, RF-508 y la meta M3 se reescribieron por las correcciones de la reunión
+> del 05/10 con el tutor de la organización ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
+> [ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)).
 
 Requerimientos funcionales y no funcionales, numerados y priorizados. Cada uno tiene al menos un
 criterio de aceptación verificable en [`03-criterios-aceptacion.md`](03-criterios-aceptacion.md).
@@ -28,7 +32,7 @@ entrega.
 | # | Requerimiento | Pr. |
 |---|---|---|
 | RF-101 | El sistema debe entregar preguntas en lotes configurables de 1 a 10 | M |
-| RF-102 | El sistema debe implementar el tipo 1, comparación pareada por dimensión funcional, sobre 8 dimensiones | M |
+| RF-102 | El sistema debe implementar el tipo 1, comparación pareada por dimensión funcional, sobre 8 dimensiones. Desde el 08/10/2026 se pregunta como un ranking de cinco campeones que se guarda como diez comparaciones (ADR-022) | M |
 | RF-103 | El sistema debe implementar el tipo 2, slider de minuto de pico de poder, en rango 0–40 | M |
 | RF-104 | El sistema debe implementar el tipo 3 variante 1v1, matchup de línea al minuto 10 con 5 niveles de margen, en top, mid y adc | M |
 | RF-105 | El sistema debe implementar el tipo 3 variante 2v2, enfrentamiento entre duplas de bot con la misma escala de 5 niveles | S |
@@ -86,7 +90,7 @@ entrega.
 | RF-505 | El sistema debe estimar los atributos como proporción ponderada con intervalo de Wilson | S |
 | RF-506 | Toda estimación debe acompañarse de intervalo de confianza al 95 %, soporte muestral y nivel de soporte | M |
 | RF-507 | El sistema debe agregar sobre una ventana de parches con decaimiento exponencial por recencia, configurable por corrida | M |
-| RF-508 | El sistema debe exportar `champion_features`, `matchup_matrix` y `duo_features` en CSV, versionados por ventana de parches | M |
+| RF-508 | El sistema debe exportar `champion_dimensions`, `peak_timing`, `champion_lane_strength`, `champion_traits`, `matchup_matrix` y `duo_features` en CSV, versionados por ventana de parches (ADR-023; hasta el 07/10/2026 los cuatro primeros eran un único `champion_features`) | M |
 | RF-509 | Cada exportación debe registrar checksum SHA-256, conteos y todos los parámetros de la corrida | M |
 | RF-510 | El sistema debe distinguir en las salidas pareadas los valores observados de los predichos por el modelo | S |
 | RF-511 | El sistema debe producir un Informe de Calidad de Datos con acuerdo inter-anotador, consistencia, cobertura y estabilidad por segmento | M |
@@ -142,7 +146,7 @@ Cada meta del §3.2 del Informe Inicial mapea a requerimientos concretos.
 |---|---|
 | M1 — Aplicación web pública desplegada y funcional | RF-001, RF-101, RF-102, RNF-01, RNF-02, RNF-06 |
 | M2 — Reemplazar el etiquetado manual por uno continuo y versionado por parche | RF-102 a RF-107, RF-501 a RF-506, RF-602 |
-| M3 — Conjunto amplio de features continuas con IC | RF-506, RF-508 · **ajustada**: 20 magnitudes por campeón en vez de ~117 por partida ([ADR-005](13-adr/ADR-005-alcance-medicion-de-campeones.md)) |
+| M3 — Conjunto amplio de features continuas con IC | RF-506, RF-508 · **ajustada**: 19 magnitudes por campeón en vez de ~117 por partida ([ADR-005](13-adr/ADR-005-alcance-medicion-de-campeones.md), [ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)) |
 | M4 — Incorporar la dimensión temporal | RF-103, RF-502 |
 | M5 — Al menos 1 000 respuestas reales | RF-101, RF-114, RF-301 a RF-304 (la gamificación es el instrumento de esta meta) |
 | M6 — Pipeline reproducible y trazable | RF-405, RF-507, RF-509, RF-512, RNF-08 |

@@ -27,14 +27,14 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 ### Especificación por funcionalidad — el detalle de cada característica
 | Doc | Contenido | Estado |
 |---|---|---|
-| [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md) | Los 5 tipos: enunciado, UI, payload, validación, generación, casos borde | **v1** |
+| [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md) | Los 5 tipos: enunciado, UI, payload, validación, generación, casos borde | **v2** |
 | [`21-sampler.md`](21-sampler.md) | Sampling adaptativo: prioridad, exploración, composición de sesión, arranque en frío | **v1** |
 | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) | Honeypots, test-retest, patrones degenerados, trust score, deduplicación | **v1** |
 | [`23-gamificacion.md`](23-gamificacion.md) | Rachas, acuerdo con el consenso, perfil, leaderboard, anti-gaming | **v1** |
 | [`24-panel-admin.md`](24-panel-admin.md) | Métricas, vistas, acciones de operación, autenticación | pendiente |
 | [`25-agregacion.md`](25-agregacion.md) | Del respondedor al CSV: qué se hace con los datos declarados, ponderación, los 5 estimadores y los casos límite | **v1** |
-| [`26-esquema-de-salida.md`](26-esquema-de-salida.md) | Los tres CSV columna por columna: fórmula, rango, origen, soporte | **v1** |
-| [`examples/`](examples/) | Ejemplo ejecutable de los tres CSV, con el diccionario de cada columna | **v1** |
+| [`26-esquema-de-salida.md`](26-esquema-de-salida.md) | Los seis CSV columna por columna: fórmula, rango, origen, soporte | **v2** |
+| [`examples/`](examples/) | Ejemplo ejecutable de los seis CSV, con el diccionario de cada columna | **v2** |
 | [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md) | Krippendorff, test-retest, cobertura, estabilidad por segmento | pendiente |
 
 ### Producto y operación
@@ -59,9 +59,12 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 ## Alcance — leer antes que nada
 
 DraftSense **mide campeones**. No analiza partidas, no construye features por partida, no consume
-el dataset de partidas del laboratorio. La salida son tres tablas a nivel de campeón o de par de
-campeones, más el Informe de Calidad de Datos.
+el dataset de partidas del laboratorio. La salida son seis CSV a nivel de campeón, de par de
+campeones o de dupla, más el Informe de Calidad de Datos
+([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)).
 
 Esto **difiere del Informe Inicial firmado**, que compromete además un `match_features.csv` con
 ~117 features por partida. El ajuste está justificado en [ADR-005](13-adr/ADR-005-alcance-medicion-de-campeones.md)
-y debe quedar registrado en el Informe de Avance de la semana 6.
+y debe quedar registrado en el Informe de Avance de la semana 6, junto con las correcciones de la
+reunión del 05/10/2026 con el tutor de la organización: el tipo 1 como ranking de cinco
+([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)) y la salida en formato largo (ADR-023).

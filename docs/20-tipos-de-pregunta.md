@@ -1,6 +1,11 @@
 # 20 — Los cinco tipos de pregunta
 
-> Estado: **v1** · Última revisión: 16/09/2026
+> Estado: **v2** · Última revisión: 08/10/2026
+>
+> **v2 (08/10/2026):** el tipo 1 pasa de comparar dos campeones a ordenar cinco
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), y las salidas se nombran con los
+> archivos nuevos ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Correcciones de la
+> reunión del 05/10/2026 con el tutor de la organización.
 
 Especifica cada tipo de pregunta de punta a punta: qué mide, cómo se enuncia, cómo se ve, qué
 payload produce, cómo se generan las candidatas, cómo se agrega y qué pasa en los casos borde.
@@ -26,7 +31,8 @@ Consecuencias de diseño que se aplican a todos los tipos:
   multi-selección y necesita un cierre explícito.
 
 > **Corregido el 16/09/2026.** La excepción alcanza a **los tipos 2 y 5**, no sólo al 5: un slider
-> tampoco tiene un "primer toque" que valga como respuesta. Es lo que ya decían §3 de este mismo
+> tampoco tiene un "primer toque" que valga como respuesta. **Desde el 08/10/2026 alcanza también
+> al tipo 1**, que es un ranking por arrastre con *Confirm* (ADR-022). Es lo que ya decían §3 de este mismo
 > documento y la decisión cerrada de [`30-ux-flujos.md`](30-ux-flujos.md) §10; esta línea era la que
 > estaba desactualizada.
 
@@ -60,22 +66,32 @@ Todos los enunciados de esta especificación son el texto literal que ve el usua
 
 ---
 
-## 2. Tipo 1 — Comparación pareada por dimensión
+## 2. Tipo 1 — Ranking de cinco campeones por dimensión
 
 **`pairwise_dimension`** · 50 % de la sesión · el tipo de mayor valor y el primero en implementarse.
 
+> **Cambiado el 08/10/2026** ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), a pedido del
+> tutor de la organización en la reunión del 05/10. Hasta acá la tarjeta mostraba **dos** campeones
+> y se respondía con un toque. Ahora muestra **cinco** para ordenar, y cada respuesta produce las
+> **diez comparaciones pareadas** que ese orden implica. El código del tipo sigue siendo
+> `pairwise_dimension`: lo que se guarda sigue siendo comparaciones de a pares.
+
 ### Qué mide
 
-La posición relativa de cada campeón en ocho dimensiones funcionales. Es la fuente de 56 de las 126
-columnas de `champion_features.csv`.
+La posición relativa de cada campeón en ocho dimensiones funcionales. Es la fuente de
+`champion_dimensions.csv` ([`26-esquema-de-salida.md`](26-esquema-de-salida.md) §3.2).
 
 ### Enunciado
 
 ```
 Who has more engage?
+Drag to order: most at the top.
 ```
 
-El ícono `?` despliega la definición de la dimensión desde `dimensions.description_en`:
+La primera línea sale de `dimensions.prompt_en`. La segunda es fija para todas las dimensiones y la
+compone el backend, igual que los textos de los tipos 2 y 3
+([ADR-018](13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md)). El ícono `?` despliega la
+definición de la dimensión desde `dimensions.description_en`:
 
 | `code` | Enunciado | Definición desplegable |
 |---|---|---|
@@ -93,55 +109,104 @@ El ícono `?` despliega la definición de la dimensión desde `dimensions.descri
 ```
 ┌─────────────────────────────┐
 │  Who has more engage?    (?)│
-│                             │
-│   ┌───────┐     ┌───────┐   │
-│   │       │     │       │   │
-│   │ [img] │     │ [img] │   │
-│   │       │     │       │   │
-│   └───────┘     └───────┘   │
-│    Alistar       Yasuo      │
-│                             │
-│      ┌───────────────┐      │
-│      │  Not sure     │      │
-│      └───────────────┘      │
+│  Drag to order: most at the │
+│  top.                       │
+│  ┌───────────────────────┐  │
+│  │ 1 [img] Leona       ≡ │  │
+│  ├───────────────────────┤  │
+│  │ 2 [img] Alistar     ≡ │  │
+│  ├───────────────────────┤  │
+│  │ 3 [img] Jax         ≡ │  │
+│  ├───────────────────────┤  │
+│  │ 4 [img] Lux         ≡ │  │
+│  ├───────────────────────┤  │
+│  │ 5 [img] Yasuo       ≡ │  │
+│  └───────────────────────┘  │
+│  ┌──────────┐ ┌──────────┐  │
+│  │ Not sure │ │ Confirm  │  │
+│  └──────────┘ └──────────┘  │
 └─────────────────────────────┘
 ```
+
+Es una **lista reordenable por arrastre** (`@dnd-kit`, con touch y teclado). Cada fila mide al
+menos 44 px de alto y muestra su posición. Los cinco campeones llegan **en orden aleatorio**. Como no
+hay un "primer toque" que valga como respuesta, necesita *Confirm*. *Not sure* descarta el ranking
+entero.
 
 ### Payload
 
 ```jsonc
-{ "question_id": 88412, "answer": { "choice": "a" }, "response_time_ms": 2140 }
+// GET /questions/next — el ítem
+{ "question_id": 88412, "ranking_id": 5021, "type": "pairwise_dimension",
+  "prompt": "Who has more engage?", "instruction": "Drag to order: most at the top.",
+  "help": { … }, "champions": [ /* 5 ChampionRef */ ], "unknown_label": "Not sure" }
+
+// POST /responses
+{ "question_id": 88412, "ranking_id": 5021,
+  "answer": { "order": [412, 12, 24, 99, 157] }, "response_time_ms": 9140 }
+// o, con Not sure:
+{ "question_id": 88412, "ranking_id": 5021,
+  "answer": { "choice": "unknown" }, "response_time_ms": 3020 }
 ```
 
-`choice` ∈ `a` | `b` | `unknown`.
+`order` es la lista de los cinco `champion_id` del ranking, **de más a menos**, sin repetir.
+`question_id` es el del par ancla (ver más abajo).
+
+### Qué se guarda
+
+Cada ranking es una fila de `rankings` y produce **diez filas en `responses`**, una por par. Cada
+fila es una respuesta de tipo 1 a la pregunta del par, con el mismo `ranking_id`:
+
+```
+order = [Lux, LeBlanc, Gnar, Gragas, Jax]     (en poke: Jax < Gragas < Gnar < LeBlanc < Lux)
+→ Lux > LeBlanc, Lux > Gnar, Lux > Gragas, Lux > Jax,
+  LeBlanc > Gnar, LeBlanc > Gragas, LeBlanc > Jax,
+  Gnar > Gragas, Gnar > Jax,
+  Gragas > Jax
+```
+
+Cada par se guarda en forma canónica (`champion_a < champion_b`) con `{"choice": "a"}` si
+`champion_a` quedó arriba, o `"b"` si no. Con *Not sure* las diez filas llevan
+`{"choice": "unknown"}`.
+
+**Si el respondedor ya había contestado uno de los pares** en un ranking anterior, esa fila se
+ignora y se guardan las demás: un respondedor responde cada par una sola vez
+(`responses_one_per_question`). Para el usuario, **un ranking cuenta como una respuesta**.
 
 ### Generación de candidatas
 
-Pares de campeones **activos y en un `pool_tier` habilitado**, contra cualquier dimensión activa.
-Se generan perezosamente: la pregunta se crea la primera vez que el sampler la elige, no por
-precómputo del producto cartesiano.
+El sampler elige primero el **par ancla** y su dimensión, igual que antes elegía el par: el puente,
+la honeypot, el retest o el par por explotación o exploración ([`21-sampler.md`](21-sampler.md)).
+Después suma **tres campeones al azar** del pool habilitado, **activos y en un `pool_tier`
+habilitado**. Los pares se generan perezosamente: las diez preguntas se materializan cuando se
+sirve el ranking, no por precómputo del producto cartesiano.
 
-**Los pares no se restringen por rol, y eso es deliberado.** Comparar el *waveclear* de un support
-con el de un mid es una pregunta legítima —waveclear es waveclear— y sobre todo es lo que mantiene
-**conectado el grafo de comparaciones**. Si sólo se compararan campeones del mismo rol, Bradley-Terry
-vería cinco componentes desconectadas por dimensión y no podría ubicar un rol respecto de otro
-([ADR-008](13-adr/ADR-008-conectividad-por-componentes.md)).
+**Los campeones no se restringen por rol, y eso es deliberado.** Comparar el *waveclear* de un
+support con el de un mid es una pregunta legítima —waveclear es waveclear— y sobre todo es lo que
+mantiene **conectado el grafo de comparaciones**. Si sólo se compararan campeones del mismo rol,
+Bradley-Terry vería cinco componentes desconectadas por dimensión y no podría ubicar un rol respecto
+de otro ([ADR-008](13-adr/ADR-008-conectividad-por-componentes.md)).
 
 ### Agregación
 
 Bradley-Terry ponderado por trust, una corrida **independiente por dimensión**
-(`choix.ilsr_pairwise`). Las respuestas `unknown` se **descartan del ajuste pero se registran**: su
-tasa por campeón se exporta como `D_unknown_rate` y es una señal de que la dimensión no aplica bien
-a ese campeón. IC por bootstrap sobre las comparaciones.
+(`choix.ilsr_pairwise`) sobre las comparaciones pareadas: las diez de cada ranking. Las respuestas
+`unknown` se **descartan del ajuste, pero se registran**: su tasa por campeón se exporta como
+`unknown_rate` y es una señal de que la dimensión no le aplica bien a ese campeón. IC por bootstrap
+sobre las comparaciones.
 
 ### Casos borde
 
 | Situación | Comportamiento |
 |---|---|
-| Un campeón del par se desactiva a mitad del piloto | Las respuestas ya dadas se conservan y se agregan; no se generan preguntas nuevas con él |
-| Una dimensión se desactiva | Igual: el crudo queda, deja de preguntarse |
-| Tasa de `unknown` mayor al 40 % en un par | El sampler lo desprioriza: la pregunta no está produciendo información |
+| Un campeón del ranking se desactiva a mitad del piloto | Las respuestas ya dadas se conservan y se agregan; no se generan preguntas nuevas con él |
+| Una dimensión se desactiva | Igual: el crudo queda y deja de preguntarse |
+| Tasa de `unknown` mayor al 40 % en un par | El sampler lo desprioriza como ancla: la pregunta no está produciendo información |
 | El campeón queda con menos de 3 comparaciones | Se exporta con `support = insufficient`, nunca vacío por omisión |
+| `order` no es una permutación de los cinco del ranking | `400 answer_shape_mismatch` |
+| Un par del ranking ya fue contestado por el respondedor | Se ignora esa fila y se guardan las demás |
+| Un par no ancla resultaría ser una honeypot de esa dimensión | Los tres extra se vuelven a sortear; si con los reintentos no alcanza, la fila de ese par no se guarda (ADR-022, punto 6) |
+| El pool habilitado tiene menos de cinco campeones | El tipo 1 no se sirve |
 
 ---
 
@@ -299,8 +364,8 @@ junglas quedan caracterizados por las ocho dimensiones del tipo 1, que sí aplic
 Bradley-Terry con empates y margen (**modelo Rao-Kupper**), ajustado por rol. Los cinco niveles se
 mapean a `{a_strong: +1, a_slight: +0.5, even: 0, b_slight: −0.5, b_strong: −1}`.
 
-Salida: `lane_strength_{top,mid,adc}` en `champion_features.csv`, y las filas de
-`matchup_matrix.csv`.
+Salida: `champion_lane_strength.csv`, con una fila por campeón y rol (`top`, `mid`, `adc`), y
+las filas de `matchup_matrix.csv`.
 
 ### 4.2 Variante 2v2 — bot
 
@@ -427,7 +492,10 @@ campeones del `pool_tier` 1.
 ### Agregación
 
 Bradley-Terry tomando cada dupla como competidor, una corrida por contexto. Salida: `synergy` en
-`duo_features.csv` y `synergy_mean` por campeón en `champion_features.csv`.
+`duo_features.csv`, con el rol de cada campeón en `role_a` y `role_b`.
+
+> **Cambiado el 08/10/2026.** Se eliminó `synergy_mean`, el promedio por campeón
+> ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)).
 
 ### Casos borde
 
@@ -520,7 +588,7 @@ produce extremos fuera de `[0,1]`.
 
 > Cuatro de estos códigos coinciden con nombres de dimensiones del tipo 1, pero **no miden lo
 > mismo**: la dimensión es un score relativo de comparación pareada, el atributo es una proporción
-> absoluta. En el CSV nunca colisionan porque los atributos llevan prefijo `trait_`
+> absoluta. En la salida viven en archivos distintos, `champion_dimensions` y `champion_traits`
 > (ver [`26-esquema-de-salida.md`](26-esquema-de-salida.md) §2.2).
 
 ### Casos borde
@@ -548,7 +616,7 @@ Reglas que se superponen a esa mezcla:
 
 | Regla | Detalle |
 |---|---|
-| Arranque | Las **primeras 3 preguntas son siempre de tipo 1**: son las más fáciles de entender sin instrucciones |
+| Arranque | Las **primeras 3 preguntas son siempre de tipo 1**: son las más fáciles de entender sin instrucciones. Un ranking cuenta como una pregunta |
 | Honeypot | 1 cada 10–15 preguntas, en posición aleatoria dentro de la ventana |
 | Retest | 1 cada 30 preguntas, repitiendo una que el mismo respondedor contestó hace 15 o más preguntas |
 | Variedad | No más de 3 preguntas seguidas del mismo tipo, para que la sesión no se vuelva monótona |
@@ -567,7 +635,7 @@ los ya entregados.
 
 | Orden | Tipo | Semana |
 |---|---|---|
-| 1 | Tipo 1 — pareada por dimensión | 3 |
+| 1 | Tipo 1 — pareada por dimensión (ranking de cinco desde la semana 6) | 3 |
 | 2 | Tipo 2 — pico de poder | 4 |
 | 3 | Tipo 3 — matchup 1v1 | 4 |
 | 4 | Tipo 3 — matchup 2v2 de bot | 8 |

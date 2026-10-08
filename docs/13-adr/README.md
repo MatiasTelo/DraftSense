@@ -15,7 +15,7 @@ escribe uno nuevo. El registro es histórico.
 | [002](ADR-002-responses-append-only.md) | `responses` es append-only | aceptada |
 | [003](ADR-003-bradley-terry.md) | Bradley-Terry para los scores de dimensión | aceptada |
 | [004](ADR-004-ventana-de-parches-con-decaimiento.md) | Versionado por parche en el crudo, ventana con decaimiento en la agregación | aceptada |
-| [005](ADR-005-alcance-medicion-de-campeones.md) | El alcance es la medición de campeones, no el análisis de partidas | aceptada |
+| [005](ADR-005-alcance-medicion-de-campeones.md) | El alcance es la medición de campeones, no el análisis de partidas | aceptada · archivos y métrica sustituidos por ADR-023 |
 | [006](ADR-006-pool-escalonado-por-pick-rate.md) | Pool escalonado, definido por un snapshot de pick rate | aceptada |
 | [007](ADR-007-fastapi-python.md) | Backend en FastAPI sobre Python | aceptada |
 | [008](ADR-008-conectividad-por-componentes.md) | Conectividad del grafo por chequeo de componentes, sin anclas | aceptada |
@@ -32,6 +32,8 @@ escribe uno nuevo. El registro es histórico.
 | [019](ADR-019-roles-derivados-del-snapshot.md) | Los roles de cada campeón salen del snapshot de pick rate | aceptada |
 | [020](ADR-020-estado-de-cadencias-en-el-servidor.md) | Las cadencias de calidad y lo pendiente se guardan en el servidor | aceptada |
 | [021](ADR-021-puentes-en-cadena.md) | Los puentes del grafo se materializan como una cadena de k−1 preguntas | aceptada |
+| [022](ADR-022-tipo-1-ranking-de-cinco.md) | El tipo 1 es un ranking de cinco campeones que se guarda como diez comparaciones | aceptada |
+| [023](ADR-023-salida-en-formato-largo.md) | La salida por campeón se entrega en formato largo, en cuatro archivos | aceptada |
 
 ## Cuál merece un ADR
 

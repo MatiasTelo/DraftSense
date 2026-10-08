@@ -4,6 +4,10 @@ Es el camino crítico del sistema (`docs/10-arquitectura.md` §3) y tiene 150 ms
 Nada de lo que hace agrega: cuenta filas sobre índices, inserta una y hace aritmética sobre la
 fila del respondedor.
 
+Desde el 08/10 el tipo 1 es un ranking de cinco campeones que se guarda como diez filas, una por
+par (ADR-022, `record_ranking`). Para la persona sigue siendo una respuesta: lo que cuenta
+respuestas —el rate limit, `answers_count`, las rachas— cuenta envíos (`submissions`).
+
 Desde la semana 5 hace también el paso 5 de la arquitectura: si la pregunta era honeypot o
 retest, actualiza los contadores de calidad y recalcula el trust en la misma transacción
 (`docs/22-calidad-de-datos.md` §7.2). El retest lo reconoce el servidor, no el cliente (ADR-020).
@@ -17,12 +21,24 @@ from dataclasses import dataclass
 from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
-from app.models import Question, QuestionType, Respondent, Response
+from app.models import Question, QuestionType, Ranking, Respondent, Response
 from app.schemas.responses import Feedback, Progress
-from app.services import app_settings, honeypots, question_stats, retests, streaks, trust
+from app.services import (
+    app_settings,
+    honeypots,
+    question_stats,
+    questions,
+    rankings,
+    retests,
+    streaks,
+    submissions,
+    trust,
+)
+from app.services.answers import UNKNOWN_CHOICE
 
 #: Los dos límites del contrato (`docs/12-api.md` §4). Son holgados para una persona —una
 #: respuesta cada 5 a 10 segundos son unas 10 por minuto— y cortan el scripting trivial.
@@ -50,10 +66,10 @@ class RateLimitState:
 async def _count_since(
     session: AsyncSession, respondent: Respondent, since: dt.datetime
 ) -> int:
+    """Envíos desde `since`: un ranking del tipo 1 cuenta uno, aunque sean diez filas."""
     return (
         await session.execute(
-            sa.select(sa.func.count())
-            .select_from(Response)
+            submissions.heads(sa.select(sa.func.count()).select_from(Response))
             .where(
                 Response.respondent_id == respondent.respondent_id,
                 Response.created_at > since,
@@ -82,7 +98,9 @@ async def check_rate_limit(
     if in_minute >= PER_MINUTE:
         oldest = (
             await session.execute(
-                sa.select(sa.func.min(Response.created_at)).where(
+                submissions.heads(
+                    sa.select(sa.func.min(Response.created_at)).select_from(Response)
+                ).where(
                     Response.respondent_id == respondent.respondent_id,
                     Response.created_at > minute_ago,
                 )
@@ -217,6 +235,123 @@ async def record(
     await session.commit()
     await session.refresh(response)
     return response
+
+
+@dataclass(frozen=True, slots=True)
+class RecordedRanking:
+    """Lo que el feedback necesita de un ranking guardado: cada par y lo que dijo de él."""
+
+    pairs: list[tuple[Question, str]]
+    unknown: bool
+
+
+async def record_ranking(
+    session: AsyncSession,
+    respondent: Respondent,
+    ranking: Ranking,
+    anchor: Question,
+    order: list[int] | None,
+    response_time_ms: int,
+    now: dt.datetime,
+    rng: random.Random | None = None,
+) -> RecordedRanking:
+    """Guarda un ranking del tipo 1 como diez filas, una por par, en una sola transacción.
+
+    `order` va de más a menos; `None` es *Not sure*, que se guarda como `unknown` en los diez pares
+    para que siga alimentando `unknown_rate` (ADR-022).
+
+    - **El ancla va primero y con un INSERT común**: si ya estaba contestada, el índice
+      `responses_one_per_question` levanta el 409 de siempre y no se guarda nada. Si era el retest
+      pendiente, lleva `is_retest_of`.
+    - **Los otros nueve, con `ON CONFLICT DO NOTHING`**: un par que la persona ya había contestado
+      en otro ranking se ignora y se guardan los demás.
+    - **Un par no ancla que es honeypot no se guarda**: una honeypot sólo se contesta como ancla y
+      con su cadencia (22 §3.7). El sampler ya intenta evitarlos al sortear.
+    - Honeypot, retest, cadencias, rachas y `answers_count` se aplican **una vez**, sobre el ancla.
+    """
+    position = respondent.answers_count
+    original = await claim_retest(session, respondent, anchor)
+    by_pair = await questions.materialize_many(
+        session, ranking.patch_id, rankings.combinations_of(ranking.champions, ranking.dimension_id)
+    )
+    said = rankings.choices_from_order(order) if order is not None else {}
+
+    def answer_for(question: Question) -> dict[str, str]:
+        assert question.champion_b is not None
+        choice = said.get((question.champion_a, question.champion_b), UNKNOWN_CHOICE)
+        return {"choice": choice}
+
+    def row(question: Question) -> dict[str, Any]:
+        return {
+            "respondent_id": respondent.respondent_id,
+            "question_id": question.question_id,
+            "type": question.type,
+            "patch_id": question.patch_id,
+            "answer": answer_for(question),
+            "response_time_ms": response_time_ms,
+            "ranking_id": ranking.ranking_id,
+        }
+
+    anchor_answer = answer_for(anchor)
+    session.add(
+        Response(
+            **row(anchor),
+            is_retest_of=original.response_id if original is not None else None,
+        )
+    )
+    await session.flush()
+
+    others = [
+        q
+        for q in by_pair.values()
+        if q.question_id != anchor.question_id and not q.is_honeypot
+    ]
+    if others:
+        await session.execute(
+            pg_insert(Response)
+            .values([row(q) for q in others])
+            .on_conflict_do_nothing(
+                index_elements=["respondent_id", "question_id"],
+                index_where=Response.is_retest_of.is_(None),
+            )
+        )
+    ranking.submitted_order = order
+    await streaks.apply(session, respondent, now)
+    await apply_quality(
+        session, respondent, anchor, anchor_answer, original, position, rng or _rng
+    )
+    await session.commit()
+    return RecordedRanking(
+        pairs=[(q, answer_for(q)["choice"]) for q in by_pair.values()],
+        unknown=order is None,
+    )
+
+
+async def build_ranking_feedback(
+    session: AsyncSession, recorded: RecordedRanking
+) -> Feedback | None:
+    """En cuántos pares del ranking coincide el orden con la mayoría (ADR-022).
+
+    Cuentan sólo los pares con al menos `sampler.consensus_threshold` respuestas, por la misma
+    razón que en los demás tipos: por debajo, la «mayoría» es ruido. Sin ningún par con soporte,
+    o con *Not sure*, no hay feedback y la interfaz explica que todavía no hay respuestas
+    suficientes (RF-114).
+    """
+    if recorded.unknown:
+        return None
+    threshold = await app_settings.get(session, "sampler.consensus_threshold", 20)
+    compared = agreed = sample_size = 0
+    for question, choice in recorded.pairs:
+        counts: dict[str, int] = question.answer_counts or {}
+        total = sum(counts.values())
+        if total == 0 or total < threshold:
+            continue
+        compared += 1
+        sample_size += total
+        agreed += int(choice == max(counts, key=lambda k: counts[k]))
+    if compared == 0:
+        return None
+    return Feedback(pairs_agreed=agreed, pairs_compared=compared, sample_size=sample_size)
 
 
 async def build_feedback(

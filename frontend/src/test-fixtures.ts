@@ -16,17 +16,23 @@ export function champion(id: number, name: string): ChampionRef {
   };
 }
 
+/** Un ranking del tipo 1 (ADR-022): cinco campeones, `a` y `b` primero, en el orden servido. */
 export function pairwise(question_id: number, a = 'Alistar', b = 'Yasuo'): PairwiseDimensionQuestion {
   return {
     question_id,
+    ranking_id: 5000 + question_id,
     type: 'pairwise_dimension',
     prompt: 'Who has more engage?',
+    instruction: 'Drag to order: most at the top.',
     help: { label: 'Engage', text: 'Starting fights on your terms.' },
-    options: [
-      { key: 'a', champions: [champion(12, a)] },
-      { key: 'b', champions: [champion(157, b)] },
-      { key: 'unknown', label: 'Not sure', champions: [] },
+    champions: [
+      champion(12, a),
+      champion(157, b),
+      champion(89, 'Leona'),
+      champion(24, 'Jax'),
+      champion(99, 'Lux'),
     ],
+    unknown_label: 'Not sure',
   };
 }
 

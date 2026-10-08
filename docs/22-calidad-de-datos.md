@@ -1,6 +1,10 @@
 # 22 — Calidad de datos y trust score
 
-> Estado: **v1** · Última revisión: 16/09/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 08/10/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+>
+> **08/10/2026:** cómo funcionan la honeypot (§3.7), el retest (§4.1) y los patrones degenerados
+> (§5) desde que el tipo 1 es un ranking de cinco campeones
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 Cómo el sistema distingue una respuesta pensada de una apurada, de una al azar o de una fabricada, y
 qué hace con esa distinción. Es el módulo que hace que un etiquetado abierto y anónimo pueda
@@ -104,6 +108,23 @@ Por la misma razón, **todas las honeypots son de tipo 1**:
 
 El tipo 1 es además el 50 % de la sesión, así que una honeypot nunca se ve fuera de lugar por
 frecuencia — otra forma en la que podría delatarse.
+
+### 3.7 La honeypot dentro de un ranking
+
+> **Agregado el 08/10/2026** ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
+
+Desde que la tarjeta del tipo 1 ordena cinco campeones, **la honeypot se sirve como el par ancla de
+un ranking**: sus dos campeones, en su dimensión, más tres campeones al azar. El catálogo de 34
+pares no cambia.
+
+- **Se evalúa sólo el par de la honeypot**, contra `expected_answer`, con la misma regla de §3.5: el
+  orden del usuario define `a` o `b` para ese par, y *Not sure* para el ranking entero es `unknown`.
+- **Los otros nueve pares nunca son honeypots.** El sampler vuelve a sortear los tres extra si
+  alguno forma con otro campeón del ranking una honeypot de esa dimensión
+  ([`21-sampler.md`](21-sampler.md) §5.1), y si aun así queda uno, su fila no se guarda. Así una
+  honeypot sólo se contesta como ancla y con su cadencia.
+- Para la persona, un ranking con honeypot es idéntico a cualquier otro: cinco campeones en orden
+  aleatorio.
 
 ### 3.3 El catálogo como dato versionado
 
@@ -270,6 +291,24 @@ Cada retest actualiza `retest_pairs` y, si corresponde, `retest_consistent`.
 > - **Un retest contestado `unknown` en el tipo 1 no forma par**: no suma a `retest_pairs`, igual
 >   que dice la tabla de arriba.
 
+### 4.1 El retest del tipo 1: el par de las puntas
+
+> **Agregado el 08/10/2026** ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
+
+En el tipo 1 no se repite el ranking entero. Se toma un ranking que el respondedor ya contestó
+—con orden, no *Not sure*— y su **par de las puntas**: el campeón que puso primero contra el que puso
+último. Ese par se vuelve a servir como **ancla** de un ranking nuevo, con tres campeones al azar.
+
+- **La original es la respuesta del respondedor a ese par.** Si en ese ranking la fila del par se
+  ignoró por repetida, la original es la respuesta anterior al mismo par, que es la que quedó
+  guardada.
+- **Es consistente** si el par queda en el mismo sentido que en la original. Es la regla de la tabla
+  de arriba para el tipo 1, aplicada a ese par: un retest suma uno a `retest_pairs`, no diez.
+- **Por qué las puntas.** Es la comparación de la que la persona está más segura: si no la repite,
+  contestó al azar. Repetir el ranking entero daría diez pares por retest y le daría al tipo 1 diez
+  veces más peso en el trust que a los demás tipos.
+- **La distancia de 15** se cuenta en envíos: un ranking ocupa una posición.
+
 ---
 
 ## 5. Patrones degenerados — RF-204
@@ -287,6 +326,10 @@ Los detecta el job diario `detect_degenerate_patterns`, que recorre las respuest
 >
 > Entran **todas** las respuestas del respondedor, incluidas las de honeypots y retests: la señal
 > mide cómo toca la pantalla, no qué pregunta era.
+>
+> **Agregado el 08/10/2026.** Se cuentan **envíos**, no filas: un ranking del tipo 1 son diez filas
+> en `responses`, con el mismo `response_time_ms`, y una sola respuesta. Contar las diez multiplicaría
+> por diez una respuesta apurada ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 ### 5.1 Respuesta apurada
 
@@ -318,6 +361,11 @@ comparaciones donde el campeón A resulta ser siempre el de más control es perf
 >   en orden, y se buscan rachas ahí. Las respuestas de otros tipos intercaladas no la cortan.
 > - **Sólo los tipos 1 y 3.** El tipo 2 es un slider y no tiene posición. Los tipos 4 y 5 entran
 >   cuando se implementen, en la semana 8.
+>
+>   **Cambiado el 08/10/2026: sólo el tipo 3.** El tipo 1 es un ranking de cinco campeones que
+>   llegan en orden aleatorio y se ordenan arrastrando
+>   ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)): «tocar siempre la misma posición» deja
+>   de estar definido.
 > - **Posición es la clave de la opción.** El servidor manda siempre `a` a la izquierda y la
 >   escala del tipo 3 en el mismo orden, y el cliente la dibuja así. Como `a` es el campeón de
 >   `champion_id` menor, la posición no dice nada del contenido, que es la premisa del cálculo de

@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Respondent, Response
 from app.schemas.profile import LeaderboardEntry, LeaderboardOut
-from app.services import app_settings
+from app.services import app_settings, submissions
 
 WINDOWS = ("day", "week", "all")
 
@@ -60,10 +60,14 @@ async def _query(
             .limit(size)
         )
     else:
+        # Envíos, no filas: un ranking del tipo 1 son diez filas y una respuesta (ADR-022).
         total = sa.func.count(Response.response_id).label("n")
         statement = (
-            sa.select(Respondent.respondent_id, Respondent.alias, total)
-            .join(Response, Response.respondent_id == Respondent.respondent_id)
+            submissions.heads(
+                sa.select(Respondent.respondent_id, Respondent.alias, total).join(
+                    Response, Response.respondent_id == Respondent.respondent_id
+                )
+            )
             .where(*eligible, Response.created_at > start)
             .group_by(Respondent.respondent_id, Respondent.alias)
             .order_by(total.desc(), Respondent.respondent_id)

@@ -5,7 +5,8 @@ comparable lleva un arreglo `champions`, tenga uno o dos elementos, para que el 
 duplas y campeones sueltos con el mismo componente (§1.2). No lo "optimices" mandando un objeto
 suelto cuando hay un solo campeón.
 
-Desde la semana 4 existen el tipo 1, el tipo 2 y la variante 1v1 del tipo 3. La variante 2v2, el
+Desde la semana 4 existen el tipo 1, el tipo 2 y la variante 1v1 del tipo 3. Desde el 08/10 el
+tipo 1 es un ranking de cinco campeones (ADR-022). La variante 2v2, el
 tipo 4 y el tipo 5 entran en la semana 8 (`docs/20-tipos-de-pregunta.md` §8).
 """
 
@@ -40,11 +41,20 @@ class Side(BaseModel):
 
 
 class PairwiseDimensionQuestion(BaseModel):
+    """Tipo 1: cinco campeones para ordenar en una dimensión (ADR-022).
+
+    `question_id` es el del par ancla, que es lo que el cliente manda en `queued`. Nada dice cuál
+    de los cinco forma el ancla: los campeones llegan en orden aleatorio.
+    """
+
     question_id: int
+    ranking_id: int
     type: Literal["pairwise_dimension"] = "pairwise_dimension"
     prompt: str
+    instruction: str
     help: Help | None
-    options: list[Side]
+    champions: list[ChampionRef]
+    unknown_label: str
 
 
 class Subject(BaseModel):

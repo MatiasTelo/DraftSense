@@ -1,6 +1,11 @@
 # 26 — Esquema de salida
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v2** · Última revisión: 08/10/2026
+>
+> **v2 (08/10/2026):** `champion_features` se divide en cuatro archivos en formato largo, se
+> elimina `synergy_mean` y `duo_context` pasa a `role_a` y `role_b`
+> ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Es la corrección pedida en la reunión
+> del 05/10/2026 con el tutor de la organización.
 
 Define exactamente qué archivos recibe el Laboratorio DHARMa y qué contiene cada columna: nombre,
 fórmula, rango, unidad y origen. Es el **contrato de entrega** de la práctica: lo que está acá es
@@ -8,24 +13,28 @@ lo que el laboratorio puede esperar.
 
 ---
 
-## 1. Los cuatro archivos
+## 1. Los siete archivos
 
-Cada corrida del pipeline emite cuatro archivos, versionados por ventana de parches:
+Cada corrida del pipeline emite siete archivos, versionados por ventana de parches:
 
 | Archivo | Granularidad | Filas esperadas |
 |---|---|---|
-| `champion_features_v<patch>.csv` | una fila por campeón | 40 (tier 1) a 170 (catálogo completo) |
+| `champion_dimensions_v<patch>.csv` | una fila por (campeón, dimensión) | 8 por campeón: 320 (tier 1) a 1 360 |
+| `peak_timing_v<patch>.csv` | una fila por campeón | 40 a 170 |
+| `champion_lane_strength_v<patch>.csv` | una fila por (campeón, rol) | 3 por campeón: 120 a 510 |
+| `champion_traits_v<patch>.csv` | una fila por (campeón, atributo) | 7 por campeón: 280 a 1 190 |
 | `matchup_matrix_v<patch>.csv` | una fila por (campeón A, campeón B, rol) | ~300 – 2 000 |
-| `duo_features_v<patch>.csv` | una fila por (campeón A, campeón B, contexto) | ~200 – 1 500 |
+| `duo_features_v<patch>.csv` | una fila por (campeón A, campeón B, rol de A, rol de B) | ~200 – 1 500 |
 | `data_quality_report_v<patch>.md` | — | ver [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md) |
 
-Los tres CSV corresponden a **tres granularidades**: el campeón, el par de campeones que se
-enfrentan, y la dupla de campeones que juegan juntos. Ninguna medición cae fuera de esas tres.
+Los seis CSV corresponden a **tres granularidades**: el campeón (los cuatro primeros, uno por tipo
+de pregunta), el par de campeones que se enfrentan y la dupla de campeones que juegan juntos.
+Ninguna medición cae fuera de esas tres.
 
 Cada archivo queda registrado en la tabla `exports` con su SHA-256 y los parámetros exactos de la
 corrida que lo produjo, de modo que cualquier entrega es reproducible y verificable.
 
-**Hay un ejemplo ejecutable de los tres archivos en [`examples/`](examples/)**, con un diccionario
+**Hay un ejemplo ejecutable de los seis CSV en [`examples/`](examples/)**, con un diccionario
 columna por columna y las trampas de lectura señaladas. Los valores son sintéticos; la estructura, el
 formato de cada celda y los `support_level` son reales. Es además el *fixture* contra el que los
 tests de exportación comparan las cabeceras.
@@ -48,24 +57,31 @@ análisis de partidas es del laboratorio ([ADR-005](13-adr/ADR-005-alcance-medic
 | `_n` | Soporte muestral: cuántas observaciones sostienen la estimación |
 | `_support` | `solid` \| `limited` \| `insufficient` — ver §2.4 |
 
-### 2.2 El prefijo `trait_` no es cosmético
+### 2.2 Dimensión y atributo con el mismo nombre no son lo mismo
 
 Cuatro de los siete atributos del tipo 5 (`engage`, `poke`, `pick`, `peel`) **se llaman igual que
 cuatro de las ocho dimensiones del tipo 1**, pero son mediciones distintas y no intercambiables:
 
-- `engage` (dimensión) es un **score relativo** derivado de comparaciones pareadas: responde
+- `engage` como **dimensión** es un **score relativo** derivado de comparaciones pareadas: responde
   *"¿cuánto engage tiene este campeón comparado con los demás?"*. Escala log-odds, sin cero natural.
-- `trait_engage` es una **proporción absoluta**: responde *"¿qué fracción de la comunidad dice que
-  este campeón hace engage?"*. Escala 0–1, con cero y uno naturales.
+  Vive en `champion_dimensions`, columna `score`.
+- `engage` como **atributo** es una **proporción absoluta**: responde *"¿qué fracción de la
+  comunidad dice que este campeón hace engage?"*. Escala 0–1, con cero y uno naturales. Vive en
+  `champion_traits`, columna `proportion`.
 
-Un campeón puede tener `engage = -0.4` (por debajo de la media del pool) y `trait_engage = 0.71`
-(la mayoría reconoce que hace engage) sin ninguna contradicción. Mezclarlas al alimentar un modelo
-sería un error silencioso, y por eso los nombres nunca colisionan en el CSV.
+Un campeón puede tener `score = -0.4` en la dimensión `engage` (por debajo de la media del pool) y
+`proportion = 0.71` en el atributo `engage` (la mayoría reconoce que hace engage) sin ninguna
+contradicción. Mezclarlas al alimentar un modelo sería un error silencioso.
+
+> **Cambiado el 08/10/2026.** En el archivo ancho, el prefijo `trait_` era lo que impedía que los
+> nombres colisionaran. Con el formato largo ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md))
+> cada medición vive en su propio archivo y con su propia columna de valor, así que el prefijo dejó
+> de hacer falta. La advertencia de fondo sigue en pie.
 
 ### 2.3 Valores faltantes
 
 Una celda sin datos se escribe **vacía** (que pandas lee como `NaN`), **nunca como `0`**. La
-distinción es crítica: `0` en la columna `engage` significa "engage promedio del pool"; vacío
+distinción es crítica: `0` en `score` significa "promedio del pool en esa dimensión"; vacío
 significa "no tenemos datos sobre este campeón en esta dimensión". Confundirlas metería ruido
 sistemático en el modelo.
 
@@ -100,7 +116,8 @@ la comunidad elige al primero con probabilidad ≈ 0.73 frente al segundo (`1/(1
 
 Se eligió esta escala y no una normalización 0–1 porque es la escala en la que el modelo estima y
 en la que el intervalo de confianza es simétrico e interpretable. Como conveniencia se agrega una
-columna `_norm` con el mismo valor reescalado min-max a `[0,1]` dentro del export.
+columna `_norm` con el mismo valor reescalado min-max a `[0,1]` dentro del export (en
+`champion_dimensions`, `score_norm`, dentro de cada dimensión).
 
 > ⚠️ **`_norm` no es comparable entre exports.** Su referencia es el mínimo y el máximo del pool de
 > esa corrida, que cambia cuando se promueven campeones de tier. Para comparar entre parches hay que
@@ -115,13 +132,28 @@ Las respuestas de respondedores con `is_flagged = true` tampoco entran.
 
 ---
 
-## 3. `champion_features_v<patch>.csv`
+## 3. Los cuatro archivos por campeón
 
-**20 magnitudes medidas por campeón, 126 columnas.** Contra las 7 etiquetas binarias del esquema
-actual: todas continuas, todas con intervalo de confianza y soporte muestral, todas versionadas
-por parche.
+> **Cambiado el 08/10/2026** ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)), después de la
+> reunión del 05/10 con Marinozi. Hasta acá había un único `champion_features_v<patch>.csv`, con una
+> fila por campeón y 126 columnas. Ahora son **cuatro archivos en formato largo**, para que el
+> laboratorio filtre por dimensión, por rol o por atributo. `synergy_mean` se eliminó.
 
-### 3.1 Identificación — 7 columnas
+**19 magnitudes medidas por campeón**: 8 dimensiones, 1 pico de poder, 3 fuerzas de línea y 7
+atributos. Comparado con las 7 etiquetas binarias del esquema actual, todas son continuas, todas
+tienen intervalo de confianza y soporte muestral, y todas se versionan por parche.
+
+| Archivo | Origen | Filas por campeón | Columnas |
+|---|---|---|---|
+| `champion_dimensions_v<patch>.csv` | tipo 1 | 8, una por dimensión | 15 |
+| `peak_timing_v<patch>.csv` | tipo 2 | 1 | 17 |
+| `champion_lane_strength_v<patch>.csv` | tipo 3, variante 1v1 | 3, una por rol | 13 |
+| `champion_traits_v<patch>.csv` | tipo 5 | 7, una por atributo | 13 |
+
+### 3.1 Identificación: 7 columnas, en los cuatro archivos
+
+Cada archivo se puede usar solo, así que todos repiten las mismas siete columnas al principio. En
+los archivos largos se repiten en cada fila del campeón.
 
 | Columna | Tipo | Contenido |
 |---|---|---|
@@ -133,31 +165,39 @@ por parche.
 | `patch_window` | text | Parches incluidos: `16.18..16.20` |
 | `exported_at` | date | Fecha de la corrida |
 
-### 3.2 Dimensiones funcionales — 56 columnas
+### 3.2 `champion_dimensions_v<patch>.csv`: 15 columnas
 
-Origen: **tipo 1**, Bradley-Terry ponderado por trust, una corrida independiente por dimensión.
+Origen: **tipo 1**, Bradley-Terry ponderado por trust, una corrida independiente por dimensión. Las
+comparaciones salen de los rankings de cinco campeones
+([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)): cada ranking aporta diez.
 
-Por cada una de las 8 dimensiones `D` ∈ {`engage`, `poke`, `pick`, `peel`, `mobility`, `scaling`,
-`cc`, `waveclear`}, siete columnas:
+Hay **una fila por (campeón, dimensión)**, así que cada campeón aparece ocho veces, una por cada
+`dimension` ∈ {`engage`, `poke`, `pick`, `peel`, `mobility`, `scaling`, `cc`, `waveclear`}. A las 7
+de identificación se suman:
 
 | Columna | Unidad | Fórmula / contenido |
 |---|---|---|
-| `D` | log-odds | Score de Bradley-Terry, centrado en 0 sobre el pool |
-| `D_ci_low`, `D_ci_high` | log-odds | IC 95 % por bootstrap sobre las comparaciones (2 000 remuestreos) |
-| `D_n` | conteo | Comparaciones que involucran al campeón en esa dimensión |
-| `D_support` | enum | Ver §2.4 |
-| `D_unknown_rate` | 0–1 | Proporción de respuestas `unknown` en los pares que involucran al campeón |
-| `D_norm` | 0–1 | `D` reescalado min-max dentro del export. Sólo conveniencia (§2.5) |
+| `dimension` | text | Código de la dimensión |
+| `score` | log-odds | Score de Bradley-Terry, centrado en 0 sobre el pool |
+| `score_ci_low`, `score_ci_high` | log-odds | IC 95 % por bootstrap sobre las comparaciones (2 000 remuestreos) |
+| `score_n` | conteo | Comparaciones que involucran al campeón en esa dimensión |
+| `score_support` | enum | Ver §2.4 |
+| `unknown_rate` | 0–1 | Proporción de respuestas `unknown` en los pares que involucran al campeón |
+| `score_norm` | 0–1 | `score` reescalado min-max **dentro de la dimensión** y del export. Sólo conveniencia (§2.5) |
 
-**`D_unknown_rate` es una señal de validez, no de ruido.** Cuando un campeón acumula muchas
-respuestas `unknown` en una dimensión, lo más probable es que la dimensión no aplique bien a ese
-campeón —preguntar cuánto *waveclear* tiene un support enchantress no tiene respuesta clara— y no
-que la gente esté distraída. Es información que el laboratorio puede usar para decidir qué columnas
-son informativas para qué campeones.
+**`unknown_rate` es una señal de validez, no de ruido.** Cuando un campeón acumula muchas
+respuestas `unknown` en una dimensión, lo más probable es que la dimensión no le aplique bien
+—preguntar cuánto *waveclear* tiene un support enchantress no tiene respuesta clara— y no que la
+gente esté distraída. El laboratorio puede usarla para decidir qué dimensiones son informativas para
+qué campeones.
 
-### 3.3 Pico de poder — 10 columnas
+Un *Not sure* sobre un ranking se registra como `unknown` en sus diez pares (ADR-022), así que entra
+en el `unknown_rate` de los cinco campeones del ranking.
 
-Origen: **tipo 2**, mediana ponderada por trust con IC bootstrap.
+### 3.3 `peak_timing_v<patch>.csv`: 17 columnas
+
+Origen: **tipo 2**, mediana ponderada por trust con IC bootstrap. Una fila por campeón. A las 7 de
+identificación se suman:
 
 | Columna | Unidad | Contenido |
 |---|---|---|
@@ -173,90 +213,80 @@ Origen: **tipo 2**, mediana ponderada por trust con IC bootstrap.
 power_at(t) = exp( -(t - peak_minute)² / (2 · σ²) )
 ```
 
-con `σ` global, calibrado sobre los datos del piloto y registrado en `exports`. Vale 1 exactamente
-en el pico y decae de forma simétrica hacia ambos lados.
+`σ` es global, se calibra con los datos del piloto y queda registrada en `exports`. La curva vale 1
+exactamente en el pico y decae de forma simétrica hacia los dos lados.
 
 Se eligió una campana y no una rampa creciente con meseta porque la rampa afirmaría que un campeón
-de *early game* conserva su poder máximo en el minuto 40, lo cual es falso y borra justamente la
-señal que el laboratorio quiere medir: **que un equipo esté fuerte temprano implica que está débil
+de *early game* conserva su poder máximo en el minuto 40. Eso es falso, y borra justamente la señal
+que el laboratorio quiere medir: **que un equipo esté fuerte temprano implica que está débil
 tarde** ([ADR-009](13-adr/ADR-009-curva-de-poder-gaussiana.md)).
 
-Estas cinco columnas son una **transformación determinista de `peak_minute`**, no cinco mediciones
-nuevas. Se incluyen porque son la forma en que la dimensión temporal entra a un modelo, y calcularlas
-del lado del laboratorio invitaría a que cada quien use una `σ` distinta.
+Las cinco columnas `power_at_*` son una **transformación determinista de `peak_minute`**, no cinco
+mediciones nuevas. Se incluyen porque así entra la dimensión temporal a un modelo, y calcularlas del
+lado del laboratorio invitaría a que cada quien use una `σ` distinta.
 
-### 3.4 Fuerza de línea — 15 columnas
+### 3.4 `champion_lane_strength_v<patch>.csv`: 13 columnas
 
-Origen: **tipo 3**, Bradley-Terry con empates y margen (modelo Rao-Kupper), ajustado por rol.
+Origen: **tipo 3 en su variante 1v1**, Bradley-Terry con empates y margen (modelo Rao-Kupper),
+ajustado por rol.
 
-Por cada rol `R` ∈ {`top`, `mid`, `adc`}:
+Hay **una fila por (campeón, rol)** y **siempre tres filas por campeón**, una por cada `role` ∈
+{`top`, `mid`, `adc`}. A las 7 de identificación se suman:
 
 | Columna | Unidad | Contenido |
 |---|---|---|
-| `lane_strength_R` | log-odds | Fuerza en el 1v1 de línea al minuto 10, centrada en 0 |
-| `lane_strength_R_ci_low`, `_ci_high` | log-odds | IC 95 % bootstrap |
-| `lane_strength_R_n` | conteo | Comparaciones del campeón en ese rol |
-| `lane_strength_R_support` | enum | Ver §2.4 |
+| `role` | text | `top` \| `mid` \| `adc` |
+| `lane_strength` | log-odds | Fuerza en el 1v1 de línea al minuto 10, centrada en 0 |
+| `lane_strength_ci_low`, `lane_strength_ci_high` | log-odds | IC 95 % bootstrap |
+| `lane_strength_n` | conteo | Comparaciones del campeón en ese rol |
+| `lane_strength_support` | enum | Ver §2.4 |
 
-Vacío para los roles que el campeón no juega. **Sólo hay tres roles a nivel campeón**, y por razones
-distintas en cada caso:
+Si el campeón no juega un rol, la fila de ese rol **igual está**: con `lane_strength` vacío,
+`lane_strength_n = 0` y `insufficient` (§2.3 y
+[ADR-011](13-adr/ADR-011-support-level-en-vez-de-excluir.md)). Sólo hay tres roles a nivel campeón,
+y cada exclusión tiene su propia razón:
 
-- **La jungla no disputa un 1v1 de línea.** Un jungla no tiene oponente fijo con quien intercambiar
-  durante diez minutos, así que la pregunta no tiene respuesta clara. Los junglas quedan
-  caracterizados por las 8 dimensiones del tipo 1, que sí aplican a todos.
+- **La jungla no disputa un 1v1 de línea.** Un jungla no tiene un oponente fijo con quien
+  intercambiar durante diez minutos, así que la pregunta no tiene una respuesta clara. A los junglas
+  los caracterizan las 8 dimensiones del tipo 1, que aplican a todos.
 - **El carril inferior sí se mide, pero la unidad es la dupla, no el campeón.** El enfrentamiento de
-  bot es 2v2 y su resultado es una propiedad conjunta del adc y su support: separarla en dos números
+  bot es 2v2 y su resultado es una propiedad conjunta del adc y su support: separarlo en dos números
   individuales sería inventar información. Vive en `duo_features.csv` como `lane_strength`.
 
-El esquema previsto en la Especificación Técnica pedía `matchup_score` para los cinco roles; se
-corrige acá.
+El esquema que preveía la Especificación Técnica pedía `matchup_score` para los cinco roles; acá se
+corrige.
 
-### 3.5 Sinergia media — 3 columnas
-
-Origen: **tipo 4**, Bradley-Terry sobre duplas.
-
-| Columna | Unidad | Contenido |
-|---|---|---|
-| `synergy_mean` | log-odds | Sinergia promedio del campeón con todas sus parejas evaluadas |
-| `synergy_mean_n` | conteo | Duplas distintas que lo incluyen, con al menos una respuesta |
-| `synergy_mean_support` | enum | Ver §2.4 |
-
-**Es la única magnitud del archivo sin `_ci_low` / `_ci_high`, y es deliberado.** `synergy_mean` no
-es una estimación del modelo: es un **resumen derivado**, el promedio de estimaciones que ya tienen
-su propio intervalo en `duo_features.csv`. Un intervalo honesto para ese promedio exigiría propagar
-la covarianza entre duplas que comparten un campeón, que es justamente la estructura que el promedio
-borra; publicar un intervalo calculado como si las duplas fueran independientes sería más engañoso
-que no publicar ninguno.
-
-Por eso **RF-506 no aplica acá**: ese requerimiento pide intervalo para toda *estimación*, y ésta no
-lo es. Las 19 magnitudes estimadas del archivo sí lo llevan.
-
-El dato útil de sinergia es pareado y vive en `duo_features.csv`. Esta columna sirve para responder
-"¿este campeón es fácil de acompañar en general?", **no para elegir una dupla**.
-
-### 3.6 Atributos — 35 columnas
+### 3.5 `champion_traits_v<patch>.csv`: 13 columnas
 
 Origen: **tipo 5**, proporción ponderada por trust con intervalo de Wilson.
 
-Por cada uno de los 7 atributos `T` ∈ {`engage`, `poke`, `pick`, `peel`, `front_to_back`, `dive`,
-`split_push`}:
+Hay **una fila por (campeón, atributo)**, así que cada campeón aparece siete veces, una por cada
+`trait` ∈ {`engage`, `poke`, `pick`, `peel`, `front_to_back`, `dive`, `split_push`}. A las 7 de
+identificación se suman:
 
 | Columna | Unidad | Contenido |
 |---|---|---|
-| `trait_T` | 0–1 | Proporción ponderada de respondedores que marcaron el atributo |
-| `trait_T_ci_low`, `trait_T_ci_high` | 0–1 | Intervalo de Wilson al 95 % |
-| `trait_T_n` | conteo | Respuestas de tipo 5 sobre el campeón |
-| `trait_T_support` | enum | Ver §2.4 |
+| `trait` | text | Código del atributo |
+| `proportion` | 0–1 | Proporción ponderada de respondedores que marcaron el atributo |
+| `proportion_ci_low`, `proportion_ci_high` | 0–1 | Intervalo de Wilson al 95 % |
+| `proportion_n` | conteo | Respuestas de tipo 5 sobre el campeón |
+| `proportion_support` | enum | Ver §2.4 |
 
-**Por qué se usa Wilson y no el intervalo normal:** con muestras chicas y proporciones cerca de 0 o
-de 1 —que es exactamente el caso de un atributo que casi nadie o casi todos marcan— el intervalo
-normal produce extremos fuera de `[0,1]`. Wilson no.
+**Por qué Wilson y no el intervalo normal.** Con muestras chicas y proporciones cerca de 0 o de 1
+—justo el caso de un atributo que casi nadie o casi todos marcan— el intervalo normal da extremos
+fuera de `[0,1]`. Wilson no.
 
-**Estas 7 columnas son el puente de retrocompatibilidad.** Son las mismas 7 etiquetas del esquema
-manual actual, medidas sobre la misma definición, pero como proporción continua con incertidumbre
-en vez de un binario de un solo anotador. Permiten comparar el modelo nuevo contra el previo
-manteniendo todo constante salvo la calidad del etiquetado; sin ellas, cualquier mejora del modelo
-sería inatribuible.
+**Este archivo es el puente de retrocompatibilidad.** Son las mismas 7 etiquetas del esquema manual
+actual, medidas con la misma definición, pero como proporción continua con incertidumbre en vez de
+un binario de un solo anotador. Así se puede comparar el modelo nuevo contra el anterior con todo
+constante salvo la calidad del etiquetado; sin este archivo, cualquier mejora del modelo sería
+inatribuible.
+
+### 3.6 Por qué no hay sinergia media por campeón
+
+Hasta el 07/10 la salida por campeón tenía `synergy_mean`: el promedio de la sinergia de cada campeón con
+todas sus parejas. **Se eliminó** a pedido de la organización (ADR-023). La sinergia se mide por
+dupla y su único dato útil es el pareado, que vive en `duo_features.csv` (§5).
 
 ---
 
@@ -308,7 +338,8 @@ ganar el carril por fuerza bruta individual. Por eso se recolectan por separado.
 |---|---|---|
 | `champion_a_id`, `champion_a_key` | int, text | Campeón A. Siempre `a_id < b_id` |
 | `champion_b_id`, `champion_b_key` | int, text | Campeón B |
-| `duo_context` | text | `bot` \| `top_jungle` \| `mid_jungle` |
+| `role_a` | text | Rol de `champion_a` en la dupla: `adc` \| `support` \| `top` \| `mid` \| `jungle` |
+| `role_b` | text | Rol de `champion_b` en la dupla, con los mismos valores |
 | `synergy` | log-odds | Compenetración de la dupla, centrada en 0 |
 | `synergy_ci_low`, `synergy_ci_high` | log-odds | IC 95 % |
 | `synergy_n` | conteo | Comparaciones de tipo 4 que incluyeron esta dupla |
@@ -321,11 +352,18 @@ ganar el carril por fuerza bruta individual. Por eso se recolectan por separado.
 | `lane_strength_is_observed` | bool | `true` si la dupla se preguntó; `false` si es predicha |
 | `patch_window` | text | Parches incluidos |
 
-**18 columnas, 2 magnitudes medidas por dupla.**
+**19 columnas, 2 magnitudes medidas por dupla.**
 
-`lane_strength` sólo tiene valor cuando `duo_context = 'bot'`: el enfrentamiento 2v2 se pregunta
-únicamente sobre el carril inferior, que es donde dos campeones comparten oponentes durante la fase
-de líneas. Para `top_jungle` y `mid_jungle` la columna queda vacía y sólo se mide `synergy`.
+Los pares de roles posibles son los tres contextos del tipo 4: `adc` + `support`, `top` +
+`jungle` y `mid` + `jungle`. `lane_strength` sólo tiene valor en la dupla de bot (`adc` +
+`support`): el enfrentamiento 2v2 se pregunta únicamente sobre el carril inferior, que es donde
+dos campeones comparten oponentes durante la fase de líneas. En las duplas con jungla la columna
+queda vacía y sólo se mide `synergy`.
+
+> **Cambiado el 08/10/2026.** `duo_context` (`bot` \| `top_jungle` \| `mid_jungle`) se reemplazó
+> por `role_a` y `role_b` ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). La columna nueva
+> dice además qué campeón juega qué rol, que el contexto solo no decía. El orden canónico sigue
+> siendo `a_id < b_id`, así que `role_a` puede ser el `support` y `role_b` el `adc`.
 
 Ambas magnitudes son **simétricas**: acompañar a A con B es lo mismo que acompañar a B con A. Se
 almacenan en forma canónica (`a_id < b_id`) por la misma razón que la matriz de matchups.
@@ -355,18 +393,24 @@ deliberadamente menor que la de los tipos 1, 2 y 3.
 ```python
 import pandas as pd
 
-champs = pd.read_csv("champion_features_v16.20.csv")
+dims = pd.read_csv("champion_dimensions_v16.20.csv")
 
-# Sólo lo que está bien sostenido
-solid = champs[champs["engage_support"] == "solid"]
+# Una dimensión, sólo lo que está bien sostenido
+engage = dims[(dims.dimension == "engage") & (dims.score_support == "solid")]
+engage.nlargest(10, "score")[["display_name", "score", "score_ci_low", "score_ci_high"]]
 
-# Ranking por dimensión
-solid.nlargest(10, "engage")[["display_name", "engage", "engage_ci_low", "engage_ci_high"]]
+# Las ocho dimensiones de un campeón, a lo ancho si hace falta
+dims[dims.riot_key == "Leona"].pivot(index="riot_key", columns="dimension", values="score")
 
 # La curva temporal de un campeón
-champs.loc[champs.riot_key == "Kayle",
-           ["peak_minute", "power_at_5", "power_at_10", "power_at_15",
-            "power_at_20", "power_at_25"]]
+peak = pd.read_csv("peak_timing_v16.20.csv")
+peak.loc[peak.riot_key == "Kayle",
+         ["peak_minute", "power_at_5", "power_at_10", "power_at_15",
+          "power_at_20", "power_at_25"]]
+
+# Fuerza de línea en mid, sin las filas vacías de quien no juega mid
+lanes = pd.read_csv("champion_lane_strength_v16.20.csv")
+lanes[(lanes.role == "mid") & lanes.lane_strength.notna()]
 
 # Matchups observados de un campeón en mid
 mus = pd.read_csv("matchup_matrix_v16.20.csv")

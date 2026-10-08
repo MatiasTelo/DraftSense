@@ -31,6 +31,8 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Qué puentes crea el job de conectividad y cuántos | `13-adr/ADR-021-puentes-en-cadena.md` y `21-sampler.md` §3.4 |
 | Dónde se guardan las cadencias y cómo sabe el servidor que algo es un retest | `13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md` y `11-modelo-de-datos.md` §3.7 |
 | Qué es `queued` en `GET /questions/next` y por qué existe | `12-api.md` §2.3 (nota del 17/09) y ADR-020 |
+| Cómo funciona el ranking de cinco del tipo 1 (ancla, diez filas, honeypot, retest) | `13-adr/ADR-022-tipo-1-ranking-de-cinco.md`, `20-tipos-de-pregunta.md` §2, `21-sampler.md` §5.1, `22-calidad-de-datos.md` §3.7 y §4.1 |
+| Por qué la salida por campeón son cuatro archivos largos | `13-adr/ADR-023-salida-en-formato-largo.md` y `26-esquema-de-salida.md` §3 |
 | Cómo se aplican variedad, honeypot y retest en un lote | `21-sampler.md` §6 (nota del 16/09) |
 | Cómo se generan las preguntas sin enumerarlas todas | `21-sampler.md` §2 |
 | El pseudocódigo completo del sampler | `21-sampler.md` §10 |
@@ -53,7 +55,7 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Krippendorff, test-retest, cobertura, Informe de Calidad de Datos | `27-validacion-confiabilidad.md` — **pendiente** |
 | El wireframe, los estados o el microcopy de una pantalla | `30-ux-flujos.md` §3 a §7 (una por ruta) |
 | Decisiones de interfaz ya cerradas | `30-ux-flujos.md` §10 |
-| Un ejemplo ejecutable de los tres CSV, columna por columna | `examples/README.md` |
+| Un ejemplo ejecutable de los seis CSV, columna por columna | `examples/README.md` |
 
 ## Estado de cada documento
 
@@ -67,15 +69,15 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (21 ADR) | v1 |
-| `20-tipos-de-pregunta.md` | v1 |
+| `13-adr/` (23 ADR) | v1 |
+| `20-tipos-de-pregunta.md` | **v2** (08/10: tipo 1 como ranking) |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |
 | `23-gamificacion.md` | v1 |
 | `24-panel-admin.md` | **pendiente** |
 | `25-agregacion.md` | v1 |
-| `26-esquema-de-salida.md` | v1 |
-| `examples/` | v1 |
+| `26-esquema-de-salida.md` | **v2** (08/10: formato largo) |
+| `examples/` | **v2** |
 | `27-validacion-confiabilidad.md` | **pendiente** — desbloquea la semana 10 |
 | `30-ux-flujos.md` | v1 |
 | `31-plan-de-pruebas.md` | **pendiente** |

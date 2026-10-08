@@ -1,6 +1,10 @@
 # 23 — Gamificación y retención
 
-> Estado: **v1** · Última revisión: 09/09/2026 · Ola 3 · Desbloquea la semana 6 del cronograma
+> Estado: **v1** · Última revisión: 08/10/2026 · Ola 3 · Desbloquea la semana 6 del cronograma
+>
+> **08/10/2026:** un ranking del tipo 1 cuenta como **una** respuesta en todo lo que se muestra
+> acá (§3, nota al pie de la tabla), aunque guarde diez filas
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 La gamificación de DraftSense no es un adorno: es **el instrumento de la meta M5** del Informe
 Inicial —al menos 1 000 respuestas reales— y el único que hay, porque el sistema no paga, no tiene
@@ -125,6 +129,13 @@ retención a mitad del piloto y busca una palanca.
 | Tasa de acuerdo con la comunidad | Proporción de respuestas que coincidieron con la mayoría, sobre las preguntas con soporte ≥ 20 |
 | Percentil de contribución | Posición por `answers_count` sobre el total de respondedores no marcados |
 | Cobertura por tipo | Conteo de respuestas por `question_type` |
+
+> **Agregado el 08/10/2026.** Desde que el tipo 1 es un ranking de cinco que se guarda como diez
+> comparaciones ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), las rachas, el contador, la
+> cobertura por tipo y las ventanas de día y semana de la tabla de posiciones cuentan **envíos**: un
+> ranking suma 1. Si contaran filas, el tipo 1 valdría diez veces más que los demás y la tabla de
+> posiciones premiaría elegirlo. La tasa de acuerdo, en cambio, se calcula **por par**: cada una de
+> las diez comparaciones se compara con la mayoría de su par.
 
 **La tasa de acuerdo se muestra pero no se premia.** Es información sobre uno mismo —*"coincidís con
 la comunidad el 78 % de las veces"*— y aparece sin juicio, sin meta, sin barra de progreso y sin

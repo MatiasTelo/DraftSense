@@ -1,0 +1,14 @@
+champion_id,riot_key,display_name,roles,pool_tier,patch_window,exported_at,peak_minute,peak_minute_ci_low,peak_minute_ci_high,peak_minute_n,peak_minute_support,power_at_5,power_at_10,power_at_15,power_at_20,power_at_25
+9,Jhin,Jhin,adc,1,16.18..16.20,2026-10-24,22,20,24,44,solid,0.08,0.28,0.65,0.97,0.92
+12,Alistar,Alistar,support,1,16.18..16.20,2026-10-24,14,12,16,38,solid,0.49,0.87,0.99,0.73,0.34
+18,Darius,Darius,top,1,16.18..16.20,2026-10-24,12,10,14,51,solid,0.65,0.97,0.92,0.57,0.22
+25,Garen,Garen,top,1,16.18..16.20,2026-10-24,13,11,15,29,limited,0.57,0.92,0.97,0.65,0.28
+30,Karma,Karma,support|mid,1,16.18..16.20,2026-10-24,16,13,19,21,limited,0.34,0.73,0.99,0.87,0.49
+34,Kayle,Kayle,top|mid,1,16.18..16.20,2026-10-24,31,29,33,47,solid,0.00,0.02,0.10,0.34,0.73
+41,Lucian,Lucian,adc|mid,1,16.18..16.20,2026-10-24,15,13,17,36,solid,0.41,0.80,1.00,0.80,0.41
+48,Nami,Nami,support,1,16.18..16.20,2026-10-24,18,15,21,17,limited,0.22,0.57,0.92,0.97,0.65
+55,Ziggs,Ziggs,mid,2,16.18..16.20,2026-10-24,19,16,22,12,limited,0.18,0.49,0.87,0.99,0.73
+61,Syndra,Syndra,mid,1,16.18..16.20,2026-10-24,24,22,26,33,limited,0.04,0.18,0.49,0.87,0.99
+72,Zed,Zed,mid,1,16.18..16.20,2026-10-24,17,15,19,42,solid,0.28,0.65,0.97,0.92,0.57
+77,Ivern,Ivern,jungle,3,16.18..16.20,2026-10-24,,,,4,insufficient,,,,,
+88,Sejuani,Sejuani,jungle,1,16.18..16.20,2026-10-24,20,18,22,26,limited,0.14,0.41,0.80,1.00,0.80

@@ -32,9 +32,11 @@ from app.models import (
     Patch,
     Question,
     QuestionType,
+    Ranking,
     Respondent,
     Response,
 )
+from app.schemas.questions import PairwiseDimensionQuestion
 from app.services import responses as responses_service
 from app.services import sampler, sessions
 from app.services.questions import Space, draw_combination
@@ -50,6 +52,7 @@ from tests.conftest import (
     as_respondent,
     make_champions,
     make_dimensions,
+    pad_pool,
     pairwise_question,
     requires_db,
     restrict_pool,
@@ -195,8 +198,12 @@ async def _ready(
     epsilon: float,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Pool reducido, ε fijo, sólo tipo 1, sin arranque ni cadencias."""
-    await restrict_pool(db, champions, dimensions)
+    """Pool reducido, ε fijo, sólo tipo 1, sin arranque ni cadencias.
+
+    El pool se completa a diez campeones: un ranking necesita cinco y sus pares no pueden ser el
+    ancla de otro del mismo lote (ADR-022).
+    """
+    await restrict_pool(db, await pad_pool(db, champions), dimensions)
     await set_setting(db, "sampler.epsilon", epsilon)
     monkeypatch.setattr(sampler, "TYPE_WEIGHTS", {PAIRWISE: 1})
     respondent.answers_count = 3
@@ -221,9 +228,14 @@ async def test_el_puente_domina(
     dimension: Dimension,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """§11 — un puente muy expuesto le gana a la mejor pregunta sin puente."""
+    """§11 — un puente muy expuesto le gana a la mejor pregunta sin puente.
+
+    Cada una en su dimensión: si compartieran, los tres campeones que completan el ranking del
+    puente podrían tomar el par de la otra y sacarla del lote (ADR-022).
+    """
     row, token = respondent
-    await _ready(db, row, champions, [dimension], 0.0, monkeypatch)
+    [other] = await make_dimensions(db, ["puenteotra"])
+    await _ready(db, row, champions, [dimension, other], 0.0, monkeypatch)
     bridge = await pairwise_question(
         db,
         patch,
@@ -239,7 +251,7 @@ async def test_el_puente_domina(
         patch,
         champions[2],
         champions[3],
-        dimension,
+        other,
         exposure_count=5,
         entropy=Decimal("1"),
         coverage_deficit=Decimal("1"),
@@ -258,17 +270,21 @@ async def test_la_explotacion_ordena_por_prioridad(
     dimension: Dimension,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """§3 — con ε = 0, la más disputada primero; la escasez y la cobertura suman."""
+    """§3 — con ε = 0, la más disputada primero; la escasez y la cobertura suman.
+
+    Una dimensión por pregunta, por la misma razón que en `test_el_puente_domina`.
+    """
     row, token = respondent
-    await _ready(db, row, champions, [dimension], 0.0, monkeypatch)
+    dims = await make_dimensions(db, ["prioa", "priob", "prioc"])
+    await _ready(db, row, champions, dims, 0.0, monkeypatch)
     settled = await pairwise_question(
-        db, patch, champions[0], champions[1], dimension, exposure_count=40, entropy=Decimal("0.1")
+        db, patch, champions[0], champions[1], dims[0], exposure_count=40, entropy=Decimal("0.1")
     )
     disputed = await pairwise_question(
-        db, patch, champions[0], champions[2], dimension, exposure_count=40, entropy=Decimal("0.9")
+        db, patch, champions[0], champions[2], dims[1], exposure_count=40, entropy=Decimal("0.9")
     )
     scarce = await pairwise_question(
-        db, patch, champions[0], champions[3], dimension, exposure_count=5, entropy=Decimal("0.1")
+        db, patch, champions[0], champions[3], dims[2], exposure_count=5, entropy=Decimal("0.1")
     )
 
     assert await _ids(client, token, 3) == [
@@ -422,12 +438,17 @@ async def test_doscientas_preguntas_sin_repetir_ni_precomputar(
         for item in batch[: 200 - len(served)]:
             question = await db.get(Question, item.question_id)
             assert question is not None
-            answer = (
-                {"minute": 20}
-                if question.type is PEAK
-                else {"choice": "even" if question.type is LANE else "a"}
-            )
-            await responses_service.record(db, respondent, question, answer, 2500, now, rng)
+            if question.type is PAIRWISE:
+                # El tipo 1 es un ranking: se contesta en el orden en que llegó (ADR-022).
+                assert isinstance(item, PairwiseDimensionQuestion)
+                ranking = await db.get(Ranking, item.ranking_id)
+                assert ranking is not None
+                await responses_service.record_ranking(
+                    db, respondent, ranking, question, list(ranking.champions), 2500, now, rng
+                )
+            else:
+                answer = {"minute": 20} if question.type is PEAK else {"choice": "even"}
+                await responses_service.record(db, respondent, question, answer, 2500, now, rng)
             served.append(item.question_id)
 
     rows = list(
@@ -439,6 +460,8 @@ async def test_doscientas_preguntas_sin_repetir_ni_precomputar(
             )
         ).tuples()
     )
+    # Los pares no ancla de un ranking que ya estaban contestados se ignoran al guardar, así que
+    # tampoco hay originales repetidas.
     originals = [question_id for question_id, retest_of in rows if retest_of is None]
     retests = [question_id for question_id, retest_of in rows if retest_of is not None]
     assert len(originals) == len(set(originals))

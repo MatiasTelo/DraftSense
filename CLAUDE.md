@@ -9,10 +9,12 @@ League of Legends. Práctica Profesional Supervisada — Laboratorio DHARMa, UTN
 el dataset de partidas del laboratorio, no se integra con el modelo predictivo y no interpreta
 resultados. La frontera de la práctica es el CSV.
 
-La salida son tres archivos —`champion_features`, `matchup_matrix`, `duo_features`— más el Informe
-de Calidad de Datos. La métrica de impacto es **20 magnitudes continuas por campeón, con intervalo
-de confianza y soporte muestral, versionadas por parche (126 columnas), frente a 7 etiquetas
-binarias de un anotador único**.
+La salida son seis CSV —cuatro por campeón en formato largo (`champion_dimensions`, `peak_timing`,
+`champion_lane_strength`, `champion_traits`), más `matchup_matrix` y `duo_features`— y el Informe de
+Calidad de Datos. La métrica de impacto es **19 magnitudes continuas por campeón, con intervalo de
+confianza y soporte muestral, versionadas por parche, frente a 7 etiquetas binarias de un anotador
+único** ([ADR-023](docs/13-adr/ADR-023-salida-en-formato-largo.md), que reemplazó el viejo
+`champion_features` de 126 columnas el 08/10/2026).
 
 Esto está fijado en [`docs/13-adr/ADR-005-alcance-medicion-de-campeones.md`](docs/13-adr/ADR-005-alcance-medicion-de-campeones.md)
 y **difiere del Informe Inicial firmado**, que promete un `match_features.csv` con ~117 features
@@ -40,7 +42,8 @@ python infra/check_docs.py
 ```
 
 Es exactamente lo que corre `.github/workflows/ci.yml`. `check_docs.py` valida el DDL con sqlglot,
-los enlaces internos entre documentos y los conteos de columnas de `26-esquema-de-salida.md`.
+los enlaces internos entre documentos y los conteos de columnas de `26-esquema-de-salida.md`
+contra las cabeceras de `docs/examples/`.
 
 Los tests del backend que necesitan base se saltean solos si no hay `DS_DATABASE_URL`. Corren los
 diez con un `backend/.env` configurado, y siempre en CI contra un Postgres 17 real.

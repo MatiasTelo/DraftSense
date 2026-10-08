@@ -10,7 +10,8 @@ Acá está lo que no depende de *cuál* pregunta toca:
 La composición de la sesión y la elección de la pregunta —prioridad, exploración, honeypots,
 retests, variedad— están en `sampler.py` desde la semana 5.
 
-Se sirven tres tipos: `pairwise_dimension`, `peak_timing` y la variante 1v1 de `lane_matchup`,
+Se sirven tres tipos: `pairwise_dimension` —desde ADR-022, como un ranking de cinco armado
+alrededor de un par ancla (`rankings.py`)—, `peak_timing` y la variante 1v1 de `lane_matchup`,
 que es el orden de `docs/20-tipos-de-pregunta.md` §8. La 2v2 y los tipos 4 y 5 llegan en la
 semana 8.
 """
@@ -36,6 +37,7 @@ from app.models import (
     Patch,
     Question,
     QuestionType,
+    Ranking,
     Response,
 )
 from app.schemas.questions import (
@@ -60,6 +62,10 @@ SERVED_TYPES: Final = (
     QuestionType.PEAK_TIMING,
     QuestionType.LANE_MATCHUP,
 )
+
+#: Cuántos campeones ordena una tarjeta de tipo 1. Con cinco salen C(5, 2) = 10 comparaciones
+#: (ADR-022).
+RANKING_SIZE: Final = 5
 
 #: Los roles del 1v1. La jungla no entra: no tiene un oponente fijo con quien intercambiar
 #: durante diez minutos (`docs/20-tipos-de-pregunta.md` §4.1).
@@ -136,7 +142,7 @@ class Space:
     def available_types(self) -> frozenset[QuestionType]:
         """Los tipos que tienen al menos una combinación posible."""
         available: set[QuestionType] = set()
-        if len(self.champions) >= 2 and self.dimensions:
+        if len(self.champions) >= RANKING_SIZE and self.dimensions:
             available.add(QuestionType.PAIRWISE_DIMENSION)
         if self.champions:
             available.add(QuestionType.PEAK_TIMING)
@@ -313,8 +319,9 @@ async def materialize_many(
 ) -> dict[Combination, Question]:
     """`materialize` para muchas combinaciones del tipo 1 de una vez. No hace commit.
 
-    Lo usa `check_graph_connectivity`, que en el arranque crea cientos de puentes: de a uno
-    serían cuatro idas a la base por pregunta. Un solo `INSERT … ON CONFLICT DO NOTHING` y una
+    Lo usan `check_graph_connectivity`, que en el arranque crea cientos de puentes, y el registro
+    de un ranking, que necesita sus diez pares (ADR-022): de a uno serían cuatro idas a la base por
+    pregunta. Un solo `INSERT … ON CONFLICT DO NOTHING` y una
     sola búsqueda por tupla dan el mismo resultado con el mismo árbitro, el índice
     `questions_identity`.
     """
@@ -363,13 +370,20 @@ def role_label(role: LaneRole) -> str:
 
 
 def render(
-    question: Question, champions: Mapping[int, Champion], dimensions: Mapping[int, Dimension]
+    question: Question,
+    champions: Mapping[int, Champion],
+    dimensions: Mapping[int, Dimension],
+    ranking: Ranking | None = None,
 ) -> QuestionOut:
-    """El enunciado ya compuesto, como exige `docs/12-api.md` §1.1. El cliente no ve plantillas."""
+    """El enunciado ya compuesto, como exige `docs/12-api.md` §1.1. El cliente no ve plantillas.
+
+    Una pregunta de tipo 1 se sirve como el ancla de `ranking` (ADR-022), y sin él no se puede
+    renderizar.
+    """
     match question.type:
         case QuestionType.PAIRWISE_DIMENSION:
-            assert question.dimension_id is not None
-            return render_pairwise(question, dimensions[question.dimension_id], champions)
+            assert question.dimension_id is not None and ranking is not None
+            return render_ranking(ranking, dimensions[question.dimension_id], champions)
         case QuestionType.PEAK_TIMING:
             return render_peak(question, champions)
         case QuestionType.LANE_MATCHUP:
@@ -378,21 +392,20 @@ def render(
             raise ValueError(f"question type {question.type} is not served yet")
 
 
-def render_pairwise(
-    question: Question, dimension: Dimension, champions: Mapping[int, Champion]
+def render_ranking(
+    ranking: Ranking, dimension: Dimension, champions: Mapping[int, Champion]
 ) -> PairwiseDimensionQuestion:
-    """El texto sale de `dimensions`, no del código: agregar una dimensión es insertar una fila
-    (RF-603, CA-601)."""
-    assert question.champion_b is not None
+    """Tipo 1, el ranking de cinco (ADR-022). Los campeones van en el orden guardado, que es
+    aleatorio. El enunciado sale de `dimensions`, no del código: agregar una dimensión es insertar
+    una fila (RF-603, CA-601)."""
     return PairwiseDimensionQuestion(
-        question_id=question.question_id,
+        question_id=ranking.anchor_question_id,
+        ranking_id=ranking.ranking_id,
         prompt=dimension.prompt_en,
+        instruction=question_texts.RANKING_INSTRUCTION,
         help=Help(label=dimension.label_en, text=dimension.description_en),
-        options=[
-            Side(key="a", champions=[champion_ref(champions[question.champion_a])]),
-            Side(key="b", champions=[champion_ref(champions[question.champion_b])]),
-            Side(key="unknown", label=question_texts.UNKNOWN_LABEL, champions=[]),
-        ],
+        champions=[champion_ref(champions[c]) for c in ranking.champions],
+        unknown_label=question_texts.UNKNOWN_LABEL,
     )
 
 

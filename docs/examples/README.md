@@ -1,8 +1,13 @@
 # Ejemplos de salida — diccionario de columnas
 
-> Estado: **v1** · Última revisión: 01/09/2026
+> Estado: **v2** · Última revisión: 08/10/2026
+>
+> **v2 (08/10/2026):** el viejo `champion_features_v16.20.csv` (una fila por campeón, 126 columnas)
+> se reemplazó por cuatro archivos en formato largo, se eliminó `synergy_mean` y `duo_context` pasó a
+> `role_a` y `role_b` ([ADR-023](../13-adr/ADR-023-salida-en-formato-largo.md)). Los valores
+> sintéticos son los mismos de antes, reacomodados.
 
-Los tres archivos de esta carpeta son **ejemplos ejecutables** del contrato de entrega definido en
+Los seis CSV de esta carpeta son **ejemplos ejecutables** del contrato de entrega definido en
 [`../26-esquema-de-salida.md`](../26-esquema-de-salida.md). Sirven para tres cosas:
 
 1. Mostrarle al Laboratorio DHARMa exactamente qué forma tiene lo que va a recibir, antes de que
@@ -19,9 +24,12 @@ Los tres archivos de esta carpeta son **ejemplos ejecutables** del contrato de e
 
 | Archivo | Filas | Columnas |
 |---|---|---|
-| [`champion_features_v16.20.csv`](champion_features_v16.20.csv) | 13 campeones | 126 |
+| [`champion_dimensions_v16.20.csv`](champion_dimensions_v16.20.csv) | 13 campeones × 8 dimensiones = 104 | 15 |
+| [`peak_timing_v16.20.csv`](peak_timing_v16.20.csv) | 13 campeones | 17 |
+| [`champion_lane_strength_v16.20.csv`](champion_lane_strength_v16.20.csv) | 13 campeones × 3 roles = 39 | 13 |
+| [`champion_traits_v16.20.csv`](champion_traits_v16.20.csv) | 13 campeones × 7 atributos = 91 | 13 |
 | [`matchup_matrix_v16.20.csv`](matchup_matrix_v16.20.csv) | 13 pares | 12 |
-| [`duo_features_v16.20.csv`](duo_features_v16.20.csv) | 10 duplas | 18 |
+| [`duo_features_v16.20.csv`](duo_features_v16.20.csv) | 10 duplas | 19 |
 
 El catálogo de ejemplo son 13 campeones elegidos para cubrir los casos borde: un tanque support
 (Alistar), un campeón de escalado extremo (Kayle), un jungla (Sejuani, sin fuerza de línea), una
@@ -30,22 +38,22 @@ tier 3 casi sin datos (Ivern), que es el que muestra cómo se ve una fila vacía
 
 ---
 
-## 1. Convenciones que aplican a los tres archivos
+## 1. Convenciones que aplican a todos los archivos
 
 ### 1.1 El bloque de sufijos
 
 Cada **magnitud medida** ocupa varias columnas, no una. El patrón es siempre el mismo:
 
-| Sufijo | Qué es | Ejemplo |
+| Sufijo | Qué es | Ejemplo (Alistar, `dimension = engage`) |
 |---|---|---|
-| *(ninguno)* | El valor estimado | `engage` = `1.420` |
-| `_ci_low` | Extremo inferior del IC 95 % | `engage_ci_low` = `1.259` |
-| `_ci_high` | Extremo superior del IC 95 % | `engage_ci_high` = `1.581` |
-| `_n` | Soporte muestral: cuántas observaciones sostienen el valor | `engage_n` = `148` |
-| `_support` | `solid` / `limited` / `insufficient`, derivado de `_n` y del ancho | `engage_support` = `solid` |
+| *(ninguno)* | El valor estimado | `score` = `1.420` |
+| `_ci_low` | Extremo inferior del IC 95 % | `score_ci_low` = `1.259` |
+| `_ci_high` | Extremo superior del IC 95 % | `score_ci_high` = `1.581` |
+| `_n` | Soporte muestral: cuántas observaciones sostienen el valor | `score_n` = `148` |
+| `_support` | `solid` / `limited` / `insufficient`, derivado de `_n` y del ancho | `score_support` = `solid` |
 
 Leer sólo la columna del valor e ignorar el resto es el error de uso más probable de estos archivos.
-Un `engage = 1.42` con `engage_support = insufficient` no es una medición: es un valor con el que no
+Un `score = 1.42` con `score_support = insufficient` no es una medición: es un valor con el que no
 se puede hacer nada todavía.
 
 ### 1.2 Vacío no es cero
@@ -55,40 +63,52 @@ significa **"el promedio del pool"**, porque los scores están centrados en 0. C
 ruido sistemático en cualquier modelo.
 
 Cuando una celda de valor está vacía, su `_ci_low` y `_ci_high` también lo están, su `_n` es `0` y su
-`_support` es `insufficient`. En el ejemplo, la fila de **Ivern** tiene seis de las ocho dimensiones
-vacías; la de **Alistar** tiene los tres `lane_strength_*` vacíos porque juega support.
+`_support` es `insufficient`. En el ejemplo, **Ivern** tiene seis de sus ocho filas de dimensión
+vacías, y **Alistar** tiene vacías sus tres filas de `champion_lane_strength` porque juega support.
 
-### 1.3 Cómo verificarlo rápido
+### 1.3 Formato largo: la fila no es el campeón
+
+En los archivos por campeón, salvo `peak_timing`, cada campeón ocupa **varias filas**: una por
+dimensión, por rol o por atributo. Las siete columnas de identificación se repiten en cada una. Para
+pasar a una fila por campeón alcanza con un `pivot`:
+
+```python
+dims = pd.read_csv("champion_dimensions_v16.20.csv")
+ancho = dims.pivot(index="riot_key", columns="dimension", values="score")
+```
+
+### 1.4 Cómo verificarlo rápido
 
 ```python
 import pandas as pd
 
-champs = pd.read_csv("champion_features_v16.20.csv")
-assert champs.shape[1] == 126
+dims = pd.read_csv("champion_dimensions_v16.20.csv")
+assert dims.shape[1] == 15
+assert (dims.groupby("champion_id").size() == 8).all()
 
 # El contrato del bloque de sufijos: si el valor está vacío, el soporte es insufficient
-vacios = champs["engage"].isna()
-assert (champs.loc[vacios, "engage_n"] == 0).all()
-assert (champs.loc[vacios, "engage_support"] == "insufficient").all()
+vacios = dims["score"].isna()
+assert (dims.loc[vacios, "score_n"] == 0).all()
+assert (dims.loc[vacios, "score_support"] == "insufficient").all()
 
 # El intervalo contiene al valor
-ok = champs["engage"].notna()
-assert (champs.loc[ok, "engage_ci_low"] <= champs.loc[ok, "engage"]).all()
-assert (champs.loc[ok, "engage"] <= champs.loc[ok, "engage_ci_high"]).all()
+ok = dims["score"].notna()
+assert (dims.loc[ok, "score_ci_low"] <= dims.loc[ok, "score"]).all()
+assert (dims.loc[ok, "score"] <= dims.loc[ok, "score_ci_high"]).all()
 ```
 
 ---
 
-## 2. `champion_features_v16.20.csv` — 126 columnas
+## 2. Los cuatro archivos por campeón
 
-Una fila por campeón. **20 magnitudes medidas**: 8 dimensiones + 1 pico de poder + 3 fuerzas de
-línea + 1 sinergia media + 7 atributos.
+**19 magnitudes medidas por campeón**: 8 dimensiones + 1 pico de poder + 3 fuerzas de línea + 7
+atributos, repartidas en cuatro archivos según el tipo de pregunta de origen.
 
-### 2.1 Identificación — columnas 1 a 7
+### 2.1 Identificación: las 7 primeras columnas de los cuatro archivos
 
 | # | Columna | Tipo | Qué es |
 |---|---|---|---|
-| 1 | `champion_id` | int | Clave interna de DraftSense. Estable entre parches; es la que usan las otras dos tablas para referirse a este campeón |
+| 1 | `champion_id` | int | Clave interna de DraftSense. Estable entre parches; es la que usan los otros archivos para referirse a este campeón |
 | 2 | `riot_key` | text | Clave de Data Dragon: `Alistar`, `LeeSin`, `MonkeyKing`. Es la que sirve para cruzar con cualquier fuente externa |
 | 3 | `display_name` | text | Nombre tal como se muestra: `Alistar`, `Lee Sin`, `Wukong`. Sólo para leer, nunca para cruzar |
 | 4 | `roles` | text | Roles que ocupa el campeón, separados por `\|`: `top\|mid`. Sale del catálogo, no de las respuestas |
@@ -96,49 +116,46 @@ línea + 1 sinergia media + 7 atributos.
 | 6 | `patch_window` | text | Parches cuyas respuestas entraron, en formato `16.18..16.20`. **No** es "el parche del campeón": es la ventana de la corrida |
 | 7 | `exported_at` | date | Fecha de la corrida que produjo el archivo |
 
-### 2.2 Dimensiones funcionales — columnas 8 a 63 (8 × 7)
+### 2.2 `champion_dimensions_v16.20.csv` — 15 columnas, 8 filas por campeón
 
-Origen: preguntas de **tipo 1** (comparación pareada). Se ajusta un Bradley-Terry independiente por
-dimensión, ponderado por trust y por recencia.
+Origen: preguntas de **tipo 1**, el ranking de cinco campeones, que aporta diez comparaciones
+pareadas por respuesta ([ADR-022](../13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Se ajusta un
+Bradley-Terry independiente por dimensión, ponderado por trust y por recencia.
 
-Las 8 dimensiones, en orden: `engage`, `poke`, `pick`, `peel`, `mobility`, `scaling`, `cc`,
-`waveclear`.
-
-Por cada dimensión `D`, **siete** columnas:
-
-| Columna | Unidad | Qué es |
-|---|---|---|
-| `D` | log-odds | Score de Bradley-Terry, **centrado en 0 sobre el pool exportado**. Una diferencia de `+1` entre dos campeones significa que la comunidad elige al primero con probabilidad ≈ 0.73 |
-| `D_ci_low`, `D_ci_high` | log-odds | IC 95 % por bootstrap sobre las comparaciones |
-| `D_n` | conteo | **Comparaciones que involucran a este campeón en esta dimensión**, no respuestas a un par concreto. Es la unidad correcta: Bradley-Terry estima la fuerza de un campeón con todas sus comparaciones, vengan del par que vengan |
-| `D_support` | enum | `solid` si `n ≥ 25` y ancho `≤ 0.60`; `limited` si `n ≥ 10` y ancho `≤ 1.20`; si no, `insufficient` |
-| `D_unknown_rate` | 0–1 | Proporción de respuestas `unknown` en los pares que involucran al campeón |
-| `D_norm` | 0–1 | `D` reescalado min-max **dentro de este export**. Sólo conveniencia |
+| # | Columna | Unidad | Qué es |
+|---|---|---|---|
+| 8 | `dimension` | text | `engage`, `poke`, `pick`, `peel`, `mobility`, `scaling`, `cc` o `waveclear` |
+| 9 | `score` | log-odds | Score de Bradley-Terry, **centrado en 0 sobre el pool exportado**. Una diferencia de `+1` entre dos campeones significa que la comunidad pone al primero arriba con probabilidad ≈ 0.73 |
+| 10–11 | `score_ci_low`, `score_ci_high` | log-odds | IC 95 % por bootstrap sobre las comparaciones |
+| 12 | `score_n` | conteo | **Comparaciones que involucran a este campeón en esta dimensión**, no respuestas a un par concreto. Es la unidad correcta: Bradley-Terry estima la fuerza de un campeón con todas sus comparaciones, vengan del par que vengan |
+| 13 | `score_support` | enum | `solid` si `n ≥ 25` y ancho `≤ 0.60`; `limited` si `n ≥ 10` y ancho `≤ 1.20`; si no, `insufficient` |
+| 14 | `unknown_rate` | 0–1 | Proporción de respuestas `unknown` en los pares que involucran al campeón |
+| 15 | `score_norm` | 0–1 | `score` reescalado min-max **dentro de la dimensión y de este export**. Sólo conveniencia |
 
 Dos columnas piden atención:
 
-**`D_unknown_rate` es señal de validez, no de ruido.** En el ejemplo, `Alistar.waveclear_unknown_rate`
-= `0.34`: una de cada tres personas contestó "no sé" cuando se le preguntó por el waveclear de un
-tanque support. Lo más probable no es que estuvieran distraídas, sino que **la dimensión no aplica
-bien a ese campeón**. Es información útil para decidir qué columnas son informativas para qué
-campeones — y por eso se exporta en vez de descartarse.
+**`unknown_rate` es señal de validez, no de ruido.** En el ejemplo, la fila de Alistar en
+`waveclear` tiene `unknown_rate = 0.34`: una de cada tres personas contestó "no sé" cuando se le
+preguntó por el waveclear de un tanque support. Lo más probable no es que estuvieran distraídas,
+sino que **la dimensión no aplica bien a ese campeón**. Es información útil para decidir qué
+dimensiones son informativas para qué campeones, y por eso se exporta en vez de descartarse.
 
-**⚠️ `D_norm` no es comparable entre exports.** Su referencia son el mínimo y el máximo del pool de
-*esta* corrida, que cambian cuando se promueven campeones de tier. Para comparar entre parches hay
-que usar la columna en log-odds. En el ejemplo, `Alistar.engage_norm` = `1.000` sólo quiere decir
-"es el que más engage tiene **de estos 13**".
+**⚠️ `score_norm` no es comparable entre exports.** Su referencia son el mínimo y el máximo del pool
+de *esta* corrida en esa dimensión, y cambian cuando se promueven campeones de tier. Para comparar
+entre parches hay que usar `score`. En el ejemplo, Alistar tiene `score_norm = 1.000` en `engage`, y
+eso sólo quiere decir "es el que más engage tiene **de estos 13**".
 
-### 2.3 Pico de poder — columnas 64 a 73
+### 2.3 `peak_timing_v16.20.csv` — 17 columnas, 1 fila por campeón
 
 Origen: preguntas de **tipo 2** (slider de minuto). Mediana ponderada con IC por bootstrap.
 
-| Columna | Unidad | Qué es |
-|---|---|---|
-| `peak_minute` | minutos | Mediana ponderada del minuto de pico declarado, entero en 0–40 |
-| `peak_minute_ci_low`, `peak_minute_ci_high` | minutos | IC 95 % bootstrap, en minutos enteros |
-| `peak_minute_n` | conteo | Respuestas de tipo 2 sobre este campeón |
-| `peak_minute_support` | enum | `solid` si `n ≥ 20` y ancho `≤ 4 min`; `limited` si `n ≥ 10` y ancho `≤ 8 min` |
-| `power_at_5` … `power_at_25` | 0–1 | La curva de poder evaluada en los minutos 5, 10, 15, 20 y 25 |
+| # | Columna | Unidad | Qué es |
+|---|---|---|---|
+| 8 | `peak_minute` | minutos | Mediana ponderada del minuto de pico declarado, entero en 0–40 |
+| 9–10 | `peak_minute_ci_low`, `peak_minute_ci_high` | minutos | IC 95 % bootstrap, en minutos enteros |
+| 11 | `peak_minute_n` | conteo | Respuestas de tipo 2 sobre este campeón |
+| 12 | `peak_minute_support` | enum | `solid` si `n ≥ 20` y ancho `≤ 4 min`; `limited` si `n ≥ 10` y ancho `≤ 8 min` |
+| 13–17 | `power_at_5` … `power_at_25` | 0–1 | La curva de poder evaluada en los minutos 5, 10, 15, 20 y 25 |
 
 Las cinco `power_at_*` **no son cinco mediciones nuevas**: son una transformación determinista de
 `peak_minute`.
@@ -161,90 +178,75 @@ En el ejemplo se ve el contraste que la columna existe para capturar:
 | Alistar | 14 | 0.49 | 0.99 | 0.34 |
 | Kayle | 31 | 0.00 | 0.10 | 0.73 |
 
-### 2.4 Fuerza de línea — columnas 74 a 88 (3 × 5)
+### 2.4 `champion_lane_strength_v16.20.csv` — 13 columnas, 3 filas por campeón
 
 Origen: preguntas de **tipo 3, variante 1v1**. Bradley-Terry con empates y margen (Rao-Kupper),
 ajustado por rol.
 
-Por cada rol `R` ∈ {`top`, `mid`, `adc`}:
+| # | Columna | Unidad | Qué es |
+|---|---|---|---|
+| 8 | `role` | text | `top`, `mid` o `adc`. Siempre las tres filas, aunque el campeón no juegue el rol |
+| 9 | `lane_strength` | log-odds | Fuerza en el 1v1 de línea al minuto 10, centrada en 0 **dentro de ese rol** |
+| 10–11 | `lane_strength_ci_low`, `lane_strength_ci_high` | log-odds | IC 95 % bootstrap |
+| 12 | `lane_strength_n` | conteo | Comparaciones del campeón en ese rol |
+| 13 | `lane_strength_support` | enum | `solid` si `n ≥ 20` y ancho `≤ 0.60`; `limited` si `n ≥ 8` y ancho `≤ 1.20` |
 
-| Columna | Unidad | Qué es |
-|---|---|---|
-| `lane_strength_R` | log-odds | Fuerza en el 1v1 de línea al minuto 10, centrada en 0 **dentro de ese rol** |
-| `lane_strength_R_ci_low`, `_ci_high` | log-odds | IC 95 % bootstrap |
-| `lane_strength_R_n` | conteo | Comparaciones del campeón en ese rol |
-| `lane_strength_R_support` | enum | `solid` si `n ≥ 20` y ancho `≤ 0.60`; `limited` si `n ≥ 8` y ancho `≤ 1.20` |
-
-**Sólo hay tres roles**, y falta cada uno por una razón distinta:
+**Sólo hay tres roles**, y falta cada uno de los otros dos por una razón distinta:
 
 - **`jungle` no existe** porque un jungla no disputa un 1v1 de línea: no tiene oponente fijo con
   quien intercambiar durante diez minutos, así que la pregunta no tendría respuesta clara. Sejuani,
-  en el ejemplo, tiene los tres vacíos y queda caracterizada por las 8 dimensiones.
+  en el ejemplo, tiene las tres filas vacías y queda caracterizada por las 8 dimensiones.
 - **`support` no existe** porque el carril inferior sí se mide, pero **la unidad es la dupla**. Vive
-  en `duo_features.csv` como `lane_strength`. Alistar y Nami tienen los tres vacíos.
+  en `duo_features.csv` como `lane_strength`. Alistar y Nami tienen las tres filas vacías.
 
-Un campeón con dos roles los tiene ambos, con soportes distintos: Kayle tiene
-`lane_strength_top_n = 41` (`solid`) y `lane_strength_mid_n = 14` (`limited`), que es exactamente lo
-que se espera de un campeón que se juega mucho más en una línea que en la otra.
+Un campeón con dos roles tiene las dos filas con valor, con soportes distintos: Kayle tiene
+`lane_strength_n = 41` (`solid`) en `top` y `14` (`limited`) en `mid`, que es exactamente lo que se
+espera de un campeón que se juega mucho más en una línea que en la otra.
 
-### 2.5 Sinergia media — columnas 89 a 91
-
-Origen: preguntas de **tipo 4**. Bradley-Terry sobre duplas.
-
-| Columna | Unidad | Qué es |
-|---|---|---|
-| `synergy_mean` | log-odds | Sinergia promedio del campeón con **todas** las parejas evaluadas |
-| `synergy_mean_n` | conteo | Duplas distintas que lo incluyen y tienen al menos una respuesta |
-| `synergy_mean_support` | enum | `solid` si `n ≥ 15` y ancho `≤ 0.80`; `limited` si `n ≥ 6` y ancho `≤ 1.50` |
-
-**Es la única magnitud del archivo sin `_ci_low` / `_ci_high`, y es deliberado.** No es una
-estimación del modelo: es un **resumen derivado**, el promedio de estimaciones que ya tienen su
-propio intervalo en `duo_features.csv`. Un IC honesto para ese promedio exigiría propagar la
-covarianza entre duplas que comparten un campeón, que es justamente la estructura que el promedio
-borra. Sirve para responder *"¿este campeón es fácil de acompañar en general?"*; **para elegir una
-dupla hay que ir a `duo_features.csv`**, donde el dato es pareado y sí tiene intervalo.
-
-### 2.6 Atributos — columnas 92 a 126 (7 × 5)
+### 2.5 `champion_traits_v16.20.csv` — 13 columnas, 7 filas por campeón
 
 Origen: preguntas de **tipo 5** (multi-selección). Proporción ponderada con intervalo de Wilson.
 
-Los 7 atributos, en orden: `engage`, `poke`, `pick`, `peel`, `front_to_back`, `dive`, `split_push`.
+| # | Columna | Unidad | Qué es |
+|---|---|---|---|
+| 8 | `trait` | text | `engage`, `poke`, `pick`, `peel`, `front_to_back`, `dive` o `split_push` |
+| 9 | `proportion` | 0–1 | Proporción ponderada de respondedores que marcaron el atributo para este campeón |
+| 10–11 | `proportion_ci_low`, `proportion_ci_high` | 0–1 | Intervalo de **Wilson** al 95 % |
+| 12 | `proportion_n` | conteo | Respuestas de tipo 5 sobre este campeón |
+| 13 | `proportion_support` | enum | `solid` si `n ≥ 20` y ancho de Wilson `≤ 0.25`; `limited` si `n ≥ 10` y ancho `≤ 0.45` |
 
-Por cada atributo `T`:
-
-| Columna | Unidad | Qué es |
-|---|---|---|
-| `trait_T` | 0–1 | Proporción ponderada de respondedores que marcaron el atributo para este campeón |
-| `trait_T_ci_low`, `trait_T_ci_high` | 0–1 | Intervalo de **Wilson** al 95 % |
-| `trait_T_n` | conteo | Respuestas de tipo 5 sobre este campeón |
-| `trait_T_support` | enum | `solid` si `n ≥ 20` y ancho de Wilson `≤ 0.25`; `limited` si `n ≥ 10` y ancho `≤ 0.45` |
-
-**Los siete `trait_T_n` de una misma fila son idénticos.** Una respuesta de tipo 5 marca los siete
-atributos de una sola vez, así que el soporte es por campeón, no por atributo. Si en algún export
-difieren, hay un bug en la agregación.
+**Las siete filas de un mismo campeón tienen el mismo `proportion_n`.** Una respuesta de tipo 5
+marca los siete atributos de una sola vez, así que el soporte es por campeón, no por atributo. Si en
+algún export difieren, hay un bug en la agregación.
 
 **Por qué Wilson y no el intervalo normal:** con muestras chicas y proporciones cerca de 0 o de 1 —
 que es exactamente el caso de un atributo que casi nadie o casi todos marcan — el intervalo normal
-produce extremos fuera de `[0,1]`. En el ejemplo, `Kayle.trait_engage` = `0.040` con n = 52 da
-Wilson `[0.011, 0.132]`; el normal daría un extremo inferior negativo.
+produce extremos fuera de `[0,1]`. En el ejemplo, Kayle tiene `proportion = 0.040` en `engage` con
+n = 52, y Wilson da `[0.011, 0.132]`; el normal daría un extremo inferior negativo.
 
-**⚠️ `trait_engage` no es `engage`.** Cuatro atributos se llaman igual que cuatro dimensiones y son
-mediciones distintas y no intercambiables:
+**⚠️ El atributo `engage` no es la dimensión `engage`.** Cuatro atributos se llaman igual que cuatro
+dimensiones y son mediciones distintas y no intercambiables:
 
-| | `engage` (dimensión) | `trait_engage` (atributo) |
+| | `engage` en `champion_dimensions` | `engage` en `champion_traits` |
 |---|---|---|
 | Pregunta que responde | ¿cuánto engage tiene **comparado con los demás**? | ¿qué fracción de la comunidad dice que **hace** engage? |
-| Escala | log-odds, sin cero natural | proporción 0–1, con cero y uno naturales |
+| Escala | `score`, log-odds, sin cero natural | `proportion`, 0–1, con cero y uno naturales |
 | Origen | tipo 1 | tipo 5 |
 
-Un campeón puede tener `engage = -0.40` y `trait_engage = 0.71` sin contradicción: está por debajo
-de la media del pool y aun así la mayoría reconoce que hace engage. Por eso los nombres nunca
-colisionan en el CSV.
+Un campeón puede tener `score = -0.40` en la dimensión y `proportion = 0.71` en el atributo sin
+contradicción: está por debajo de la media del pool y aun así la mayoría reconoce que hace engage.
+Por eso viven en archivos distintos y con columnas de valor de nombre distinto.
 
-**Estas 7 columnas son el puente de retrocompatibilidad**: son las mismas 7 etiquetas binarias del
+**Este archivo es el puente de retrocompatibilidad**: son las mismas 7 etiquetas binarias del
 esquema manual actual, sobre la misma definición, pero como proporción continua con incertidumbre en
-vez de un binario de un solo anotador. Sin ellas, cualquier mejora del modelo del laboratorio sería
+vez de un binario de un solo anotador. Sin él, cualquier mejora del modelo del laboratorio sería
 inatribuible.
+
+### 2.6 Ya no hay sinergia media
+
+Hasta el 07/10 había `synergy_mean`, el promedio de la sinergia de cada campeón con todas sus
+parejas. Se eliminó (ADR-023): **para la sinergia hay que ir a `duo_features.csv`**, donde el dato
+es pareado y tiene intervalo.
 
 ---
 
@@ -309,7 +311,7 @@ b_slight: −0.5, b_strong: −1}` antes del ajuste.
 
 ---
 
-## 4. `duo_features_v16.20.csv` — 18 columnas
+## 4. `duo_features_v16.20.csv` — 19 columnas
 
 Una fila por dupla evaluada, con **dos magnitudes independientes** que responden preguntas distintas.
 
@@ -317,18 +319,19 @@ Una fila por dupla evaluada, con **dos magnitudes independientes** que responden
 |---|---|---|---|
 | 1–2 | `champion_a_id`, `champion_a_key` | int, text | Campeón A |
 | 3–4 | `champion_b_id`, `champion_b_key` | int, text | Campeón B. **Siempre `a_id < b_id`** |
-| 5 | `duo_context` | text | `bot` / `top_jungle` / `mid_jungle` — dónde actúan juntos |
-| 6 | `synergy` | log-odds | **¿Estos dos se complementan bien?** Compenetración de la dupla, centrada en 0. Origen: tipo 4 |
-| 7–8 | `synergy_ci_low`, `synergy_ci_high` | log-odds | IC 95 % |
-| 9 | `synergy_n` | conteo | Comparaciones de tipo 4 que incluyeron esta dupla |
-| 10 | `synergy_support` | enum | `solid` si `n ≥ 15` y ancho `≤ 0.80`; `limited` si `n ≥ 6` y ancho `≤ 1.50` |
-| 11 | `synergy_is_observed` | bool | `true` si la dupla se preguntó; `false` si es predicha |
-| 12 | `lane_strength` | log-odds | **¿Esta dupla le gana el carril a otra?** Fuerza en el 2v2 de bot, centrada en 0. Origen: tipo 3, variante 2v2 |
-| 13–14 | `lane_strength_ci_low`, `lane_strength_ci_high` | log-odds | IC 95 % |
-| 15 | `lane_strength_n` | conteo | Comparaciones de tipo 3 2v2 que incluyeron esta dupla |
-| 16 | `lane_strength_support` | enum | Mismos umbrales que `synergy` |
-| 17 | `lane_strength_is_observed` | bool | `true` si la dupla se preguntó; `false` si es predicha |
-| 18 | `patch_window` | text | Parches incluidos |
+| 5 | `role_a` | text | Rol que juega `champion_a` en la dupla: `adc`, `support`, `top`, `mid` o `jungle` |
+| 6 | `role_b` | text | Rol que juega `champion_b` en la dupla |
+| 7 | `synergy` | log-odds | **¿Estos dos se complementan bien?** Compenetración de la dupla, centrada en 0. Origen: tipo 4 |
+| 8–9 | `synergy_ci_low`, `synergy_ci_high` | log-odds | IC 95 % |
+| 10 | `synergy_n` | conteo | Comparaciones de tipo 4 que incluyeron esta dupla |
+| 11 | `synergy_support` | enum | `solid` si `n ≥ 15` y ancho `≤ 0.80`; `limited` si `n ≥ 6` y ancho `≤ 1.50` |
+| 12 | `synergy_is_observed` | bool | `true` si la dupla se preguntó; `false` si es predicha |
+| 13 | `lane_strength` | log-odds | **¿Esta dupla le gana el carril a otra?** Fuerza en el 2v2 de bot, centrada en 0. Origen: tipo 3, variante 2v2 |
+| 14–15 | `lane_strength_ci_low`, `lane_strength_ci_high` | log-odds | IC 95 % |
+| 16 | `lane_strength_n` | conteo | Comparaciones de tipo 3 2v2 que incluyeron esta dupla |
+| 17 | `lane_strength_support` | enum | Mismos umbrales que `synergy` |
+| 18 | `lane_strength_is_observed` | bool | `true` si la dupla se preguntó; `false` si es predicha |
+| 19 | `patch_window` | text | Parches incluidos |
 
 ### Las dos magnitudes no son redundantes
 
@@ -343,10 +346,18 @@ por fuerza bruta individual. En el ejemplo:
 
 Por eso se recolectan por separado, con dos tipos de pregunta distintos.
 
-### `lane_strength` sólo tiene valor en `bot`
+### Los roles van con cada campeón
 
-El enfrentamiento 2v2 se pregunta únicamente sobre el carril inferior, que es donde dos campeones
-comparten oponentes durante toda la fase de líneas. Para `top_jungle` y `mid_jungle` la columna queda
+`role_a` y `role_b` reemplazan al viejo `duo_context` (ADR-023). Como el orden canónico es
+`a_id < b_id`, el `adc` puede quedar en cualquiera de los dos lados: en el ejemplo, Jhin + Karma es
+`adc` / `support` y Alistar + Lucian es `support` / `adc`. Los pares de roles posibles son tres:
+`adc` + `support`, `top` + `jungle` y `mid` + `jungle`.
+
+### `lane_strength` sólo tiene valor en la dupla de bot
+
+El enfrentamiento 2v2 se pregunta únicamente sobre el carril inferior (`adc` + `support`), que es
+donde dos campeones comparten oponentes durante toda la fase de líneas. En las duplas con jungla la
+columna queda
 **vacía**, con `_n = 0`, `_support = insufficient` y `_is_observed = false`: sólo se mide `synergy`.
 En el ejemplo, las filas de Sejuani con Darius, Garen, Syndra y Zed.
 
@@ -356,7 +367,7 @@ Acompañar a A con B es lo mismo que acompañar a B con A, así que se guarda un
 (`a_id < b_id`), igual que en la matriz de matchups. **No hay antisimetría acá**: a diferencia de
 `advantage`, no se cambia el signo al invertir el orden.
 
-### Es el archivo de soporte más flojo de los tres
+### Es el archivo de soporte más flojo
 
 El espacio de duplas es el cuadrado del de campeones, y los tipos 4 y 3-2v2 suman apenas el 10 % de
 la mezcla de preguntas — su prioridad es deliberadamente menor que la de los tipos 1, 2 y 3. En el
@@ -391,7 +402,8 @@ archivo que lo produjo.
 python scripts/build_example_exports.py draftsense/docs/examples
 ```
 
-El script no toca la base: arma los tres archivos desde una tabla de valores sintéticos, pero
+El script no toca la base: arma los seis archivos desde una tabla de valores sintéticos, pero
 **calcula de verdad** los intervalos de Wilson, la curva de poder y los `support_level`, y verifica
-con `assert` que las tres cabeceras tengan 126, 12 y 18 columnas. Si alguien cambia el esquema de
-salida sin actualizar el script, falla.
+con `assert` la cantidad de columnas de cada cabecera (15, 17, 13, 13, 12 y 19). Si alguien cambia el
+esquema de salida sin actualizar el script, falla. `infra/check_docs.py` compara además esas
+cabeceras con lo que declara `26-esquema-de-salida.md`.

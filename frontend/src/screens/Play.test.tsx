@@ -63,16 +63,17 @@ afterEach(async () => {
 });
 
 describe('Play', () => {
-  it('muestra la tarjeta de adelante con sus dos campeones y la salida', () => {
+  it('muestra el ranking de adelante con sus cinco campeones y la salida', () => {
     renderPlay();
 
     expect(screen.getByRole('heading')).toHaveTextContent('Who has more engage?');
-    expect(screen.getByText('Alistar')).toBeInTheDocument();
-    expect(screen.getByText('Yasuo')).toBeInTheDocument();
+    for (const name of ['Alistar', 'Yasuo', 'Leona', 'Jax', 'Lux']) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
     expect(screen.getByText('Not sure')).toBeInTheDocument();
   });
 
-  it('registra al primer toque, sin botón de confirmar', async () => {
+  it('el ranking se confirma y viaja con su ranking_id (ADR-022)', async () => {
     vi.mocked(postResponse).mockResolvedValue({
       recorded: true,
       feedback: null,
@@ -80,14 +81,17 @@ describe('Play', () => {
     });
     renderPlay();
 
-    fireEvent.click(screen.getByText('Alistar'));
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     await waitFor(() => {
       expect(postResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ question_id: 1, answer: { choice: 'a' } }),
+        expect.objectContaining({
+          question_id: 1,
+          ranking_id: 5001,
+          answer: { order: [12, 157, 89, 24, 99] },
+        }),
       );
     });
-    expect(screen.queryByRole('button', { name: /confirm/i })).not.toBeInTheDocument();
   });
 
   it('mide el tiempo de respuesta y lo manda en milisegundos (RF-109)', async () => {
@@ -113,7 +117,7 @@ describe('Play', () => {
     );
     renderPlay();
 
-    fireEvent.click(screen.getByText('Alistar'));
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     // Avanza a la tarjeta siguiente...
     await waitFor(() => {
@@ -128,7 +132,7 @@ describe('Play', () => {
     vi.mocked(postResponse).mockRejectedValue(new NetworkError());
     renderPlay();
 
-    fireEvent.click(screen.getByText('Alistar'));
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     await waitFor(() => {
       expect(screen.getByText("You're offline. Your last answer wasn't saved.")).toBeInTheDocument();
@@ -143,7 +147,7 @@ describe('Play', () => {
     );
     renderPlay();
 
-    fireEvent.click(screen.getByText('Alistar'));
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     await waitFor(() => {
       expect(
@@ -158,7 +162,7 @@ describe('Play', () => {
     );
     renderPlay();
 
-    fireEvent.click(screen.getByText('Alistar'));
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Slow down a little — try again in 12 seconds.')).toBeInTheDocument();
