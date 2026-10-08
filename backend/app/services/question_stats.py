@@ -235,16 +235,15 @@ async def _coverage_counts(
         Response.answer["choice"].astext.in_(("a", "b")),
     )
     rows = await session.execute(
-        aggregable.joined(
-            sa.select(
-                Question.type,
-                Question.champion_a,
-                Question.champion_b,
-                Question.dimension_id,
-                Question.role,
-                sa.func.count(),
-            ).select_from(Response)
+        sa.select(
+            Question.type,
+            Question.champion_a,
+            Question.champion_b,
+            Question.dimension_id,
+            Question.role,
+            sa.func.count(),
         )
+        .select_from(aggregable.source())
         .where(
             Question.patch_id == patch_id,
             Question.type.in_(REFRESHED_TYPES),

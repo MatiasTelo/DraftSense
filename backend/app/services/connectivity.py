@@ -89,11 +89,8 @@ async def _edges(
     """Los pares comparados con una respuesta decisiva que entraría a la agregación."""
     threshold = await aggregable.min_trust(session)
     rows = await session.execute(
-        aggregable.joined(
-            sa.select(Question.dimension_id, Question.champion_a, Question.champion_b).select_from(
-                Response
-            )
-        )
+        sa.select(Question.dimension_id, Question.champion_a, Question.champion_b)
+        .select_from(aggregable.source())
         .where(
             Question.patch_id == patch_id,
             Question.type == PAIRWISE,

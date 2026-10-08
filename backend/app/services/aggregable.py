@@ -10,7 +10,7 @@ La ventana de parches no está: los dos consumidores miran sólo el parche vigen
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Final
+from typing import Final
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +26,13 @@ async def min_trust(session: AsyncSession) -> Decimal:
     return Decimal(str(await app_settings.get(session, MIN_TRUST_KEY, 0.30)))
 
 
-def joined[T: sa.Select[Any]](statement: T) -> T:
-    """Une `responses` con su pregunta y su respondedor, que es donde viven los filtros."""
-    return statement.join(Question, Question.question_id == Response.question_id).join(
+def source() -> sa.Join:
+    """`responses` unida con su pregunta y su respondedor, que es donde viven los filtros.
+
+    Es un `FROM` y no una función sobre el `Select` porque el tipo genérico de `Select` cambió
+    entre SQLAlchemy 2.0 y 2.1, y una firma genérica no tipa en las dos.
+    """
+    return sa.join(Response, Question, Question.question_id == Response.question_id).join(
         Respondent, Respondent.respondent_id == Response.respondent_id
     )
 
