@@ -43,7 +43,8 @@ UNPARSEABLE_BY_SQLGLOT = {
 #: Los cuatro archivos por campeón repiten las 7 columnas de identificación.
 IDENTIFICATION = 7
 OUTPUT_COLUMNS = {
-    "champion_dimensions": IDENTIFICATION + 8,  # dimension, score, IC (2), n, support, unknown, norm
+    # dimension, score, IC (2), n, support, unknown_rate, norm
+    "champion_dimensions": IDENTIFICATION + 8,
     "peak_timing": IDENTIFICATION + 10,  # peak_minute, IC (2), n, support, power_at_* (5)
     "champion_lane_strength": IDENTIFICATION + 6,  # role, lane_strength, IC (2), n, support
     "champion_traits": IDENTIFICATION + 6,  # trait, proportion, IC (2), n, support
@@ -156,7 +157,9 @@ def check_output_schema(errors: list[str]) -> None:
     for kind, expected in OUTPUT_COLUMNS.items():
         files = sorted(examples.glob(f"{kind}_v*.csv"))
         if len(files) != 1:
-            errors.append(f"docs/examples/ debería tener un único {kind}_v*.csv, tiene {len(files)}")
+            errors.append(
+                f"docs/examples/ debería tener un único {kind}_v*.csv, tiene {len(files)}"
+            )
             continue
         header = files[0].read_text(encoding="utf-8").splitlines()[0].split(",")
         if len(header) != expected:
