@@ -67,6 +67,9 @@ Los ocho pasos de una corrida están en §8.2. Los **15 ajustes** —8 dimension
    filas con su SHA-256 registrado sería peor que no tener corrida.
 6. **Honeypots y retests no entran a la agregación** (§1.3). Sirven para calcular el trust score, que
    ya viaja en el peso; contarlos otra vez sería usar el mismo dato dos veces.
+7. **Los filtros de §1 tienen una copia viva en el backend**: `backend/app/services/aggregable.py`,
+   que usan el job de conectividad (ADR-021) y el déficit de cobertura del sampler para anticipar
+   qué va a ver la agregación. Si el pipeline cambia un filtro, ese módulo cambia con él.
 
 ## Cuándo leer cada referencia
 

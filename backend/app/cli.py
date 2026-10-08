@@ -7,7 +7,12 @@
     draftsense seed-pick-rate --patch 16.17    carga el snapshot, asigna el pool y los roles
     draftsense sync-roles --patch 16.17        toma los roles de un snapshot ya cargado
     draftsense fetch-ddragon --out FILE        guarda un snapshot local de respaldo
-    draftsense refresh-question-stats          recalcula los denormalizados de questions
+    draftsense seed-honeypots --patch 16.17    carga el catálogo de honeypots del parche
+    draftsense refresh-question-stats          recalcula los denormalizados y retira honeypots
+    draftsense check-graph-connectivity        componentes por dimensión y puentes (ADR-021)
+    draftsense detect-degenerate-patterns      respuestas apuradas y straightlining
+    draftsense flag-duplicate-fingerprints     marca las huellas que fabrican identidades
+    draftsense verify-trust-scores             recalcula el trust desde cero y compara
 """
 
 from __future__ import annotations
@@ -40,6 +45,13 @@ from app.seeds.champions import (
     roles_without_champions,
     seed_champions,
 )
+from app.seeds.honeypots import (
+    HoneypotCatalogError,
+    honeypot_path,
+    load_honeypots,
+    seed_honeypots,
+    validate_honeypots,
+)
 from app.seeds.pick_rate import (
     latest_snapshot_id,
     load_pick_rate,
@@ -48,7 +60,7 @@ from app.seeds.pick_rate import (
     validate_pick_rate,
 )
 from app.seeds.settings import load_settings, seed_settings, validate_settings
-from app.services import question_stats
+from app.services import connectivity, degenerate, fingerprints, question_stats, trust_check
 
 DIMENSION_FIELDS = {"code", "label_en", "description_en", "prompt_en"}
 TRAIT_FIELDS = {"code", "label_en", "description_en"}
@@ -115,6 +127,15 @@ async def cmd_check_seeds(args: argparse.Namespace) -> int:
         n_entries += len(rows)
         problems += [f"{path.name}: {p}" for p in validate_pick_rate(rows)]
 
+    # Los catálogos de honeypots, también uno por parche. Sin base sólo se valida la forma: que
+    # los campeones existan y sean de tier 1 lo verifica `seed-honeypots` antes de escribir.
+    catalogs = sorted((seeds_dir or SEEDS_DIR).glob("honeypots_*.yaml"))
+    n_honeypots = 0
+    for path in catalogs:
+        honeypot_entries = load_honeypots(path)
+        n_honeypots += len(honeypot_entries)
+        problems += [f"{path.name}: {p}" for p in validate_honeypots(honeypot_entries)]
+
     if problems:
         for problem in problems:
             print(f"ERROR {problem}", file=sys.stderr)
@@ -123,7 +144,8 @@ async def cmd_check_seeds(args: argparse.Namespace) -> int:
     print(
         f"OK  {len(dimensions)} dimensiones, {len(traits)} atributos, "
         f"{len(settings_entries)} parámetros, "
-        f"{n_entries} entradas de pick rate en {len(snapshots)} snapshot(s)"
+        f"{n_entries} entradas de pick rate en {len(snapshots)} snapshot(s), "
+        f"{n_honeypots} honeypots en {len(catalogs)} catálogo(s)"
     )
     return 0
 
@@ -267,6 +289,44 @@ async def cmd_fetch_ddragon(args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_seed_honeypots(args: argparse.Namespace) -> int:
+    """Carga el catálogo de honeypots de un parche que ya existe (22 §3.3).
+
+    No crea el parche ni cambia cuál es el vigente: las honeypots se escriben contra un catálogo de
+    campeones que ya tiene que estar sembrado, con su pool asignado.
+    """
+    path = Path(args.file) if args.file else honeypot_path(args.patch)
+    entries = load_honeypots(path)
+    problems = validate_honeypots(entries)
+    if problems:
+        for problem in problems:
+            print(f"ERROR {path.name}: {problem}", file=sys.stderr)
+        return 1
+
+    async with get_sessionmaker()() as session:
+        patch = (
+            await session.execute(sa.select(Patch).where(Patch.version == args.patch))
+        ).scalar_one_or_none()
+        if patch is None:
+            print(f"ERROR no existe el parche {args.patch}", file=sys.stderr)
+            return 1
+        try:
+            result = await seed_honeypots(session, patch.patch_id, entries, force=args.force)
+        except HoneypotCatalogError as exc:
+            for problem in exc.problems:
+                print(f"ERROR {path.name}: {problem}", file=sys.stderr)
+            return 1
+
+    print(
+        f"OK  parche {args.patch}: {result.created} honeypots nuevas, "
+        f"{result.converted} convertidas, {result.reactivated} reactivadas, "
+        f"{result.unchanged} sin cambios, {len(result.skipped)} salteadas"
+    )
+    for message in result.skipped:
+        print(f"AVISO  {message}", file=sys.stderr)
+    return 0
+
+
 async def cmd_refresh_question_stats(_: argparse.Namespace) -> int:
     """Corre el job `refresh_question_stats` una vez, a mano.
 
@@ -281,10 +341,99 @@ async def cmd_refresh_question_stats(_: argparse.Namespace) -> int:
     if result.patch is None:
         print("AVISO  no hay parche vigente: no hay nada que recalcular", file=sys.stderr)
         return 0
+    medians = ", ".join(
+        f"{kind} {'-' if value is None else f'{value:g}'}"
+        for kind, value in result.coverage_medians.items()
+    )
     print(
         f"OK  parche {result.patch}: {result.questions} preguntas recalculadas "
-        f"sobre {result.responses} respuestas"
+        f"sobre {result.responses} respuestas · mediana de cobertura: {medians}"
     )
+    if result.retired_honeypots:
+        retired = ", ".join(str(q) for q in result.retired_honeypots)
+        print(f"AVISO  honeypots retiradas por pass rate: {retired}", file=sys.stderr)
+    return 0
+
+
+async def cmd_check_graph_connectivity(_: argparse.Namespace) -> int:
+    """Corre `check_graph_connectivity` una vez (ADR-008, ADR-021). Horario desde la semana 7."""
+    async with get_sessionmaker()() as session:
+        result = await connectivity.check(session)
+
+    if result.patch is None:
+        print("AVISO  no hay parche vigente: no hay grafo que revisar", file=sys.stderr)
+        return 0
+    for report in result.dimensions:
+        print(
+            f"    {report.code:<10} componentes {report.components:>3} · "
+            f"puentes {report.bridges:>3} ({report.marked} nuevos, {report.cleared} desmarcados)"
+        )
+    print(
+        f"OK  parche {result.patch}: {result.connected} de {len(result.dimensions)} "
+        "dimensiones conectadas"
+    )
+    return 0
+
+
+async def cmd_detect_degenerate_patterns(args: argparse.Namespace) -> int:
+    """Corre `detect_degenerate_patterns` una vez (22 §5). Diario desde la semana 7."""
+    async with get_sessionmaker()() as session:
+        result = await degenerate.detect(session, since_hours=args.since_hours)
+    print(
+        f"OK  {result.respondents} respondedores con actividad en {args.since_hours} h, "
+        f"{result.changed} con contadores nuevos"
+    )
+    return 0
+
+
+async def cmd_flag_duplicate_fingerprints(_: argparse.Namespace) -> int:
+    """Corre `flag_duplicate_fingerprints` una vez (22 §6). Diario desde la semana 7."""
+    async with get_sessionmaker()() as session:
+        result = await fingerprints.flag_duplicates(session)
+    print(
+        f"OK  {result.fingerprints} huellas por encima del umbral, "
+        f"{result.flagged} respondedores marcados en esta corrida"
+    )
+    return 0
+
+
+#: Los contadores que compara `verify-trust-scores`, en el orden en que se informan.
+QUALITY_COUNTERS = (
+    "honeypot_attempts",
+    "honeypot_passed",
+    "retest_pairs",
+    "retest_consistent",
+    "fast_answers",
+    "straightline_runs",
+)
+
+
+async def cmd_verify_trust_scores(_: argparse.Namespace) -> int:
+    """Recalcula el trust de todos desde cero y compara (22 §7.2). No escribe nada.
+
+    Sale con 1 si hay divergencias. Los identificadores se muestran abreviados y el valor del
+    trust no se imprime: es un dato interno (RF-207) y no tiene por qué quedar en el historial de
+    una terminal.
+    """
+    async with get_sessionmaker()() as session:
+        checked, divergences = await trust_check.verify(session)
+    for item in divergences:
+        fields = [
+            name
+            for name in QUALITY_COUNTERS
+            if getattr(item.stored_counters, name) != getattr(item.expected_counters, name)
+        ]
+        detail = ", ".join(fields) if fields else "sólo el trust"
+        print(f"DIVERGE  {str(item.respondent_id)[:8]}: {detail}", file=sys.stderr)
+    if divergences:
+        print(
+            f"ERROR {len(divergences)} de {checked} respondedores no coinciden con el crudo. "
+            "Si sólo difieren fast_answers o straightline_runs, puede ser que "
+            "`detect-degenerate-patterns` todavía no haya corrido sobre las respuestas recientes.",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"OK  {checked} respondedores: el trust coincide con el crudo")
     return 0
 
 
@@ -339,10 +488,48 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--ddragon-version")
     fetch.set_defaults(handler=cmd_fetch_ddragon)
 
+    honeypot_cmd = sub.add_parser(
+        "seed-honeypots", help="carga el catálogo de honeypots de un parche existente"
+    )
+    honeypot_cmd.add_argument("--patch", required=True, help="versión del parche, p. ej. 16.17")
+    honeypot_cmd.add_argument("--file", help="por defecto, infra/seeds/honeypots_<parche>.yaml")
+    honeypot_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="reactiva las honeypots que el monitoreo de pass rate retiró",
+    )
+    honeypot_cmd.set_defaults(handler=cmd_seed_honeypots)
+
     stats = sub.add_parser(
-        "refresh-question-stats", help="recalcula los denormalizados de questions"
+        "refresh-question-stats", help="recalcula los denormalizados y retira honeypots"
     )
     stats.set_defaults(handler=cmd_refresh_question_stats)
+
+    graph = sub.add_parser(
+        "check-graph-connectivity", help="componentes por dimensión y puentes (ADR-021)"
+    )
+    graph.set_defaults(handler=cmd_check_graph_connectivity)
+
+    degenerate_cmd = sub.add_parser(
+        "detect-degenerate-patterns", help="respuestas apuradas y straightlining"
+    )
+    degenerate_cmd.add_argument(
+        "--since-hours",
+        type=int,
+        default=24,
+        help="respondedores con actividad en esta ventana; se recuenta toda su historia",
+    )
+    degenerate_cmd.set_defaults(handler=cmd_detect_degenerate_patterns)
+
+    flag = sub.add_parser(
+        "flag-duplicate-fingerprints", help="marca las huellas que fabrican identidades"
+    )
+    flag.set_defaults(handler=cmd_flag_duplicate_fingerprints)
+
+    verify = sub.add_parser(
+        "verify-trust-scores", help="recalcula el trust desde cero y compara, sin escribir"
+    )
+    verify.set_defaults(handler=cmd_verify_trust_scores)
 
     return parser
 

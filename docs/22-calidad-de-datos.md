@@ -1,6 +1,6 @@
 # 22 — Calidad de datos y trust score
 
-> Estado: **v1** · Última revisión: 01/09/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 16/09/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
 
 Cómo el sistema distingue una respuesta pensada de una apurada, de una al azar o de una fabricada, y
 qué hace con esa distinción. Es el módulo que hace que un etiquetado abierto y anónimo pueda
@@ -79,6 +79,20 @@ el potencial de pick depende de la composición y del parche.
 Que falten dos dimensiones no debilita nada: **la honeypot mide al respondedor, no a la dimensión.**
 Que alguien conteste con atención no depende de qué dimensión se le preguntó.
 
+> **Agregado el 16/09/2026.** Lo que dejó el catálogo de 16.17, armado sobre el tier 1 con el texto
+> de Data Dragon:
+>
+> - **`waveclear` tampoco tiene honeypots con este pool.** El criterio pide que uno de los dos
+>   tenga «sólo daño de objetivo único», y los 58 campeones del núcleo tienen algún daño en área.
+>   Queda igual que `scaling` y `pick` mientras el pool no cambie, y por la razón del párrafo de
+>   arriba no se pierde nada.
+> - **En `poke`, un salto o una embestida que daña al llegar es daño cuerpo a cuerpo**, no a
+>   distancia: el daño llega después de cerrar la distancia, que es lo contrario de hacer poke. Con
+>   esa lectura entran Jax, Renekton y Darius como el lado cuerpo a cuerpo.
+> - El catálogo quedó en **34 pares**: 8 de `mobility`, 7 de `cc`, 6 de `poke`, 6 de `engage` y
+>   7 de `peel`. Con la cadencia de una cada 10 a 15, alcanza para unas 400 respuestas por
+>   respondedor antes de agotarse (§8 de `21-sampler.md`).
+
 Por la misma razón, **todas las honeypots son de tipo 1**:
 
 | Tipo | Por qué no lleva honeypots |
@@ -120,6 +134,23 @@ habilidad.
 parche. La mayoría de los pares sobrevive sin cambios —el kit de un campeón rara vez cambia— pero
 un rework obliga a revisar los pares que lo incluyen.
 
+> **Agregado el 16/09/2026.** Precisiones de la carga (`python -m app.cli seed-honeypots`):
+>
+> - **Sólo campeones del tier 1.** Una honeypot con un campeón que nunca aparece en las preguntas
+>   comunes se delataría. Además, el sampler sirve una honeypot sólo si sus dos campeones están
+>   habilitados y la dimensión está activa en ese momento.
+> - **Forma canónica.** El archivo se escribe en el orden natural del `rationale`. La carga ordena
+>   el par como exige `questions_canonical_order` y, si lo invierte, invierte también la respuesta
+>   esperada.
+> - **Recarga conservadora.** Correrla dos veces no cambia nada. No reactiva una honeypot que el
+>   monitoreo retiró (§3.4) —para eso existe `--force`, que es una decisión manual— y **no
+>   convierte en honeypot una pregunta que ya tiene respuestas comunes**: esas respuestas pasarían a
+>   quedar fuera de la agregación y a contar en el trust de gente que las contestó como preguntas
+>   reales. Ese par se saltea y se informa.
+> - **El catálogo de 16.17 parte de un borrador armado desde los JSON de Data Dragon por campeón**
+>   (versión 16.17.1, `es_AR`), con el texto de cada habilidad a la vista. El alumno lo aprueba
+>   antes de versionarlo y Marinozi lo revisa antes de la semana 7.
+
 ### 3.4 Cómo sabemos que la respuesta es la correcta
 
 Dos capas, una antes y una después.
@@ -139,6 +170,15 @@ proporción de respondedores que la contestan como se espera:
 Porque cuando el 30 % de la gente falla una honeypot, la explicación abrumadoramente más probable no
 es que el 30 % de la gente sea negligente: es que **la honeypot está mal**. Un parche cambió al
 campeón, el par se volvió discutible, o el `rationale` era más débil de lo que parecía.
+
+> **Agregado el 16/09/2026.** El *pass rate* **no se evalúa antes de 40 intentos**
+> (`quality.honeypot_min_attempts`). Leída al pie de la letra, la regla retiraría una honeypot en
+> cuanto la primera persona la fallara —*pass rate* 0 sobre 1—, y un puñado de identidades
+> fabricadas podría vaciar el catálogo entero. 40 es el tamaño del ejemplo de CA-309.
+>
+> El cálculo usa la misma regla que el trust: **`unknown` no es intento** (§3.5). Tampoco cuentan
+> los **respondedores marcados** (§6): si contaran, las identidades fabricadas podrían retirar las
+> honeypots que las detectan.
 
 **El monitoreo sólo retira honeypots, nunca las crea.** Promover una pregunta a honeypot porque la
 comunidad está de acuerdo sería circular: convertiría el consenso en verdad y penalizaría a quien
@@ -174,6 +214,18 @@ posición 12 sería detectable por alguien que contara.
 La cadencia se lleva **por respondedor**, contra `answers_count`, no por sesión. Quien responde 8 por
 día durante una semana recibe honeypots con la misma frecuencia que quien responde 60 de un tirón.
 
+> **Agregado el 16/09/2026 y ampliado el 17/09.** La posición sorteada se guarda en
+> `respondents.next_honeypot_at` ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)).
+> La ventana siguiente se abre al registrar la honeypot, **también cuando la respuesta fue
+> `unknown`**: `unknown` no suma intento, pero consume la posición. Si no la consumiera, la persona
+> recibiría honeypots una detrás de otra y el mecanismo se delataría.
+>
+> Una honeypot servida y no contestada queda en `respondents.pending_honeypot`: mientras siga ahí
+> no se elige otra. Si el cliente la tiene en cola —lo dice `queued`— el lote no trae ninguna; si la
+> perdió en una recarga, se vuelve a servir. Sin esto, la precarga del cliente —que pide
+> el lote siguiente con dos tarjetas todavía sin contestar— producía honeypots a dos posiciones de
+> distancia.
+
 ---
 
 ## 4. Test-retest — RF-203
@@ -202,12 +254,39 @@ contestando al azar; alguien que dice "gana Darius fuerte" y después "gana Gare
 
 Cada retest actualiza `retest_pairs` y, si corresponde, `retest_consistent`.
 
+> **Agregado el 16/09/2026.** Cómo se implementa:
+>
+> - **La marca la pone el servidor.** El cliente no sabe cuál pregunta es un retest y el contrato de
+>   `POST /responses` no tiene un campo para decirlo. Al servir el retest, el sampler guarda la
+>   respuesta original en `respondents.pending_retest_of`, y el `POST` de esa misma pregunta se
+>   registra con `is_retest_of`. Cualquier otra repetición choca contra el índice y devuelve `409`
+>   ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)).
+> - **Cuál se repite: una al azar entre las elegibles.** Una respuesta original es elegible si no
+>   es a su vez un retest ni una honeypot, no es `unknown`, está a 15 o más posiciones, es de una
+>   pregunta del parche vigente cuyos campeones y dimensión siguen habilitados, y nunca se
+>   retesteó.
+> - **La cadencia** se guarda en `respondents.next_retest_at`: el primer retest toca en la
+>   posición 29 y cada uno abre el siguiente 30 posiciones después.
+> - **Un retest contestado `unknown` en el tipo 1 no forma par**: no suma a `retest_pairs`, igual
+>   que dice la tabla de arriba.
+
 ---
 
 ## 5. Patrones degenerados — RF-204
 
 Los detecta el job diario `detect_degenerate_patterns`, que recorre las respuestas del día sobre el
 índice `responses_by_respondent`.
+
+> **Agregado el 16/09/2026.** El job **recalcula desde cero, no acumula**. Toma los respondedores
+> con alguna respuesta en las últimas 24 horas y, para cada uno, vuelve a contar `fast_answers` y
+> `straightline_runs` sobre **toda** su historia y recalcula el trust. Sumar sólo «las respuestas
+> del día» exigiría guardar hasta dónde llegó la corrida anterior: sin esa marca, correrlo dos veces
+> el mismo día duplicaría los contadores, y una racha que cruza la medianoche quedaría partida en
+> dos. Es el mismo criterio que `refresh_question_stats`. Con el volumen del piloto, recorrer la
+> historia entera tarda segundos.
+>
+> Entran **todas** las respuestas del respondedor, incluidas las de honeypots y retests: la señal
+> mide cómo toca la pantalla, no qué pregunta era.
 
 ### 5.1 Respuesta apurada
 
@@ -230,6 +309,23 @@ del mismo lado por azar es 2 · (1/2)⁸ ≈ 0.8 %.
 
 El umbral de 8 —y no 5— evita marcar a quien atraviesa una racha legítima: en `cc`, un tramo de
 comparaciones donde el campeón A resulta ser siempre el de más control es perfectamente posible.
+
+> **Agregado el 16/09/2026.** Cómo se cuenta, porque el texto de arriba choca con la regla de
+> variedad: [`21-sampler.md`](21-sampler.md) §6 no deja pasar de 3 preguntas seguidas del mismo
+> tipo, así que en la secuencia completa del respondedor nunca habría 8 consecutivas de un tipo.
+>
+> - **Consecutivas dentro de cada tipo.** Se toma la subsecuencia de las respuestas de un tipo,
+>   en orden, y se buscan rachas ahí. Las respuestas de otros tipos intercaladas no la cortan.
+> - **Sólo los tipos 1 y 3.** El tipo 2 es un slider y no tiene posición. Los tipos 4 y 5 entran
+>   cuando se implementen, en la semana 8.
+> - **Posición es la clave de la opción.** El servidor manda siempre `a` a la izquierda y la
+>   escala del tipo 3 en el mismo orden, y el cliente la dibuja así. Como `a` es el campeón de
+>   `champion_id` menor, la posición no dice nada del contenido, que es la premisa del cálculo de
+>   arriba.
+> - **`unknown` corta la racha y no forma una propia.** Contar ocho *Not sure* seguidos como
+>   *straightlining* castigaría la respuesta honesta de quien no conoce a esos campeones y empujaría
+>   a adivinar, que es lo que §3.5 evita.
+> - **Cada tramo de 8 o más suma 1**, sin importar su largo: un tramo de 16 es una racha, no dos.
 
 ### 5.3 Qué NO se detecta
 
@@ -395,6 +491,7 @@ Todos en `app_settings` (RF-606):
 |---|---|---|
 | `quality.honeypot_every` | `[10, 15]` | Ventana de cadencia de honeypots |
 | `quality.honeypot_min_pass_rate` | `0.85` | Bajo este valor la honeypot se retira sola |
+| `quality.honeypot_min_attempts` | `40` | Intentos mínimos antes de evaluar el *pass rate* (agregada el 16/09/2026, §3.4) |
 | `quality.retest_every` | `30` | Cadencia de retests |
 | `quality.retest_min_distance` | `15` | Distancia mínima a la respuesta original |
 | `quality.fast_answer_ms` | `800` | Umbral de respuesta apurada |

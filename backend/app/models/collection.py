@@ -87,6 +87,26 @@ class Respondent(Base):
         sa.Integer, nullable=False, server_default=sa.text("0")
     )
 
+    # Cadencias de calidad (ADR-020). Posición = índice, desde cero, de la respuesta en la
+    # historia del respondedor. NULL = la ventana todavía no se abrió; la abre el sampler.
+    next_honeypot_at: Mapped[int | None] = mapped_column(sa.Integer)
+    next_retest_at: Mapped[int | None] = mapped_column(sa.Integer)
+    #: La honeypot servida y no contestada: mientras exista no se sirve otra.
+    pending_honeypot: Mapped[int | None] = mapped_column(
+        sa.BigInteger,
+        sa.ForeignKey(
+            "questions.question_id", name="respondents_pending_honeypot_fk", use_alter=True
+        ),
+    )
+    #: El retest servido y no contestado. `use_alter` porque `responses` referencia a esta tabla:
+    #: sin él, `create_all` no puede ordenar las dos tablas y falla con una dependencia circular.
+    pending_retest_of: Mapped[int | None] = mapped_column(
+        sa.BigInteger,
+        sa.ForeignKey(
+            "responses.response_id", name="respondents_pending_retest_fk", use_alter=True
+        ),
+    )
+
     # Gamificación.
     answers_count: Mapped[int] = mapped_column(
         sa.Integer, nullable=False, server_default=sa.text("0")

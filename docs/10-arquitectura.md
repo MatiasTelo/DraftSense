@@ -133,6 +133,14 @@ Ambos son alcanzables porque ninguno hace agregaciones: leen y escriben filas in
 | `flag_duplicate_fingerprints` | diario | Marca `is_flagged` a los respondedores cuyo `fingerprint_hash` **creó** más de 5 identidades en 24 h — se cuenta por `first_seen`, no por actividad |
 | `seed_champions` | manual, por parche | Relee `champion.json` de Data Dragon y actualiza el catálogo |
 
+> **Agregado el 16/09/2026.** Los cuatro jobs existen desde la semana 5 como services, cada uno con
+> su comando de CLI (`refresh-question-stats`, `check-graph-connectivity`,
+> `detect-degenerate-patterns` y `flag-duplicate-fingerprints`). Hasta la semana 7 se disparan a
+> mano; la programación periódica llega con el despliegue en producción. `check_graph_connectivity`
+> materializa los puentes que marca, como mucho k−1 por dimensión
+> ([ADR-021](13-adr/ADR-021-puentes-en-cadena.md)). Hay además un quinto comando de sólo lectura,
+> `verify-trust-scores`, que recalcula el trust desde cero y compara (22 §7.2).
+
 **Por qué el consenso se denormaliza y no se calcula en vivo:** mostrar "74 % coincidió con vos"
 requiere la distribución de respuestas de la pregunta. Calcularla en cada `POST` sería un `GROUP BY`
 en el camino crítico. Con refresco cada 15 minutos el número puede estar levemente desactualizado,

@@ -1,7 +1,8 @@
 """Entrega de preguntas — CA-101 a CA-104 de `docs/03-criterios-aceptacion.md` §2.
 
-Cubren los tres tipos que existen desde la semana 4: el 1, el 2 y la variante 1v1 del 3. El
-sampler completo es de la semana 5.
+Cubren los tres tipos que existen desde la semana 4: el 1, el 2 y la variante 1v1 del 3. Lo
+propio del sampler completo de la semana 5 —prioridad, exploración, variedad, puentes, honeypots
+y retests— está en `test_sampler.py`, `test_honeypots.py` y `test_retests.py`.
 
 **El sorteo se prueba sin azar.** Las funciones puras reciben un `random.Random` con semilla, y
 los tests HTTP o bien afirman invariantes que valen para cualquier sorteo, o bien fuerzan el tipo
@@ -22,12 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Champion, Dimension, LaneRole, Patch, Question, QuestionType, Respondent
 from app.services import answers, question_texts
-from app.services import questions as questions_service
+from app.services import sampler as sampler_service
 from app.services.questions import (
-    TYPE_WEIGHTS,
     Combination,
     Space,
-    choose_type,
     draw_combination,
     lane_pools,
     materialize,
@@ -35,6 +34,7 @@ from app.services.questions import (
     render_peak,
     role_label,
 )
+from app.services.sampler import TYPE_WEIGHTS, choose_type
 from tests.conftest import as_respondent, requires_db
 
 PAIRWISE = QuestionType.PAIRWISE_DIMENSION
@@ -64,12 +64,18 @@ def _question(question_id: int, question_type: QuestionType, **columns: Any) -> 
 
 def _force(monkeypatch: pytest.MonkeyPatch, question_type: QuestionType) -> None:
     """Deja un solo tipo con peso, para que el sorteo del tipo sea determinista."""
-    monkeypatch.setattr(questions_service, "TYPE_WEIGHTS", {question_type: 1})
+    monkeypatch.setattr(sampler_service, "TYPE_WEIGHTS", {question_type: 1})
 
 
 async def _skip_warmup(db: AsyncSession, respondent: Respondent, answers_count: int = 3) -> None:
-    """Las tres primeras son siempre de tipo 1: sin esto no se puede observar otro tipo."""
+    """Las tres primeras son siempre de tipo 1: sin esto no se puede observar otro tipo.
+
+    También aleja las cadencias de calidad: una honeypot o un retest en medio del lote romperían
+    los tests que fuerzan un tipo, y con el catálogo cargado en staging la honeypot existiría.
+    """
     respondent.answers_count = answers_count
+    respondent.next_honeypot_at = 10_000
+    respondent.next_retest_at = 10_000
     await db.commit()
 
 

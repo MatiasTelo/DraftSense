@@ -197,6 +197,30 @@ no puede hacer un `GROUP BY` sobre `responses`. El valor se guarda denormalizado
 Que el valor esté hasta 15 minutos desactualizado es irrelevante: es una prioridad relativa, no una
 decisión que se pueda equivocar.
 
+> **Agregado el 16/09/2026.** Precisiones de la implementación de la semana 5:
+>
+> - **Los tres tipos servidos tienen déficit**, con la misma fórmula sobre su propia celda:
+>   (campeón, dimensión) en el tipo 1, campeón en el tipo 2 y (campeón, rol) en el tipo 3. Las
+>   cuentas son las de `D_n`, `peak_minute_n` y `lane_strength_R_n` de
+>   [`25-agregacion.md`](25-agregacion.md) §5.
+> - **`n` cuenta las respuestas que entrarían a la agregación**: las del parche vigente que pasan
+>   los filtros de 25 §1 (respondedor no marcado, `trust_score ≥ export.min_trust`, sin honeypots
+>   ni retests). En el tipo 1, sólo las decisivas (`a` o `b`).
+> - **La mediana se toma sobre las celdas del pool habilitado, ceros incluidos**: los campeones
+>   habilitados por las dimensiones activas, los campeones habilitados, o los pares (campeón, rol)
+>   con rol de 1v1 en `champions.roles`.
+> - **Con mediana 0, `coverage_deficit` queda en `NULL`** y el término vale 0 en la prioridad: con
+>   más de la mitad de las celdas vacías no hay referencia contra la cual medir el déficit, y el
+>   estrato caliente todavía casi no existe.
+
+### 3.4 Los puentes
+
+> **Agregado el 16/09/2026.** Con la generación perezosa, las preguntas que unirían dos componentes
+> casi nunca existen como filas, y marcarlas todas sería precomputar. `check_graph_connectivity`
+> mantiene como mucho k−1 puentes por dimensión: los materializa en cadena entre componentes y los
+> desmarca cuando dejan de hacer falta. El detalle y sus consecuencias están en
+> [ADR-021](13-adr/ADR-021-puentes-en-cadena.md). Los puentes son siempre de tipo 1.
+
 ---
 
 ## 4. Los dos regímenes y la exploración
@@ -280,6 +304,13 @@ Es uniforme sobre el espacio de combinaciones válidas de ese tipo y cuesta O(1)
 rol, que se resuelve con el índice GIN `champions_roles_gin` o directamente en memoria: el catálogo
 son 170 filas y se cachea al arrancar el proceso.
 
+> **Errata del 16/09/2026.** En el tipo 3, el pseudocódigo de arriba **no es uniforme** sobre las
+> combinaciones: sortear el rol con igual probabilidad favorece a los pares del rol más chico. Con
+> el snapshot de 16.17 el tier 1 tiene 13 `top`, 13 `mid` y 16 `adc`, así que un par de `top`
+> saldría con más probabilidad que uno de `adc`. Lo implementado sortea el rol con peso
+> proporcional a su cantidad de pares, C(n_rol, 2), y después el par dentro del rol. Eso sí es
+> uniforme sobre (par, rol), que es lo que afirma el párrafo.
+
 ---
 
 ## 5. Exclusión de lo ya respondido — RF-110
@@ -297,6 +328,19 @@ Un respondedor no puede recibir dos veces la misma pregunta, salvo que sea un re
 
 El conjunto de preguntas ya respondidas por el respondedor se carga **una vez por lote**, no una vez
 por pregunta: `GET /questions/next?count=5` hace una sola consulta sobre `responses_by_respondent`.
+
+> **Agregado el 16/09/2026.** La rama de exploración **también rechaza una combinación que resulta
+> ser honeypot**, igual que una ya respondida, y vuelve a sortear. Las honeypots se sirven sólo
+> desde su propio catálogo y con su cadencia (§6); sin este rechazo, un sorteo que cayera en el par
+> de una honeypot la serviría fuera de cadencia. La rama de explotación ya las excluye, porque el
+> índice `questions_sampler` es `WHERE NOT is_honeypot`.
+>
+> **El fallback también va en el otro sentido.** Si toca explotar y el estrato caliente del tipo
+> no tiene ninguna candidata —con `ε < 1` y pocas preguntas con 5 respuestas, que es la situación
+> del lanzamiento público—, se prueba la rama de exploración antes de dar el tipo por agotado. Al
+> pie de la letra, §10 pasaría directo al retest, y con `ε = 0.30` el 70 % de los sorteos
+> terminaría en un retest o en un lote corto. La transición continua que promete §4.2 necesita
+> este camino. El retest sigue siendo el último recurso, cuando ningún tipo tiene nada.
 
 ---
 
@@ -324,6 +368,25 @@ la misma frecuencia que quien responde 60 de un tirón.
 
 Detalle de las honeypots en [`22-calidad-de-datos.md`](22-calidad-de-datos.md); las honeypots y los
 retests **no pasan por la función de prioridad**: se eligen de su propio catálogo.
+
+> **Agregado el 16/09/2026.** Cómo se implementan las reglas 2 a 4:
+>
+> - **La cadencia vive en `respondents`**: `next_honeypot_at` y `next_retest_at` guardan la
+>   posición a partir de la cual toca cada una, y `pending_honeypot` y `pending_retest_of`, lo
+>   servido y todavía no contestado ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)).
+> - **La posición cuenta la cola del cliente** (ampliado el 17/09). La primera pregunta de un lote
+>   pedido con `answers_count = n` y `queued` con `q` preguntas ocupa la posición `n + q`. Sin eso,
+>   la precarga corría todo dos posiciones: las cadencias se estiraban y aparecían honeypots dobles.
+> - **Ninguna rama sirve una pregunta de `queued`**: ni el puente, ni la exploración, ni la
+>   explotación, ni la honeypot, ni el retest.
+> - **Lo pendiente no se duplica.** Si la honeypot o el retest pendiente están en `queued`, el
+>   lote no trae ni ése ni otro; si no están —una recarga—, se vuelven a servir en su lugar.
+> - **Como máximo una honeypot y un retest por lote.** Si caen en la misma posición, gana la
+>   honeypot y el retest pasa a la siguiente posición libre.
+> - **La variedad mira atrás**: las tres últimas respuestas del respondedor, más lo que ya se eligió
+>   en el lote. Si la mezcla sortea el tipo que haría la cuarta seguida, se lo saca del sorteo para
+>   esa posición; si no queda otro tipo con candidatas, se permite. La honeypot y el retest no se
+>   corren por esta regla —están arriba—, pero cuentan para la racha.
 
 ---
 
@@ -369,6 +432,16 @@ plan por defecto es cerrar la práctica con datos densos sobre 40 campeones.
 | `refresh_question_stats` lleva horas detenido | El sampler sigue operando con valores viejos: pierde precisión progresivamente y **no falla**. La rama de exploración es inmune, porque no usa estadísticas |
 | Hay más de 50 preguntas puente | Se ordenan entre sí por la función de prioridad completa y se sirve la mejor |
 | Dos peticiones concurrentes materializan la misma combinación | El índice único `questions_identity` la deduplica; el `upsert` devuelve el mismo `question_id` a ambas |
+
+> **Agregado el 16/09/2026.** Dos casos más, y el registro de §8:
+>
+> | Situación | Comportamiento |
+> |---|---|
+> | Toca una honeypot o un retest y no hay ninguno disponible —no se cargó el catálogo, el respondedor ya vio todas las honeypots del parche o no tiene ninguna respuesta elegible— | La posición se llena con una pregunta común y la cadencia queda vencida: se reintenta en la posición siguiente. No es un error y el lote no sale más corto |
+> | El respondedor agotó el catálogo de honeypots del parche | Deja de recibirlas hasta el parche siguiente. Su trust sigue con los intentos que ya tiene |
+>
+> «Se registra en el log» usa el módulo `logging` de Python, con un mensaje por lote y por rol
+> salteado, no uno por intento.
 
 ---
 

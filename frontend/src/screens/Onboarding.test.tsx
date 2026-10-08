@@ -51,6 +51,13 @@ describe('Onboarding', () => {
     });
   });
 
+  it('Skip tiene 44 px de área táctil, como toda opción (30-ux-flujos §9)', () => {
+    renderOnboarding();
+    const skip = screen.getByRole('button', { name: 'Skip' });
+    expect(skip).toHaveClass('min-h-11');
+    expect(skip).toHaveClass('min-w-11');
+  });
+
   it('se puede continuar con los tres vacíos: nada es obligatorio', async () => {
     renderOnboarding();
 

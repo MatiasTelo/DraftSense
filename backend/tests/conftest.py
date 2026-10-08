@@ -28,11 +28,13 @@ if _ENV_FILE.exists():
 
 # El resto de los imports va después de poblar el entorno: `app.config` lo lee al construirse.
 import datetime as dt  # noqa: E402
-from collections.abc import AsyncIterator  # noqa: E402
+from collections.abc import AsyncIterator, Sequence  # noqa: E402
+from typing import Any, Final  # noqa: E402
 
 import pytest  # noqa: E402
 import sqlalchemy as sa  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: E402
 from sqlalchemy.ext.asyncio import (  # noqa: E402
     AsyncConnection,
     AsyncSession,
@@ -44,7 +46,17 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db import get_session  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
-from app.models import Champion, Dimension, LaneRole, Patch, Respondent  # noqa: E402
+from app.models import (  # noqa: E402
+    AppSetting,
+    Champion,
+    Dimension,
+    LaneRole,
+    Patch,
+    Question,
+    QuestionType,
+    Respondent,
+    Response,
+)
 from app.services import app_settings, leaderboard, sessions  # noqa: E402
 
 DATABASE_URL = os.getenv("DS_DATABASE_URL", "")
@@ -177,3 +189,149 @@ def as_respondent(client: AsyncClient, token: str) -> AsyncClient:
     """
     client.cookies.set(sessions.COOKIE_NAME, token)
     return client
+
+
+# ------------------------------------------------------------- ayudas del sampler y la calidad
+#
+# Los tests de la semana 5 tienen que pasar igual contra la base vacía de CI y contra staging, que
+# tiene el pool real, las ocho dimensiones y —después de cargarlo— el catálogo de honeypots. Por eso
+# arman su propio pool y reducen el habilitado a ése: todo lo que cambian lo revierte la
+# transacción del test.
+
+#: Lejos de cualquier lote: deja fuera de juego a las honeypots y los retests.
+FAR: Final = 10_000
+
+
+async def make_champions(
+    db: AsyncSession,
+    patch: Patch,
+    count: int,
+    roles: Sequence[LaneRole] = (LaneRole.TOP, LaneRole.MID),
+    prefix: str = "Pool",
+) -> list[Champion]:
+    rows = [
+        Champion(
+            riot_key=f"{prefix}Champ{i}",
+            riot_name=f"{prefix} Champ {i}",
+            display_name=f"{prefix} Champ {i}",
+            roles=list(roles),
+            image_url=f"https://example.invalid/{prefix}{i}.png",
+            patch_first_seen=patch.patch_id,
+            pool_tier=1,
+        )
+        for i in range(count)
+    ]
+    db.add_all(rows)
+    await db.commit()
+    for row in rows:
+        await db.refresh(row)
+    return rows
+
+
+async def make_dimensions(db: AsyncSession, codes: Sequence[str]) -> list[Dimension]:
+    """Las dimensiones con esos códigos, creándolas si la base no las tiene (CI no las tiene)."""
+    found: list[Dimension] = []
+    for index, code in enumerate(codes):
+        row = (
+            await db.execute(sa.select(Dimension).where(Dimension.code == code))
+        ).scalar_one_or_none()
+        if row is None:
+            row = Dimension(
+                code=code,
+                label_en=code.title(),
+                description_en=f"What {code} means.",
+                prompt_en=f"Who has more {code}?",
+                display_order=90 + index,
+            )
+            db.add(row)
+            await db.commit()
+            await db.refresh(row)
+        found.append(row)
+    return found
+
+
+async def restrict_pool(
+    db: AsyncSession,
+    champions: Sequence[Champion],
+    dimensions: Sequence[Dimension] | None = None,
+) -> None:
+    """Deja habilitados sólo estos campeones y, si se pasan, sólo estas dimensiones."""
+    await db.execute(sa.update(Champion).values(pool_tier=3))
+    await db.execute(
+        sa.update(Champion)
+        .where(Champion.champion_id.in_([c.champion_id for c in champions]))
+        .values(pool_tier=1)
+    )
+    if dimensions is not None:
+        await db.execute(sa.update(Dimension).values(is_active=False))
+        await db.execute(
+            sa.update(Dimension)
+            .where(Dimension.dimension_id.in_([d.dimension_id for d in dimensions]))
+            .values(is_active=True)
+        )
+    await db.commit()
+    for champion in champions:
+        await db.refresh(champion)
+
+
+async def set_setting(db: AsyncSession, key: str, value: Any) -> None:
+    """Fija un parámetro de `app_settings` y vacía la caché, que si no lo escondería 60 s."""
+    statement = pg_insert(AppSetting).values(key=key, value=value)
+    await db.execute(
+        statement.on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": value})
+    )
+    await db.commit()
+    app_settings.reset_cache()
+
+
+async def pairwise_question(
+    db: AsyncSession,
+    patch: Patch,
+    first: Champion,
+    second: Champion,
+    dimension: Dimension,
+    **columns: Any,
+) -> Question:
+    """Una pregunta de tipo 1 en forma canónica, con las columnas extra que se pidan."""
+    low, high = sorted((first.champion_id, second.champion_id))
+    row = Question(
+        type=QuestionType.PAIRWISE_DIMENSION,
+        champion_a=low,
+        champion_b=high,
+        dimension_id=dimension.dimension_id,
+        patch_id=patch.patch_id,
+        **columns,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+async def add_response(
+    db: AsyncSession,
+    respondent: Respondent,
+    question: Question,
+    answer: dict[str, Any],
+    response_time_ms: int = 2000,
+    is_retest_of: int | None = None,
+) -> Response:
+    """Una respuesta escrita directo, sin pasar por la API ni por la calidad.
+
+    Suma a `answers_count` como lo haría el `POST`, para que las posiciones del respondedor
+    (ADR-020) coincidan con sus filas.
+    """
+    row = Response(
+        respondent_id=respondent.respondent_id,
+        question_id=question.question_id,
+        type=question.type,
+        patch_id=question.patch_id,
+        answer=answer,
+        response_time_ms=response_time_ms,
+        is_retest_of=is_retest_of,
+    )
+    db.add(row)
+    respondent.answers_count += 1
+    await db.commit()
+    await db.refresh(row)
+    return row

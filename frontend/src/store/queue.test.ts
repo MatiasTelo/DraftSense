@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pairwise } from '../test-fixtures';
-import { PREFETCH_AT, useQueue } from './queue';
+import { BATCH_SIZE, PREFETCH_AT, useQueue } from './queue';
 
 vi.mock('../lib/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/client')>()),
@@ -84,5 +84,31 @@ describe('useQueue', () => {
     await useQueue.getState().fetchMore();
 
     expect(useQueue.getState().status).toBe('error');
+  });
+
+  it('con la cola vacía pide el lote diciendo que no tiene nada pendiente', async () => {
+    mocked.mockResolvedValue({ questions: [pairwise(1)] });
+
+    await useQueue.getState().fetchMore();
+
+    expect(mocked).toHaveBeenCalledWith(BATCH_SIZE, []);
+  });
+
+  it('al precargar manda las preguntas que le quedan sin contestar', async () => {
+    // Sin este dato el servidor ubica las preguntas nuevas dos posiciones antes de donde caen —y
+    // las cadencias de honeypots y retests se corren— y puede volver a mandar lo que ya está en la
+    // cola (ADR-020, `docs/12-api.md` §2.3).
+    mocked.mockResolvedValue({
+      questions: [pairwise(1), pairwise(2), pairwise(3), pairwise(4)],
+    });
+    await useQueue.getState().fetchMore();
+    mocked.mockClear();
+    mocked.mockResolvedValue({ questions: [] });
+
+    useQueue.getState().advance();
+    useQueue.getState().advance();
+
+    expect(mocked).toHaveBeenCalledExactlyOnceWith(BATCH_SIZE, [3, 4]);
+    expect(useQueue.getState().questions).toHaveLength(PREFETCH_AT);
   });
 });

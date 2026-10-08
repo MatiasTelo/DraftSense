@@ -115,6 +115,12 @@ fila**.
 **Dado** el mismo escenario, pero con la respuesta marcada como repetición de la anterior
 **Entonces** el sistema la registra correctamente y `is_retest_of` apunta a la respuesta original.
 
+> **Agregado el 16/09/2026.** La marca la pone el servidor al servir el retest
+> (`respondents.pending_retest_of`), no el cliente
+> ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)). El test sirve el retest por el
+> sampler, lo contesta con el mismo `POST` de siempre y verifica la fila; y verifica también que un
+> segundo envío idéntico devuelve el `409` de CA-204.
+
 ### CA-206 · Traits inexistentes rechazados — RF-108 · `I`
 **Dado** una pregunta de tipo 5
 **Cuando** se responde con un código de atributo que no existe o está inactivo
@@ -144,6 +150,11 @@ el estado real.
 **Dado** un respondedor que contesta 60 preguntas seguidas
 **Cuando** se cuentan los honeypots recibidos
 **Entonces** son entre 4 y 6, y ninguna ventana de 15 preguntas queda sin ninguno.
+
+> **Agregado el 17/09/2026.** «Contesta 60 preguntas seguidas» se prueba de las dos formas en que
+> un cliente puede hacerlo: contestando cada lote entero antes de pedir el siguiente, y como el
+> frontend, que pide el lote siguiente con dos tarjetas en cola y manda sus ids en `queued`
+> ([ADR-020](13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md)).
 
 ### CA-302 · El honeypot fallado baja el trust — RF-205 · `U`
 **Dado** un respondedor con trust `0.500` y sin honeypots previos

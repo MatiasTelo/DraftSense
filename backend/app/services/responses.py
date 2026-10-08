@@ -1,30 +1,35 @@
-"""Registro de respuestas: rate limit, inserción append-only y feedback de consenso.
+"""Registro de respuestas: rate limit, inserción append-only, calidad y feedback de consenso.
 
 Es el camino crítico del sistema (`docs/10-arquitectura.md` §3) y tiene 150 ms de presupuesto.
-Nada de lo que hace agrega: cuenta filas sobre índices e inserta una.
+Nada de lo que hace agrega: cuenta filas sobre índices, inserta una y hace aritmética sobre la
+fila del respondedor.
 
-Lo que **no** hace en la semana 2, y hay que saberlo al leerlo: no evalúa honeypots, no marca
-retests y no recalcula el trust score. Ese es el módulo de calidad de la semana 5
-(`docs/22-calidad-de-datos.md`); el paso 5 de la arquitectura queda pendiente hasta entonces.
+Desde la semana 5 hace también el paso 5 de la arquitectura: si la pregunta era honeypot o
+retest, actualiza los contadores de calidad y recalcula el trust en la misma transacción
+(`docs/22-calidad-de-datos.md` §7.2). El retest lo reconoce el servidor, no el cliente (ADR-020).
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import random
 from dataclasses import dataclass
 from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models import Question, QuestionType, Respondent, Response
 from app.schemas.responses import Feedback, Progress
-from app.services import app_settings, question_stats, streaks
+from app.services import app_settings, honeypots, question_stats, retests, streaks, trust
 
 #: Los dos límites del contrato (`docs/12-api.md` §4). Son holgados para una persona —una
 #: respuesta cada 5 a 10 segundos son unas 10 por minuto— y cortan el scripting trivial.
 PER_MINUTE = 40
 PER_DAY = 1500
+
+_rng = random.Random()
 
 
 class RateLimitError(Exception):
@@ -97,6 +102,84 @@ async def check_rate_limit(
     )
 
 
+async def claim_retest(
+    session: AsyncSession, respondent: Respondent, question: Question
+) -> Response | None:
+    """La respuesta original, si esta respuesta es el retest que el sampler dejó pendiente.
+
+    La marca se limpia con un `UPDATE` condicional y no asignando el atributo: si dos envíos de
+    la misma respuesta llegan juntos —un doble toque—, el segundo espera el bloqueo de la fila,
+    ya no encuentra la marca, se inserta como respuesta común y el índice
+    `responses_one_per_question` lo rechaza con `409` (ADR-020, CA-204).
+    """
+    pending = respondent.pending_retest_of
+    if pending is None:
+        return None
+    original = await session.get(Response, pending)
+    if (
+        original is None
+        or original.question_id != question.question_id
+        or original.respondent_id != respondent.respondent_id
+    ):
+        return None
+    claimed = (
+        await session.execute(
+            sa.update(Respondent)
+            .where(
+                Respondent.respondent_id == respondent.respondent_id,
+                Respondent.pending_retest_of == pending,
+            )
+            .values(pending_retest_of=None)
+            .returning(Respondent.respondent_id)
+            .execution_options(synchronize_session=False)
+        )
+    ).first()
+    if claimed is None:
+        return None
+    # La fila ya quedó en NULL: se refleja en el objeto sin que el flush lo vuelva a escribir.
+    set_committed_value(respondent, "pending_retest_of", None)
+    return original
+
+
+async def apply_quality(
+    session: AsyncSession,
+    respondent: Respondent,
+    question: Question,
+    answer: dict[str, Any],
+    original: Response | None,
+    position: int,
+    rng: random.Random,
+) -> None:
+    """Contadores de calidad, cadencias y trust, si la pregunta era honeypot o retest. Sin commit.
+
+    Una honeypot contestada `unknown` no suma intento (22 §3.5) pero abre la ventana siguiente:
+    si no la abriera, la persona recibiría honeypots seguidas y el mecanismo se delataría.
+    """
+    touched = False
+    if respondent.pending_honeypot == question.question_id:
+        # Contestada, deja de bloquear: el próximo lote ya puede elegir otra cuando toque. Se
+        # limpia aunque la honeypot se haya retirado mientras estaba en la cola.
+        respondent.pending_honeypot = None
+    if question.is_honeypot:
+        outcome = honeypots.evaluate(answer, question.expected_answer)
+        if outcome is not None:
+            respondent.honeypot_attempts += 1
+            respondent.honeypot_passed += int(outcome)
+        low, high = await app_settings.get(session, "quality.honeypot_every", [10, 15])
+        respondent.next_honeypot_at = position + rng.randint(int(low), int(high))
+        touched = True
+    if original is not None:
+        consistent = retests.is_consistent(question.type, original.answer, answer)
+        if consistent is not None:
+            respondent.retest_pairs += 1
+            respondent.retest_consistent += int(consistent)
+        every = await app_settings.get(session, "quality.retest_every", 30)
+        respondent.next_retest_at = position + int(every)
+        touched = True
+    if touched:
+        trust.refresh(respondent, await trust.TrustParams.load(session))
+
+
 async def record(
     session: AsyncSession,
     respondent: Respondent,
@@ -104,6 +187,7 @@ async def record(
     answer: dict[str, Any],
     response_time_ms: int,
     now: dt.datetime,
+    rng: random.Random | None = None,
 ) -> Response:
     """Inserta la respuesta y actualiza los contadores, en una sola transacción.
 
@@ -111,7 +195,13 @@ async def record(
     la validación del `answer` como restricción de tabla y que el pipeline recorra por parche y
     tipo sin tocar `questions`— y la consistencia la garantiza este INSERT
     (`docs/11-modelo-de-datos.md` §3.9).
+
+    La posición se toma **antes** de sumar la respuesta: es el índice de esta respuesta en la
+    historia del respondedor (ADR-020). El trust se recalcula **después**, con el volumen que ya
+    la incluye, que es el que usa el denominador de `d` (22 §7.1).
     """
+    position = respondent.answers_count
+    original = await claim_retest(session, respondent, question)
     response = Response(
         respondent_id=respondent.respondent_id,
         question_id=question.question_id,
@@ -119,9 +209,11 @@ async def record(
         patch_id=question.patch_id,
         answer=answer,
         response_time_ms=response_time_ms,
+        is_retest_of=original.response_id if original is not None else None,
     )
     session.add(response)
     await streaks.apply(session, respondent, now)
+    await apply_quality(session, respondent, question, answer, original, position, rng or _rng)
     await session.commit()
     await session.refresh(response)
     return response

@@ -1,0 +1,322 @@
+# Catálogo de honeypots del parche 16.17 — docs/22-calidad-de-datos.md §3, ADR-013.
+#
+# Aprobado por el alumno el 16/09/2026. **Falta la revisión de Marinozi**, que tiene que hacerse
+# antes del lanzamiento cerrado de la semana 7 (22 §3.3): la revisión no opina sobre la respuesta,
+# verifica que cada `rationale` describa lo que la habilidad efectivamente hace.
+#
+# Se carga con `python -m app.cli seed-honeypots --patch 16.17`.
+#
+# Fuente de cada `rationale`: el JSON por campeón de Data Dragon, versión 16.17.1, locale es_AR
+# (https://ddragon.leagueoflegends.com/cdn/16.17.1/data/es_AR/champion/<Clave>.json). Las citas
+# entre comillas son el texto de la habilidad tal como lo publica Riot. «Ninguna habilidad» quiere
+# decir que no aparece en la pasiva ni en Q, W, E o R de ese mismo archivo.
+#
+# Reglas del catálogo (22 §3.2 y nota del 16/09 en §3.3):
+# - sólo campeones de tier 1 y sólo las seis dimensiones que admite ADR-013;
+# - champion_a es el que tiene más de la dimensión, y `expected` es siempre {choice: a}; la carga
+#   ordena el par según champion_id e invierte la respuesta si hace falta;
+# - `waveclear` no tiene pares: ningún campeón del tier 1 tiene sólo daño de objetivo único
+#   (nota del 16/09 en 22 §3.2).
+
+# --- mobility: uno tiene dash, salto o parpadeo; el otro ninguna habilidad de desplazamiento ---
+
+- champion_a: Ezreal
+  champion_b: Jinx
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Ezreal, E (Desplazamiento Arcano): «Ezreal se teletransporta a una ubicación cercana». Jinx no
+    tiene ninguna habilidad que la desplace: su pasiva y ¡Cambio de Armas! sólo le dan velocidad de
+    movimiento o de ataque.
+
+- champion_a: Lucian
+  champion_b: Ashe
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Lucian, E (Persecución Implacable): «Lucian se desplaza una corta distancia». Ashe no tiene
+    ninguna habilidad de desplazamiento; su E (Tiro de Halcón) envía un halcón a explorar.
+
+- champion_a: Tristana
+  champion_b: Miss Fortune
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Tristana, W (Salto Cohete): «dispara al suelo para propulsarse hasta un punto lejano». Miss
+    Fortune no tiene ninguna habilidad de desplazamiento; Alarde (W) sólo le da velocidad de
+    movimiento.
+
+- champion_a: LeBlanc
+  champion_b: Syndra
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    LeBlanc, W (Distorsión): «LeBlanc se desplaza hacia una ubicación». Syndra no tiene ninguna
+    habilidad que la desplace: Fuerza de Voluntad (W) y Dispersar a los Débiles (E) mueven esferas,
+    súbditos o enemigos, no a ella.
+
+- champion_a: Aatrox
+  champion_b: Garen
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Aatrox, E (Impulso Siniestro): «Al activarlo, se desplaza en una dirección». Garen no tiene
+    ninguna habilidad de desplazamiento; Golpe Decisivo (Q) sólo le da velocidad de movimiento.
+
+- champion_a: Pyke
+  champion_b: Milio
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Pyke, E (Corriente Fantasma): «Pyke se desplaza y deja atrás a un fantasma». Milio no tiene
+    ninguna habilidad que lo desplace; sus habilidades patean una pelota, curan o escudan aliados.
+
+- champion_a: Kai'Sa
+  champion_b: Viktor
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Kai'Sa, R (Instinto Asesino): «Kai'Sa se desplaza cerca de un campeón enemigo». Viktor no tiene
+    ninguna habilidad de desplazamiento; el aumento de Transferencia de Potencia (Q) sólo le da
+    velocidad de movimiento.
+
+- champion_a: Zed
+  champion_b: Karma
+  dimension: mobility
+  expected: {choice: a}
+  rationale: >
+    Zed, R (Marca de la Muerte): «se desplaza hacia un campeón enemigo»; con W (Sombra Viviente)
+    «Zed cambie de posición con esta sombra». Karma no tiene ninguna habilidad de desplazamiento;
+    Inspiración (E) le da a un aliado un escudo y velocidad de movimiento.
+
+# --- cc: uno tiene dos o más habilidades de control duro; el otro ninguna ---------------------
+
+- champion_a: Leona
+  champion_b: Kai'Sa
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Leona: Escudo del Amanecer (Q) «aturdiendo al objetivo», Espada del Cénit (E) lo deja
+    «inmovilizado brevemente» y Llamarada Solar (R) deja a los enemigos del centro «aturdidos».
+    Kai'Sa no tiene ninguna habilidad que aturda, inmovilice o eleve.
+
+- champion_a: Nautilus
+  champion_b: Ezreal
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Nautilus: su pasiva (Golpe Maestro) «lo inmoviliza por un momento» y Carga de las Profundidades
+    (R) «lanza por el aire y aturde al objetivo». Ezreal no tiene ninguna habilidad de control:
+    sus hechizos sólo infligen daño.
+
+- champion_a: Nami
+  champion_b: Zeri
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Nami: Prisión de Agua (Q) «aturde a todos los enemigos al impacto» y Maremoto (R) «lanza por el
+    aire a los enemigos». Zeri no tiene control duro: Láser Ultracargado (W) sólo ralentiza.
+
+- champion_a: Lissandra
+  champion_b: Katarina
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Lissandra: Anillo de Escarcha (W) congela a los enemigos cercanos «y los inmoviliza», y Tumba
+    Congelada (R) deja al campeón enemigo «aturdido». Katarina no tiene ninguna habilidad de
+    control.
+
+- champion_a: Leona
+  champion_b: Twitch
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Leona: Escudo del Amanecer (Q) aturde, Espada del Cénit (E) inmoviliza y Llamarada Solar (R)
+    aturde. Twitch no tiene control duro: Tonel de Veneno (W) sólo ralentiza.
+
+- champion_a: Nautilus
+  champion_b: Kayn
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Nautilus: su pasiva inmoviliza al primer objetivo que ataca y Carga de las Profundidades (R)
+    lanza por el aire y aturde. Kayn no tiene control duro: Alcance de Cuchilla (W) sólo ralentiza.
+
+- champion_a: Lissandra
+  champion_b: Yunara
+  dimension: cc
+  expected: {choice: a}
+  rationale: >
+    Lissandra: Anillo de Escarcha (W) inmoviliza y Tumba Congelada (R) aturde. Yunara no tiene
+    control duro: Rendición de Cuentas (W) sólo ralentiza.
+
+# --- poke: uno es a distancia con daño de rango largo; el otro es cuerpo a cuerpo ------------
+# Los tres cuerpo a cuerpo tienen un salto o una embestida que daña al llegar (Jax Q, Renekton E,
+# Darius R). Eso es daño cuerpo a cuerpo, no a distancia: llega después de cerrar la distancia
+# (nota del 16/09 en 22 §3.2).
+
+- champion_a: Caitlyn
+  champion_b: Jax
+  dimension: poke
+  expected: {choice: a}
+  rationale: >
+    Caitlyn ataca a distancia (alcance 650) y Pacificadora de Piltóver (Q) es un disparo
+    penetrante de 1250 de alcance. Jax es cuerpo a cuerpo (alcance 125) y su único alcance extra es
+    Salto Brutal (Q), que lo lleva hasta el objetivo antes de golpear.
+
+- champion_a: Lux
+  champion_b: Renekton
+  dimension: poke
+  expected: {choice: a}
+  rationale: >
+    Lux ataca a distancia (alcance 550) y Hechizo Luminoso (Q, 1175) y Singularidad Brillante
+    (E, 1100) dañan desde lejos. Renekton es cuerpo a cuerpo (alcance 125): sus habilidades golpean
+    a su alrededor (Q, R), a su objetivo (W) o en el camino de su embestida (E).
+
+- champion_a: Jhin
+  champion_b: Darius
+  dimension: poke
+  expected: {choice: a}
+  rationale: >
+    Jhin ataca a distancia (alcance 550) y Brote Mortal (W) dispara «una sola bala con un enorme
+    alcance» (3000). Darius es cuerpo a cuerpo (alcance 175): Diezmar (Q) golpea a su alrededor y
+    Guillotina Noxiana (R) lo hace saltar hasta el campeón antes de golpear.
+
+- champion_a: Zeri
+  champion_b: Jax
+  dimension: poke
+  expected: {choice: a}
+  rationale: >
+    Zeri ataca a distancia (alcance 550) y Láser Ultracargado (W, 1150) se convierte en un «láser
+    de largo alcance» al tocar una pared. Jax es cuerpo a cuerpo (alcance 125) y no tiene daño a
+    distancia sin saltar primero.
+
+- champion_a: Ezreal
+  champion_b: Renekton
+  dimension: poke
+  expected: {choice: a}
+  rationale: >
+    Ezreal ataca a distancia (alcance 550) y Disparo Místico (Q) y Flujo de Esencia (W) tienen 1150
+    de alcance. Renekton es cuerpo a cuerpo (alcance 125) y no tiene ningún proyectil.
+
+- champion_a: Kai'Sa
+  champion_b: Darius
+  dimension: poke
+  expected: {choice: a}
+  rationale: >
+    Kai'Sa ataca a distancia (alcance 525) y Buscadora del Vacío (W) es «un misil de largo
+    alcance» (3000). Darius es cuerpo a cuerpo (alcance 175) y no tiene ningún proyectil.
+
+# --- engage: uno tiene acercamiento + control; el otro no tiene forma de iniciar --------------
+
+- champion_a: Malphite
+  champion_b: Miss Fortune
+  dimension: engage
+  expected: {choice: a}
+  rationale: >
+    Malphite, R (Fuerza Imparable): «se lanza hacia una ubicación con gran velocidad para infligir
+    daño a enemigos y lanzarlos por el aire». Miss Fortune no tiene ni desplazamiento ni control
+    duro: Lluvia de Plomo (E) sólo ralentiza.
+
+- champion_a: Leona
+  champion_b: Gangplank
+  dimension: engage
+  expected: {choice: a}
+  rationale: >
+    Leona, E (Espada del Cénit): inmoviliza al campeón «y Leona irá rápidamente hacia él»; además
+    aturde con Q y con R. Gangplank no tiene desplazamiento ni control duro: Barril de Pólvora (E)
+    y Descarga de Cañones (R) sólo ralentizan.
+
+- champion_a: Nautilus
+  champion_b: Nasus
+  dimension: engage
+  expected: {choice: a}
+  rationale: >
+    Nautilus, Q (Línea de Dragado): atrae al enemigo alcanzado o lo atrae a él hacia el terreno; R
+    (Carga de las Profundidades) lanza por el aire y aturde. Nasus no tiene desplazamiento ni
+    control duro: Marchitar (W) sólo ralentiza.
+
+- champion_a: Jarvan IV
+  champion_b: Miss Fortune
+  dimension: engage
+  expected: {choice: a}
+  rationale: >
+    Jarvan IV, Q (Golpe Dragón): «se desplaza hacia el Estandarte Demaciano y derriba a los
+    enemigos que encuentre»; R (Cataclismo) «salta heroicamente al combate». Miss Fortune no tiene
+    desplazamiento ni control duro.
+
+- champion_a: Wukong
+  champion_b: Gangplank
+  dimension: engage
+  expected: {choice: a}
+  rationale: >
+    Wukong, E (Golpe de Nimbo): «se lanza contra un enemigo»; R (Ciclón): los enemigos alcanzados
+    «son lanzados por el aire». Gangplank no tiene desplazamiento ni control duro.
+
+- champion_a: Viego
+  champion_b: Nasus
+  dimension: engage
+  expected: {choice: a}
+  rationale: >
+    Viego, W (Fauces Espectrales): «carga antes de desplazarse hacia adelante» y «aturde al primer
+    enemigo alcanzado». Nasus no tiene desplazamiento ni control duro.
+
+# --- peel: uno tiene una habilidad sobre un aliado (escudo, curación, velocidad); el otro no ---
+
+- champion_a: Lulu
+  champion_b: Katarina
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Lulu, W (Capricho): «Si se usa sobre un aliado, le otorga velocidad de ataque y de
+    movimiento»; E protege a un aliado y R le da vida adicional. Katarina no tiene ninguna
+    habilidad que apunte a un aliado.
+
+- champion_a: Karma
+  champion_b: Zed
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Karma, E (Inspiración): «invoca un escudo protector ... y aumenta la velocidad de movimiento
+    del aliado protegido». Zed no tiene ninguna habilidad que apunte a un aliado.
+
+- champion_a: Milio
+  champion_b: Talon
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Milio, E (Abrazos Calientitos): «lanza un escudo a un aliado que aumenta temporalmente su
+    velocidad de movimiento». Talon no tiene ninguna habilidad que apunte a un aliado.
+
+- champion_a: Nami
+  champion_b: Darius
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Nami, W (Flujo y Reflujo): «cura a aliados»; E (Bendición de la Marea) «Potencia a un campeón
+    aliado». Darius no tiene ninguna habilidad que apunte a un aliado.
+
+- champion_a: Senna
+  champion_b: Kha'Zix
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Senna, Q (Oscuridad Lacerante): el rayo «cura a aliados»; R (Cañón de Sombras) «escuda a los
+    aliados contra el daño». Kha'Zix no tiene ninguna habilidad que apunte a un aliado.
+
+- champion_a: Seraphine
+  champion_b: Akali
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Seraphine, W (Sonido Envolvente): «escuda y acelera a los aliados cercanos». Akali no tiene
+    ninguna habilidad que apunte a un aliado.
+
+- champion_a: Lux
+  champion_b: Kayn
+  dimension: peel
+  expected: {choice: a}
+  rationale: >
+    Lux, W (Barrera Prismática): deforma la luz «alrededor de cualquier objetivo aliado que
+    alcanza, lo que los protege del daño enemigo». Kayn no tiene ninguna habilidad que apunte a un
+    aliado.

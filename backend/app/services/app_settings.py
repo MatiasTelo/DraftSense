@@ -1,6 +1,6 @@
 """Lectura de los parámetros operativos, con caché en proceso.
 
-`app_settings` son unas 33 filas que se leen en casi cada petición y cambian dos veces por semana.
+`app_settings` son unas 34 filas que se leen en casi cada petición y cambian dos veces por semana.
 Consultarlas cada vez sería una ida a la base en el camino crítico; cachearlas para siempre haría
 que un cambio del panel no tuviera efecto hasta el próximo despliegue, que es exactamente lo que
 RF-606 prohíbe. El acuerdo es una caché de 60 segundos (`docs/11-modelo-de-datos.md` §3.12).
