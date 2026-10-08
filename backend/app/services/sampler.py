@@ -11,6 +11,9 @@ Para cada posición del lote decide, en este orden (§6 y §10):
    queda sin candidatas (§5, nota del 16/09).
 5. **Un retest como último recurso** si ningún tipo tiene nada (§8).
 
+Una pregunta de tipo 1 elegida así es el **par ancla** de un ranking de cinco campeones, que se
+arma al final del lote (ADR-022, §5.1).
+
 La posición es la del respondedor, no la del lote: la pregunta `k` de un lote pedido con
 `answers_count = n` ocupa la posición `n + k`. Las cadencias viven en `respondents`
 ([ADR-020]).
@@ -31,9 +34,9 @@ from typing import Any, Final
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Question, QuestionType, Respondent, Response
+from app.models import Question, QuestionType, Ranking, Respondent, Response
 from app.schemas.questions import QuestionOut
-from app.services import app_settings, honeypots, questions, retests
+from app.services import app_settings, honeypots, questions, rankings, retests, submissions
 from app.services.questions import SERVED_TYPES, Space
 
 logger = logging.getLogger(__name__)
@@ -150,10 +153,13 @@ def open_windows(respondent: Respondent, config: SamplerConfig, rng: random.Rand
 
 
 async def recent_types(session: AsyncSession, respondent_id: uuid.UUID) -> list[QuestionType]:
-    """Los tipos de las últimas respuestas, del más viejo al más nuevo (regla de variedad)."""
+    """Los tipos de las últimas respuestas, del más viejo al más nuevo (regla de variedad).
+
+    Cuenta envíos, no filas: un ranking del tipo 1 son diez filas y una sola posición (ADR-022).
+    """
     rows = (
         await session.execute(
-            sa.select(Response.type)
+            submissions.heads(sa.select(Response.type).select_from(Response))
             .where(Response.respondent_id == respondent_id)
             .order_by(Response.created_at.desc(), Response.response_id.desc())
             .limit(VARIETY_MAX_RUN)
@@ -177,6 +183,10 @@ class _Batch:
     #: Las preguntas que el cliente tiene en cola sin contestar (ADR-020). No se vuelven a servir.
     queued: frozenset[int] = frozenset()
     seen: set[int] = field(default_factory=set)
+    #: Los pares de los rankings que el cliente tiene en cola o que ya salieron en este lote
+    #: (ADR-022). Ninguno puede ser ancla: al contestar el primer ranking, ese par queda
+    #: respondido y el ancla del segundo sería un 409.
+    taken: set[rankings.PairKey] = field(default_factory=set)
     exhausted: set[QuestionType] = field(default_factory=set)
     hot: dict[QuestionType, list[Question]] = field(default_factory=dict)
     bridges: list[Question] | None = None
@@ -188,9 +198,20 @@ class _Batch:
             question_id in self.answered or question_id in self.seen or question_id in self.queued
         )
 
+    def free(self, question: Question) -> bool:
+        """Si el par no está ya dentro de un ranking pendiente. Sólo aplica al tipo 1."""
+        if question.type is not QuestionType.PAIRWISE_DIMENSION:
+            return True
+        assert question.champion_b is not None and question.dimension_id is not None
+        return (question.champion_a, question.champion_b, question.dimension_id) not in self.taken
+
     def _first_available(self, candidates: Sequence[Question]) -> Question | None:
         for question in candidates:
-            if not self.excluded(question.question_id) and self.space.admits(question):
+            if (
+                not self.excluded(question.question_id)
+                and self.free(question)
+                and self.space.admits(question)
+            ):
                 return question
         return None
 
@@ -247,7 +268,11 @@ class _Batch:
         for _ in range(self.config.max_retries):
             combination = questions.draw_combination(question_type, self.space, self.rng)
             question = await questions.materialize(self.session, self.patch_id, combination)
-            if question.is_honeypot or self.excluded(question.question_id):
+            if (
+                question.is_honeypot
+                or self.excluded(question.question_id)
+                or not self.free(question)
+            ):
                 continue
             return question
         return None
@@ -292,7 +317,9 @@ class _Batch:
 
         catalog = await honeypots.catalog(self.session, self.patch_id)
         excluded = self.answered | self.seen | self.queued
-        chosen = honeypots.pick_unseen(catalog, self.space, excluded, self.rng)
+        chosen = honeypots.pick_unseen(
+            [q for q in catalog if self.free(q)], self.space, excluded, self.rng
+        )
         if chosen is not None:
             respondent.pending_honeypot = chosen.question_id
         return chosen
@@ -414,7 +441,13 @@ async def next_batch(
         queued=in_queue,
     )
 
+    batch.taken = await rankings.pending_pairs(session, respondent.respondent_id, in_queue)
+
     chosen: list[Question] = []
+    # El tipo 1 se sirve como un ranking de cinco alrededor del par elegido (ADR-022, 21 §5.1).
+    # Se arma apenas se elige el ancla, para que sus pares no puedan ser el ancla de otro.
+    served: dict[int, Ranking] = {}
+    honeypot_pairs: set[rankings.PairKey] | None = None
     start = respondent.answers_count + len(in_queue)
     for index in range(count):
         question = await batch.next(start + index)
@@ -423,8 +456,19 @@ async def next_batch(
         batch.seen.add(question.question_id)
         batch.recent.append(question.type)
         chosen.append(question)
+        if question.type is QuestionType.PAIRWISE_DIMENSION:
+            if honeypot_pairs is None:
+                honeypot_pairs = await rankings.honeypot_pairs(session, patch.patch_id)
+            ranking = rankings.build(
+                respondent.respondent_id, question, space, honeypot_pairs, rng, config.max_retries
+            )
+            session.add(ranking)
+            served[question.question_id] = ranking
+            batch.taken |= rankings.keys_of(ranking)
     await session.commit()
 
     champions = {c.champion_id: c for c in space.champions}
     dimensions = {d.dimension_id: d for d in space.dimensions}
-    return [questions.render(q, champions, dimensions) for q in chosen]
+    return [
+        questions.render(q, champions, dimensions, served.get(q.question_id)) for q in chosen
+    ]

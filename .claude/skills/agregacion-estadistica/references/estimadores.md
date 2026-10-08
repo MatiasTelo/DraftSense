@@ -5,11 +5,11 @@ las trampas de cada uno. Los `§` sin prefijo son de ese documento.
 
 | Tipo | Pregunta | Estimador | Produce | Dónde |
 |---|---|---|---|---|
-| 1 | `pairwise_dimension` | Bradley-Terry ponderado | Las 8 dimensiones (7 columnas c/u) | §5.1 |
+| 1 | `pairwise_dimension` | Bradley-Terry ponderado | `champion_dimensions` (8 filas por campeón). Cada ranking de cinco aporta diez comparaciones (ADR-022) | §5.1 |
 | 2 | `peak_timing` | Mediana ponderada + curva gaussiana | `peak_minute` y `power_at_*` | §5.2 |
 | 3 (1v1) | `lane_matchup` | Modelo ordinal Rao-Kupper | Fuerza de línea y `matchup_matrix` | §5.3 |
 | 3 (2v2) | `lane_matchup` | Ídem, sobre duplas | `duo_features.lane_strength` | §5.4 |
-| 4 | `duo_synergy` | BT con interacción y penalización L2 | `synergy`, `synergy_mean` | §5.5 |
+| 4 | `duo_synergy` | BT con interacción y penalización L2 | `synergy` (sin `synergy_mean` desde ADR-023) | §5.5 |
 | 5 | `trait_multiselect` | Proporción con intervalo de Wilson | Los 7 atributos (5 columnas c/u) | §5.6 |
 
 ## Tipo 1 — Bradley-Terry por dimensión (§5.1)
@@ -60,7 +60,7 @@ Modelo con término de interacción y **dos penalizaciones L2 distintas**:
 `aggregation.duo_lambda_interaction` (1.00) sobre la interacción. No son la misma constante: la
 interacción se penaliza diez veces más.
 
-`synergy_mean` se deriva después (§5.5 "synergy_mean"), no se estima aparte.
+`synergy_mean` ya no existe: se eliminó de la salida el 08/10/2026 (ADR-023).
 
 **Si un contexto de dupla no tiene ninguna respuesta, no se emite ninguna fila de ese contexto.** No
 se predice sobre un modelo que no se ajustó.

@@ -6,7 +6,8 @@
  * compilación exactamente acá, que es donde hay que tocar. Un `default` que devolviera algo
  * genérico silenciaría ese aviso y el tipo nuevo saldría a producción sin tarjeta.
  *
- * Desde la semana 4 existen el tipo 1, el 2 y la variante 1v1 del 3. Los dos que todavía devuelven
+ * Desde la semana 4 existen el tipo 1, el 2 y la variante 1v1 del 3; desde el 08/10 el tipo 1 es un
+ * ranking de cinco (ADR-022). Los dos que todavía devuelven
  * `null` llegan en la semana 8, en el orden de `docs/20-tipos-de-pregunta.md` §8, y **hoy el
  * servidor no puede mandarlos**: `next_batch` no los materializa. Cada uno se implementa completo
  * —de la tabla a la tarjeta— antes de empezar el siguiente.
@@ -14,7 +15,7 @@
 
 import type { Answer, Question } from '../api';
 import { LaneMatchupCard } from './LaneMatchupCard';
-import { PairwiseDimensionCard } from './PairwiseDimensionCard';
+import { DimensionRankingCard } from './DimensionRankingCard';
 import { PeakTimingCard } from './PeakTimingCard';
 
 interface Props {
@@ -29,11 +30,11 @@ export function QuestionCard({ question, helpOpen, onToggleHelp, onAnswer, disab
   switch (question.type) {
     case 'pairwise_dimension':
       return (
-        <PairwiseDimensionCard
+        <DimensionRankingCard
           question={question}
           helpOpen={helpOpen}
           onToggleHelp={onToggleHelp}
-          onChoose={(choice) => onAnswer({ choice })}
+          onAnswer={onAnswer}
           disabled={disabled}
         />
       );

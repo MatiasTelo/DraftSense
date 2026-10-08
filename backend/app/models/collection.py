@@ -319,6 +319,51 @@ class Question(Base):
     )
 
 
+class Ranking(Base):
+    """Una tarjeta de tipo 1 servida: cinco campeones para ordenar en una dimensión (ADR-022).
+
+    Las diez comparaciones que produce van a `responses`, una fila por par. Esta tabla existe para
+    validar el orden recibido contra lo que se mostró y para saber cuál de los pares es el ancla
+    —el que eligió el sampler: puente, honeypot, retest o el par por prioridad—.
+
+    **No es append-only**: `submitted_order` se completa al contestar. El retest lo usa para
+    encontrar el par de las puntas sin reconstruir el orden desde las filas, que pueden ser menos
+    de diez si algún par se ignoró por repetido.
+    """
+
+    __tablename__ = "rankings"
+
+    ranking_id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True, autoincrement=True)
+    respondent_id: Mapped[uuid.UUID] = mapped_column(
+        pg.UUID(as_uuid=True), sa.ForeignKey("respondents.respondent_id"), nullable=False
+    )
+    patch_id: Mapped[int] = mapped_column(
+        sa.Integer, sa.ForeignKey("patches.patch_id"), nullable=False
+    )
+    dimension_id: Mapped[int] = mapped_column(
+        sa.Integer, sa.ForeignKey("dimensions.dimension_id"), nullable=False
+    )
+    anchor_question_id: Mapped[int] = mapped_column(
+        sa.BigInteger, sa.ForeignKey("questions.question_id"), nullable=False
+    )
+    #: Los cinco, en el orden en que se mostraron.
+    champions: Mapped[list[int]] = mapped_column(pg.ARRAY(sa.Integer), nullable=False)
+    #: De más a menos. `NULL` mientras no se contesta, y también con *Not sure*.
+    submitted_order: Mapped[list[int] | None] = mapped_column(pg.ARRAY(sa.Integer))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=utcnow()
+    )
+
+    __table_args__ = (
+        sa.CheckConstraint("cardinality(champions) = 5", name="rankings_five_champions"),
+        sa.CheckConstraint(
+            "submitted_order IS NULL OR cardinality(submitted_order) = 5",
+            name="rankings_order_complete",
+        ),
+        sa.Index("rankings_by_respondent", "respondent_id", sa.text("created_at DESC")),
+    )
+
+
 class Response(Base):
     """Una respuesta cruda. Append-only: nunca se modifica ni se borra.
 
@@ -345,6 +390,10 @@ class Response(Base):
     response_time_ms: Mapped[int] = mapped_column(sa.Integer, nullable=False)
     is_retest_of: Mapped[int | None] = mapped_column(
         sa.BigInteger, sa.ForeignKey("responses.response_id")
+    )
+    #: Tipo 1: el ranking que produjo esta fila. Las diez filas de un ranking lo comparten.
+    ranking_id: Mapped[int | None] = mapped_column(
+        sa.BigInteger, sa.ForeignKey("rankings.ranking_id", name="responses_ranking_fk")
     )
     created_at: Mapped[dt.datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=utcnow()
@@ -394,7 +443,13 @@ class Response(Base):
         sa.Index("responses_by_patch_type", "patch_id", "type"),
         # Ventanas de día y semana de la tabla de posiciones (docs/23-gamificacion.md §5.3).
         sa.Index("responses_recent", sa.text("created_at DESC")),
+        # Las diez filas de un ranking del tipo 1 (ADR-022).
+        sa.Index(
+            "responses_by_ranking",
+            "ranking_id",
+            postgresql_where=sa.text("ranking_id IS NOT NULL"),
+        ),
     )
 
 
-__all__ = ["VALID_HOURS_BUCKETS", "VALID_RANKS", "Question", "Respondent", "Response"]
+__all__ = ["VALID_HOURS_BUCKETS", "VALID_RANKS", "Question", "Ranking", "Respondent", "Response"]

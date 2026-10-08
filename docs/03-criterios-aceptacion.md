@@ -1,6 +1,9 @@
 # 03 — Criterios de aceptación
 
-> Estado: **v1** · Última revisión: 16/09/2026
+> Estado: **v1** · Última revisión: 08/10/2026
+>
+> **08/10/2026:** criterios nuevos del ranking del tipo 1 (CA-210 a CA-213, CA-507) y cambios en
+> CA-201, CA-305 y CA-503 ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 Criterios verificables en formato Dado/Cuando/Entonces. Tienen doble uso: son la **definición de
 «terminado»** de cada funcionalidad y el **guion de los tests automatizados**.
@@ -91,6 +94,10 @@ distintos entre sí.
 **Entonces** se crea una fila en `responses` con ese `answer`, ese tiempo, el `type` y el `patch_id`
 de la pregunta, y el contador del respondedor sube en uno.
 
+> **Cambiado el 08/10/2026.** Desde que el tipo 1 es un ranking
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), el ejemplo de este criterio pasa a una
+> pregunta de tipo 3 con `{"choice": "a_slight"}`. El registro del tipo 1 es CA-210.
+
 ### CA-202 · Forma inválida rechazada — RF-108 · `I`
 **Dado** una pregunta de tipo `peak_timing`
 **Cuando** se responde `{"choice": "a"}`
@@ -142,6 +149,31 @@ fila**.
 **Entonces** el sistema responde `429` con `Retry-After`, y las cabeceras `X-RateLimit-*` reflejan
 el estado real.
 
+> **08/10/2026.** El límite cuenta **envíos**: un ranking del tipo 1 cuenta como uno, aunque
+> inserte diez filas.
+
+### CA-210 · Un ranking produce diez comparaciones — `20-tipos-de-pregunta.md` §2 · `I`
+**Dado** un ranking de tipo 1 servido con cinco campeones en `poke`
+**Cuando** se responde `{"order": [Lux, LeBlanc, Gnar, Gragas, Jax]}`
+**Entonces** se crean **diez** filas en `responses`, una por par, en forma canónica, todas con el
+mismo `ranking_id`; cada una dice `a` si `champion_a` quedó arriba y `b` si no; y `answers_count`
+sube en **uno**.
+
+### CA-211 · Los pares repetidos se ignoran — ADR-022 · `I`
+**Dado** un respondedor que ya contestó el par Jax–Lux en `poke`
+**Cuando** responde un ranking de `poke` que incluye a los dos
+**Entonces** se guardan las otras nueve filas, la de Jax–Lux no se duplica, y la respuesta es `201`.
+
+### CA-212 · El orden tiene que ser el del ranking — RF-108 · `I`
+**Dado** un ranking servido con cinco campeones
+**Cuando** se responde con un `order` que repite un campeón, omite uno o trae uno que no estaba
+**Entonces** el sistema responde `400 answer_shape_mismatch` y no se crea ninguna fila.
+
+### CA-213 · *Not sure* vale para el ranking entero — ADR-022 · `I`
+**Dado** un ranking servido
+**Cuando** se responde `{"choice": "unknown"}`
+**Entonces** se crean diez filas con `{"choice": "unknown"}` y `answers_count` sube en uno.
+
 ---
 
 ## 4. Calidad de datos
@@ -177,6 +209,9 @@ derivada.
 **Dado** ocho respuestas consecutivas del mismo respondedor en la misma posición de opción
 **Cuando** corre la detección
 **Entonces** la racha se marca como *straightlining* y el trust se recalcula.
+
+> **Cambiado el 08/10/2026.** Sólo para el tipo 3: el ranking del tipo 1 no tiene posición de
+> opción ([`22-calidad-de-datos.md`](22-calidad-de-datos.md) §5.2).
 
 ### CA-306 · Huella duplicada marcada — RF-208 · `I`
 **Dado** una huella con seis identidades distintas en 24 horas
@@ -274,12 +309,20 @@ según el decaimiento configurado.
 ### CA-503 · Soporte bajo se comunica en positivo — RF-114 · `C`
 **Dado** una pregunta con menos de 20 respuestas
 **Cuando** el respondedor contesta
-**Entonces** se muestra `You're one of the first to answer this`, no un panel de consenso vacío.
+**Entonces** se muestra `You're one of the first to answer this` y, debajo, `There aren't enough
+answers yet to show how the community compares.`, no un panel de consenso vacío.
+
+> **Cambiado el 08/10/2026.** Se agregó la segunda línea, a pedido del tutor de la organización.
 
 ### CA-504 · La discrepancia no se presenta como error — `30-ux-flujos.md` §5.1 · `C`
 **Dado** un respondedor cuya respuesta está en minoría
 **Cuando** se muestra el feedback
 **Entonces** el texto es `You're in the 19%`, sin ninguna marca de incorrecto.
+
+### CA-507 · El feedback del ranking es por pares — ADR-022 · `C`
+**Dado** un ranking con 9 de sus 10 pares con al menos 20 respuestas
+**Cuando** el respondedor confirma un orden que coincide con la mayoría en 7 de ellos
+**Entonces** se muestra `You agree with the community on 7 of 9 pairs`.
 
 ### CA-505 · Usable a 360 px — RNF-06 · `E2E`
 **Dado** una ventana de 360 px de ancho
@@ -358,10 +401,10 @@ score de nadie.
 |---|---|---|
 | Sesión e identidad | CA-001 a CA-005 | RF-001 a RF-006, RNF-05 |
 | Entrega de preguntas | CA-101 a CA-106 | RF-101, RF-105, RF-106, RF-112, RF-202, RNF-01 |
-| Registro de respuestas | CA-201 a CA-209 | RF-108 a RF-110, RF-203, RF-209, RNF-04 |
+| Registro de respuestas | CA-201 a CA-213 | RF-108 a RF-110, RF-203, RF-209, RNF-04 |
 | Calidad de datos | CA-301 a CA-309 | RF-201, RF-202, RF-204 a RF-208 |
 | Agregación y exportación | CA-401 a CA-409 | RF-501, RF-506, RF-507, RF-509, RF-510, RF-512, RNF-08 |
-| Interfaz | CA-501 a CA-506 | RF-113, RF-114, RNF-06, RNF-07 |
+| Interfaz | CA-501 a CA-507 | RF-113, RF-114, RNF-06, RNF-07 |
 | Extensibilidad y operación | CA-601 a CA-604 | RF-405, RF-603, RF-604, RF-606, RNF-12 |
 | Gamificación | CA-310 a CA-313 | RF-301, RF-303, RF-304 |
 

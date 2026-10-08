@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 16/09/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 08/10/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -15,8 +15,8 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | 2 | 08/09 – 14/09 | API REST núcleo funcional con pruebas automatizadas | 20 | **cerrada** |
 | 3 | 15/09 – 21/09 | Primer tipo de pregunta operativo de extremo a extremo | 20 | **cerrada** |
 | 4 | 22/09 – 28/09 | Tipos de pregunta 2 y 3 operativos con feedback | 20 | **cerrada** — prueba a 360 px hecha el 16/09 |
-| 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | **en curso** — código, docs, catálogo, staging y prueba de punta a punta; falta commitear |
-| 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | pendiente |
+| 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | **cerrada** — mergeada a `main` el 08/10 (PR #4) |
+| 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | **en curso** — correcciones de la reunión del 05/10 hechas en la rama `semana-6-correcciones-marinozi`; falta lo propio de la semana y el Informe de Avance |
 | 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | pendiente |
 | 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | pendiente |
 | 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | pendiente |
@@ -63,6 +63,27 @@ decisiones, que el Informe de Avance tiene que registrar:
   semana 7.**
 - **La mezcla ±5 de 21 §11 se mide recién con los seis tipos** (semana 8): con tres, la regla de
   variedad baja la proporción del tipo 1 a alrededor del 53 %.
+
+**La semana 6 empezó con las correcciones de la reunión del lunes 05/10 con Marinozi**, que el
+Informe de Avance también tiene que registrar:
+
+- **ADR-022: el tipo 1 es un ranking de cinco campeones** que se guarda como diez comparaciones
+  (tabla `rankings`, `responses.ranking_id`, migración `0004`). Par ancla elegido como antes + tres
+  al azar; honeypot = el ancla; retest = el par de las puntas; pares ya contestados se ignoran; un
+  ranking cuenta como una respuesta (`services/submissions.py`); fuera del *straightlining*.
+  Frontend: `DimensionRankingCard` con `@dnd-kit`.
+- **ADR-023: la salida por campeón son cuatro CSV largos** (`champion_dimensions`, `peak_timing`,
+  `champion_lane_strength`, `champion_traits`), sin `synergy_mean`, y `duo_features` con `role_a` /
+  `role_b`. La métrica pasa a **19 magnitudes por campeón**. Sustituye esa parte de ADR-005.
+- **Mensaje nuevo para los primeros en responder**: *"There aren't enough answers yet to show how
+  the community compares."* debajo de *"You're one of the first to answer this"*.
+- **Docs:** 20 y 26 pasan a v2, `examples/` regenerado (v2), notas fechadas el 08/10 en 01, 02, 03,
+  11, 12, 21, 22, 23, 25 y 30.
+- **Tests:** backend 238 contra un Postgres 17 local en Docker (antes 222), frontend 80 (antes 77).
+  Prueba manual a 360 px en Chrome contra la base local: la tarjeta entra sin scroll, filas de 52 px,
+  el reordenamiento por teclado y por puntero funciona, el ranking guardó 10 filas con el mismo
+  `ranking_id` y el mensaje nuevo aparece. Bundle 79 KB gzip.
+- **Staging todavía no tiene la migración `0004`.** Aplicarla antes de usar la rama ahí.
 
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos

@@ -4,34 +4,41 @@
 en `docs/examples/`. Acá está lo que hay que tener presente antes de tocar una columna. Los `§` sin
 prefijo son de `26-esquema-de-salida.md`.
 
-## Los cuatro archivos (§1)
+## Los seis CSV (§1)
+
+Desde el 08/10/2026 ([ADR-023](../../../../docs/13-adr/ADR-023-salida-en-formato-largo.md)) el viejo
+`champion_features` de 126 columnas son **cuatro archivos en formato largo**, sin `synergy_mean`, y
+`duo_features` lleva `role_a` / `role_b` en vez de `duo_context`.
 
 | Archivo | Granularidad | Filas esperadas | Columnas |
 |---|---|---|---|
-| `champion_features_v<patch>.csv` | un campeón | 40 (tier 1) a 170 (catálogo completo) | 126 |
+| `champion_dimensions_v<patch>.csv` | (campeón, dimensión): 8 por campeón | 320 a 1 360 | 15 |
+| `peak_timing_v<patch>.csv` | un campeón | 40 a 170 | 17 |
+| `champion_lane_strength_v<patch>.csv` | (campeón, rol): siempre 3 por campeón | 120 a 510 | 13 |
+| `champion_traits_v<patch>.csv` | (campeón, atributo): 7 por campeón | 280 a 1 190 | 13 |
 | `matchup_matrix_v<patch>.csv` | (campeón A, campeón B, rol) | ~300 – 2 000 | 12 |
-| `duo_features_v<patch>.csv` | (campeón A, campeón B, contexto) | ~200 – 1 500 | 18 |
+| `duo_features_v<patch>.csv` | (campeón A, campeón B, `role_a`, `role_b`) | ~200 – 1 500 | 19 |
 | `data_quality_report_v<patch>.md` | — | — | — |
 
-Tres granularidades: el campeón, el par que se enfrenta, la dupla que juega junta. **Ninguna
+Tres granularidades: el campeón (cuatro archivos, uno por tipo de pregunta), el par que se
+enfrenta, la dupla que juega junta. **Ninguna
 medición cae fuera de esas tres, y no se emite nada a nivel de partida** (ADR-005).
 
 `docs/examples/` es además el *fixture* contra el que los tests de exportación comparan las
 cabeceras: si cambiás una columna, ese ejemplo cambia también.
 
-## Las 126 columnas y el conteo que verifica CI
+## Los conteos que verifica CI
 
-```
-7 identificación + 56 dimensiones (8 × 7) + 10 pico de poder
-+ 15 fuerza de línea (3 × 5) + 3 sinergia + 35 atributos (7 × 5) = 126
-```
+Los cuatro archivos por campeón repiten las 7 columnas de identificación y suman lo propio:
+dimensiones 8, pico 10, fuerza de línea 6, atributos 6.
 
-20 magnitudes medidas: 8 dimensiones + 1 pico + 3 líneas + 1 sinergia + 7 atributos.
+19 magnitudes medidas por campeón: 8 dimensiones + 1 pico + 3 líneas + 7 atributos.
 
-**`infra/check_docs.py` verifica que el documento declare literalmente "126 columnas" y "20
-magnitudes"**, y los desgloses están hardcodeados en `CHAMPION_FEATURE_BLOCKS` y
-`CHAMPION_MAGNITUDES`. Si agregás o quitás una columna hay que tocar **las dos cosas**: el documento
-y el script. Si no, CI falla — que es exactamente lo que tiene que pasar.
+**`infra/check_docs.py` verifica que `26` declare "19 magnitudes" y el conteo de cada archivo en el
+encabezado de su sección, y que las cabeceras de `docs/examples/` tengan esos conteos**. Los
+números están en `OUTPUT_COLUMNS` y `CHAMPION_MAGNITUDES`. Si agregás o quitás una columna hay que
+tocar el documento, el script, `scripts/build_example_exports.py` y regenerar los ejemplos. Si no,
+CI falla — que es exactamente lo que tiene que pasar.
 
 ## El bloque de sufijos (§2.1)
 

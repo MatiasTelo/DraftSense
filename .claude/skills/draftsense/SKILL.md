@@ -7,7 +7,7 @@ description: >-
   modificar documentación de `docs/`, de crear un ADR, de estimar una semana del cronograma o de
   responder qué hace o qué no hace el sistema. Activar también ante preguntas de alcance ("¿esto
   entra en la PPS?", "¿DraftSense analiza partidas?", "¿qué exporta?"), ante cualquier mención de
-  match_features, features por partida, champion_features, matchup_matrix, duo_features,
+  match_features, features por partida, champion_dimensions, peak_timing, champion_lane_strength, champion_traits, matchup_matrix, duo_features,
   trust score, honeypots, sampler, parches o Data Dragon, y cuando haga falta saber en qué
   documento vive una definición. Es la skill que fija el ALCANCE y rutea a la documentación:
   para el detalle técnico deriva a `draftsense-backend`, `draftsense-frontend` y
@@ -31,11 +31,14 @@ No hay `match_features.csv`, no hay `build_match_features`, no hay features por 
 consume el dataset de partidas del laboratorio, no se integra con el modelo predictivo y no se
 interpretan resultados. La frontera de la práctica es el CSV.
 
-La salida son **tres archivos más un informe**: `champion_features` (una fila por campeón, 126
-columnas, 20 magnitudes medidas), `matchup_matrix` (campeón_a × campeón_b × rol, 12 columnas),
-`duo_features` (por dupla, 18 columnas) y el Informe de Calidad de Datos.
+La salida son **seis CSV más un informe** (ADR-023, 08/10/2026): cuatro por campeón en formato
+largo —`champion_dimensions`, `peak_timing`, `champion_lane_strength`, `champion_traits`—,
+`matchup_matrix` (campeón_a × campeón_b × rol) y `duo_features` (por dupla, con `role_a` y
+`role_b`), más el Informe de Calidad de Datos. Ya no existen `champion_features` ni `synergy_mean`.
 
-La métrica de impacto es **20 magnitudes continuas por campeón con IC y soporte muestral frente a
+El tipo 1 es un **ranking de cinco campeones** que se guarda como diez comparaciones (ADR-022).
+
+La métrica de impacto es **19 magnitudes continuas por campeón con IC y soporte muestral frente a
 7 etiquetas binarias**. No es "~117 features por partida frente a 14": esa formulación es del
 alcance viejo.
 
@@ -67,7 +70,7 @@ alcance viejo.
   *pregunta → documento y sección*, más el estado real de cada documento. Evita leer 347 KB para
   encontrar un dato.
 - **`references/invariantes.md`** — antes de proponer un cambio de diseño o de responder "por qué
-  está hecho así". Las 21 ADR resumidas en una línea cada una, y las contradicciones vivas del
+  está hecho así". Las 23 ADR resumidas en una línea cada una, y las contradicciones vivas del
   proyecto.
 - **`references/cronograma.md`** — antes de estimar, de planificar una semana o de decidir si algo
   ya debería estar hecho. Tiene el estado real del avance.

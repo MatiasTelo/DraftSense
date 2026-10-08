@@ -18,7 +18,8 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.models import Question, QuestionType, Respondent, Response
+from app.models import Question, QuestionType, Ranking, Respondent, Response
+from app.services import submissions
 from app.services.answers import LANE_OUTCOME, UNKNOWN_CHOICE
 from app.services.questions import Space
 
@@ -72,10 +73,15 @@ async def pick_eligible(
     `min_distance` posiciones o más, es de una pregunta del parche vigente que el pool actual
     todavía admite, y nunca se retesteó.
 
-    La distancia se cuenta en posiciones, no en tiempo. Las respuestas del respondedor ocupan las
-    posiciones `0 … answers_count - 1` en orden de creación; las que están a menos de
-    `min_distance` de `position` son las más recientes, y se saltean con un `OFFSET` sobre
-    `responses_by_respondent` para encontrar la última que sí califica.
+    **En el tipo 1 sólo es elegible el par de las puntas** de un ranking contestado: el primero
+    contra el último del orden de la persona (22 §4.1, ADR-022). La original es la respuesta de la
+    persona a ese par; si en ese ranking la fila se ignoró por repetida, es la anterior al mismo
+    par, que es la que quedó guardada.
+
+    La distancia se cuenta en posiciones, no en tiempo, y una posición es un **envío**, no una fila
+    (`submissions`). Los envíos ocupan las posiciones `0 … answers_count - 1` en orden de creación;
+    los que están a menos de `min_distance` de `position` son los más recientes, y se saltean con
+    un `OFFSET` para encontrar el último que sí califica.
     """
     newest_allowed = position - min_distance
     if newest_allowed < 0:
@@ -83,7 +89,9 @@ async def pick_eligible(
     skip = max(0, respondent.answers_count - 1 - newest_allowed)
     cutoff = (
         await session.execute(
-            sa.select(Response.created_at, Response.response_id)
+            submissions.heads(
+                sa.select(Response.created_at, Response.response_id).select_from(Response)
+            )
             .where(Response.respondent_id == respondent.respondent_id)
             .order_by(Response.created_at.desc(), Response.response_id.desc())
             .offset(skip)
@@ -92,34 +100,90 @@ async def pick_eligible(
     ).first()
     if cutoff is None:
         return None
+    limit = sa.tuple_(sa.literal(cutoff.created_at), sa.literal(cutoff.response_id))
 
     repeated = aliased(Response)
+    eligible = (
+        Response.respondent_id == respondent.respondent_id,
+        Response.is_retest_of.is_(None),
+        ~Question.is_honeypot,
+        Question.patch_id == patch_id,
+        Response.type.in_(list(served_types)),
+        # El tipo 2 no tiene `choice`: sin el COALESCE, `NULL <> 'unknown'` lo descartaría.
+        sa.func.coalesce(Response.answer["choice"].astext, "") != UNKNOWN,
+        ~sa.exists().where(
+            repeated.respondent_id == Response.respondent_id,
+            repeated.is_retest_of == Response.response_id,
+        ),
+    )
     rows = await session.execute(
         sa.select(Response, Question)
         .join(Question, Question.question_id == Response.question_id)
         .where(
-            Response.respondent_id == respondent.respondent_id,
-            Response.is_retest_of.is_(None),
-            ~Question.is_honeypot,
-            Question.patch_id == patch_id,
-            Response.type.in_(list(served_types)),
-            # El tipo 2 no tiene `choice`: sin el COALESCE, `NULL <> 'unknown'` lo descartaría.
-            sa.func.coalesce(Response.answer["choice"].astext, "") != UNKNOWN,
-            sa.tuple_(Response.created_at, Response.response_id)
-            <= sa.tuple_(sa.literal(cutoff.created_at), sa.literal(cutoff.response_id)),
-            ~sa.exists().where(
-                repeated.respondent_id == Response.respondent_id,
-                repeated.is_retest_of == Response.response_id,
-            ),
+            *eligible,
+            sa.tuple_(Response.created_at, Response.response_id) <= limit,
+            Response.type != QuestionType.PAIRWISE_DIMENSION,
         )
         # Orden fijo para que el sorteo sea reproducible con una semilla.
         .order_by(Response.response_id)
     )
     candidates = [
-        (response, question)
-        for response, question in rows.tuples()
-        if space.admits(question)
+        (response, question) for response, question in rows.tuples() if space.admits(question)
     ]
+    if QuestionType.PAIRWISE_DIMENSION in served_types:
+        candidates += await _extreme_pairs(session, respondent, patch_id, space, eligible, limit)
     if not candidates:
         return None
+    candidates.sort(key=lambda pair: pair[0].response_id)
     return rng.choice(candidates)
+
+
+async def _extreme_pairs(
+    session: AsyncSession,
+    respondent: Respondent,
+    patch_id: int,
+    space: Space,
+    eligible: tuple[sa.ColumnElement[bool], ...],
+    limit: sa.Tuple,
+) -> list[tuple[Response, Question]]:
+    """Las respuestas a los pares de las puntas de los rankings contestados antes del corte.
+
+    El corte se mide sobre la cabeza del ranking —la fila del ancla—, que es la que ocupa su
+    posición; la respuesta original al par de las puntas puede ser de antes.
+    """
+    head = aliased(Response)
+    orders = await session.execute(
+        sa.select(Ranking.dimension_id, Ranking.submitted_order)
+        .join(
+            head,
+            sa.and_(
+                head.ranking_id == Ranking.ranking_id,
+                head.question_id == Ranking.anchor_question_id,
+            ),
+        )
+        .where(
+            Ranking.respondent_id == respondent.respondent_id,
+            Ranking.patch_id == patch_id,
+            Ranking.submitted_order.is_not(None),
+            sa.tuple_(head.created_at, head.response_id) <= limit,
+        )
+    )
+    keys: set[tuple[int, int, int]] = set()
+    for dimension_id, order in orders.tuples():
+        if order:
+            low, high = sorted((order[0], order[-1]))
+            keys.add((low, high, dimension_id))
+    if not keys:
+        return []
+    rows = await session.execute(
+        sa.select(Response, Question)
+        .join(Question, Question.question_id == Response.question_id)
+        .where(
+            *eligible,
+            Response.type == QuestionType.PAIRWISE_DIMENSION,
+            sa.tuple_(Question.champion_a, Question.champion_b, Question.dimension_id).in_(
+                list(keys)
+            ),
+        )
+    )
+    return [(response, question) for response, question in rows.tuples() if space.admits(question)]

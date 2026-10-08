@@ -211,7 +211,7 @@ tiene arreglo.
 2. El pipeline lee las respuestas de la ventana, excluyendo las de respondedores por debajo del
    umbral o marcados.
 3. Ajusta los cinco modelos estadísticos y calcula intervalos por bootstrap.
-4. Escribe los agregados y emite los tres CSV más el Informe de Calidad de Datos.
+4. Escribe los agregados y emite los seis CSV ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)) más el Informe de Calidad de Datos.
 5. Registra una fila por archivo con su checksum y todos los parámetros de la corrida.
 6. El administrador entrega los archivos al investigador.
 

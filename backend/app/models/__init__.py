@@ -13,7 +13,7 @@ from app.models.catalog import (
     PickRateSnapshot,
     Trait,
 )
-from app.models.collection import Question, Respondent, Response
+from app.models.collection import Question, Ranking, Respondent, Response
 from app.models.enums import (
     ALL_ENUMS,
     AggregateScope,
@@ -43,6 +43,7 @@ __all__ = [
     "PickRateSnapshot",
     "Question",
     "QuestionType",
+    "Ranking",
     "Respondent",
     "Response",
     "SupportLevel",

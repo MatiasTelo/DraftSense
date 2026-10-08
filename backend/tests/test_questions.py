@@ -21,7 +21,16 @@ import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Champion, Dimension, LaneRole, Patch, Question, QuestionType, Respondent
+from app.models import (
+    Champion,
+    Dimension,
+    LaneRole,
+    Patch,
+    Question,
+    QuestionType,
+    Ranking,
+    Respondent,
+)
 from app.services import answers, question_texts
 from app.services import sampler as sampler_service
 from app.services.questions import (
@@ -269,6 +278,7 @@ async def test_entrega_por_lotes(
     respondent: tuple[Respondent, str],
     patch: Patch,
     champions: list[Champion],
+    ranking_pool: list[Champion],
     dimension: Dimension,
 ) -> None:
     """CA-101 — se piden 5, llegan 5, y ninguna repetida dentro del lote."""
@@ -290,6 +300,7 @@ async def test_los_honeypots_son_indistinguibles(
     respondent: tuple[Respondent, str],
     patch: Patch,
     champions: list[Champion],
+    ranking_pool: list[Champion],
     dimension: Dimension,
 ) -> None:
     """CA-103 — `is_honeypot` y `expected_answer` no aparecen en ninguna forma.
@@ -317,6 +328,7 @@ async def test_el_enunciado_llega_compuesto(
     respondent: tuple[Respondent, str],
     patch: Patch,
     champions: list[Champion],
+    ranking_pool: list[Champion],
     dimension: Dimension,
 ) -> None:
     """CA-104 — el texto sale de `dimensions`, no de una plantilla sin resolver.
@@ -345,28 +357,48 @@ async def test_el_enunciado_llega_compuesto(
 
 
 @requires_db
-async def test_toda_opcion_comparable_lleva_arreglo(
+async def test_el_tipo_1_llega_como_ranking_de_cinco(
     client: AsyncClient,
+    db: AsyncSession,
     respondent: tuple[Respondent, str],
     patch: Patch,
     champions: list[Champion],
+    ranking_pool: list[Champion],
     dimension: Dimension,
 ) -> None:
-    """`docs/12-api.md` §1.2 — el cliente renderiza duplas y campeones con el mismo componente."""
+    """ADR-022 y `docs/12-api.md` §2.3 — el tipo 1 llega como un ranking de cinco.
+
+    `question_id` es el par ancla y `ranking_id` el ranking guardado, cuyos cinco campeones son los
+    que llegan y en el mismo orden. El ancla está entre ellos, pero nada del ítem dice cuál es.
+    """
     _, token = respondent
     response = await as_respondent(client, token).get("/questions/next?count=1")
 
-    options = response.json()["questions"][0]["options"]
-    assert [o["key"] for o in options] == ["a", "b", "unknown"]
-    assert all(isinstance(o["champions"], list) for o in options)
-    assert len(options[0]["champions"]) == 1
-    assert options[2]["champions"] == []
-    assert options[2]["label"] == "Not sure"
-    # Un lado con campeón no lleva etiqueta: la clave no viaja, ni siquiera en `null` (§2.3).
-    assert "label" not in options[0]
+    item = response.json()["questions"][0]
+    assert item["type"] == "pairwise_dimension"
+    assert set(item) == {
+        "question_id",
+        "ranking_id",
+        "type",
+        "prompt",
+        "instruction",
+        "help",
+        "champions",
+        "unknown_label",
+    }
+    assert item["unknown_label"] == "Not sure"
+    assert item["instruction"] == question_texts.RANKING_INSTRUCTION
+    assert len(item["champions"]) == 5
+    assert all(set(c) == {"id", "key", "name", "image_url"} for c in item["champions"])
 
-    champion = options[0]["champions"][0]
-    assert set(champion) == {"id", "key", "name", "image_url"}
+    ranking = await db.get(Ranking, item["ranking_id"])
+    assert ranking is not None
+    assert ranking.anchor_question_id == item["question_id"]
+    assert ranking.champions == [c["id"] for c in item["champions"]]
+    assert ranking.submitted_order is None
+    anchor = await db.get(Question, item["question_id"])
+    assert anchor is not None
+    assert {anchor.champion_a, anchor.champion_b} <= set(ranking.champions)
 
 
 @requires_db
@@ -416,6 +448,7 @@ async def test_ca102_las_primeras_tres_son_de_tipo_1(
     respondent: tuple[Respondent, str],
     patch: Patch,
     champions: list[Champion],
+    ranking_pool: list[Champion],
     dimension: Dimension,
 ) -> None:
     """CA-102 — un respondedor sin respuestas empieza por el tipo más fácil de entender."""
@@ -434,6 +467,7 @@ async def test_el_arranque_cuenta_las_respuestas_previas(
     respondent: tuple[Respondent, str],
     patch: Patch,
     champions: list[Champion],
+    ranking_pool: list[Champion],
     dimension: Dimension,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

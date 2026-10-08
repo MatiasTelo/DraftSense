@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Genera los tres CSV de ejemplo de DraftSense.
+"""Genera los seis CSV de ejemplo de DraftSense (26-esquema-de-salida.md, ADR-023).
 
 Los valores son SINTETICOS y plausibles, no medidos. Lo que si es real:
 la forma del archivo, el orden y la cantidad de columnas, la formula de la
@@ -122,12 +122,6 @@ LANE = {
     "Zed": {"mid": (0.71, 52)},
 }
 
-SYNERGY_MEAN = {"Jhin": (0.18, 12), "Alistar": (0.74, 11), "Karma": (0.61, 9),
-                "Lucian": (0.44, 13), "Nami": (0.92, 14), "Sejuani": (0.38, 7),
-                "Darius": (0.22, 5), "Zed": (-0.31, 4), "Syndra": (-0.12, 3),
-                "Garen": (None, 0), "Kayle": (None, 0), "Ziggs": (None, 0),
-                "Ivern": (None, 0)}
-
 TRAITVAL = {
     "Alistar": dict(engage=.91, poke=.04, pick=.34, peel=.77, front_to_back=.52, dive=.61, split_push=.02),
     "Darius": dict(engage=.58, poke=.06, pick=.44, peel=.08, front_to_back=.41, dive=.29, split_push=.72),
@@ -149,24 +143,21 @@ TRAIT_N = {"Alistar": 64, "Darius": 58, "Garen": 41, "Jhin": 47, "Karma": 38,
            "Zed": 55, "Ziggs": 24, "Ivern": 0}
 
 
-def build_champion_features():
-    header = ["champion_id", "riot_key", "display_name", "roles", "pool_tier",
-              "patch_window", "exported_at"]
-    for d in DIMS:
-        header += [d, d + "_ci_low", d + "_ci_high", d + "_n", d + "_support",
-                   d + "_unknown_rate", d + "_norm"]
-    header += ["peak_minute", "peak_minute_ci_low", "peak_minute_ci_high",
-               "peak_minute_n", "peak_minute_support",
-               "power_at_5", "power_at_10", "power_at_15", "power_at_20", "power_at_25"]
-    for r in LANE_ROLES:
-        p = "lane_strength_" + r
-        header += [p, p + "_ci_low", p + "_ci_high", p + "_n", p + "_support"]
-    header += ["synergy_mean", "synergy_mean_n", "synergy_mean_support"]
-    for t in TRAITS:
-        p = "trait_" + t
-        header += [p, p + "_ci_low", p + "_ci_high", p + "_n", p + "_support"]
-    assert len(header) == 126, len(header)
+IDENTIFICATION = ["champion_id", "riot_key", "display_name", "roles", "pool_tier",
+                  "patch_window", "exported_at"]
 
+
+def identification(cid, key, name, roles, tier):
+    return [cid, key, name, "|".join(roles), tier, PATCH_WINDOW, EXPORTED_AT]
+
+
+def build_champion_dimensions():
+    """Una fila por (campeon, dimension): 8 por campeon (ADR-023)."""
+    header = IDENTIFICATION + ["dimension", "score", "score_ci_low", "score_ci_high",
+                               "score_n", "score_support", "unknown_rate", "score_norm"]
+    assert len(header) == 15, len(header)
+
+    # score_norm se reescala dentro de cada dimension, no sobre todo el archivo.
     norm_range = {}
     for d in DIMS:
         vals = [DIMVAL[c[1]][d] for c in CHAMPS if DIMVAL[c[1]][d] is not None]
@@ -174,20 +165,33 @@ def build_champion_features():
 
     rows = []
     for cid, key, name, roles, tier in CHAMPS:
-        row = [cid, key, name, "|".join(roles), tier, PATCH_WINDOW, EXPORTED_AT]
-
         for d in DIMS:
+            row = identification(cid, key, name, roles, tier) + [d]
             v = DIMVAL[key][d]
             if v is None:
                 row += ["", "", "", 0, "insufficient", "", ""]
-                continue
-            n = max(0, int(round(BASE_N[key] * DIM_N_FACTOR[d])))
-            lo, hi, w = ci(v, n, 3.92)
-            ur = UNKNOWN.get((key, d), round(0.03 + 0.09 * ((cid * 7 + len(d)) % 5) / 4, 2))
-            nlo, nhi = norm_range[d]
-            row += [f3(v), f3(lo), f3(hi), n, support("dimension", n, w),
-                    "%.2f" % ur, "%.3f" % ((v - nlo) / (nhi - nlo))]
+            else:
+                n = max(0, int(round(BASE_N[key] * DIM_N_FACTOR[d])))
+                lo, hi, w = ci(v, n, 3.92)
+                ur = UNKNOWN.get((key, d), round(0.03 + 0.09 * ((cid * 7 + len(d)) % 5) / 4, 2))
+                nlo, nhi = norm_range[d]
+                row += [f3(v), f3(lo), f3(hi), n, support("dimension", n, w),
+                        "%.2f" % ur, "%.3f" % ((v - nlo) / (nhi - nlo))]
+            assert len(row) == 15, (key, d, len(row))
+            rows.append(row)
+    return header, rows
 
+
+def build_peak_timing():
+    """Una fila por campeon, con las 10 columnas del pico de poder."""
+    header = IDENTIFICATION + ["peak_minute", "peak_minute_ci_low", "peak_minute_ci_high",
+                               "peak_minute_n", "peak_minute_support",
+                               "power_at_5", "power_at_10", "power_at_15", "power_at_20",
+                               "power_at_25"]
+    assert len(header) == 17, len(header)
+    rows = []
+    for cid, key, name, roles, tier in CHAMPS:
+        row = identification(cid, key, name, roles, tier)
         pk, pn = PEAK[key]
         if pk is None:
             row += ["", "", "", pn, "insufficient", "", "", "", "", ""]
@@ -197,8 +201,21 @@ def build_champion_features():
                     support("peak", pn, w)]
             row += ["%.2f" % math.exp(-((t - pk) ** 2) / (2 * SIGMA ** 2))
                     for t in (5, 10, 15, 20, 25)]
+        assert len(row) == 17, (key, len(row))
+        rows.append(row)
+    return header, rows
 
+
+def build_champion_lane_strength():
+    """Siempre 3 filas por campeon (top, mid, adc), vacias en los roles que no juega."""
+    header = IDENTIFICATION + ["role", "lane_strength", "lane_strength_ci_low",
+                               "lane_strength_ci_high", "lane_strength_n",
+                               "lane_strength_support"]
+    assert len(header) == 13, len(header)
+    rows = []
+    for cid, key, name, roles, tier in CHAMPS:
         for r in LANE_ROLES:
+            row = identification(cid, key, name, roles, tier) + [r]
             e = LANE.get(key, {}).get(r)
             if e is None:
                 row += ["", "", "", 0, "insufficient"]
@@ -206,25 +223,29 @@ def build_champion_features():
                 v, n = e
                 lo, hi, w = ci(v, n, 3.20)
                 row += [f3(v), f3(lo), f3(hi), n, support("lane", n, w)]
+            assert len(row) == 13, (key, r, len(row))
+            rows.append(row)
+    return header, rows
 
-        sv, sn = SYNERGY_MEAN[key]
-        if sv is None:
-            row += ["", sn, "insufficient"]
-        else:
-            _, _, w = ci(sv, sn, 4.20)
-            row += [f3(sv), sn, support("synergy", sn, w)]
 
+def build_champion_traits():
+    """Una fila por (campeon, atributo): 7 por campeon."""
+    header = IDENTIFICATION + ["trait", "proportion", "proportion_ci_low",
+                               "proportion_ci_high", "proportion_n", "proportion_support"]
+    assert len(header) == 13, len(header)
+    rows = []
+    for cid, key, name, roles, tier in CHAMPS:
         tn = TRAIT_N[key]
         for t in TRAITS:
+            row = identification(cid, key, name, roles, tier) + [t]
             p = TRAITVAL[key][t]
             if p is None or tn == 0:
                 row += ["", "", "", tn, "insufficient"]
             else:
                 lo, hi, w = wilson(p, tn)
                 row += ["%.3f" % p, f3(lo), f3(hi), tn, support("trait", tn, w)]
-
-        assert len(row) == 126, (key, len(row))
-        rows.append(row)
+            assert len(row) == 13, (key, t, len(row))
+            rows.append(row)
     return header, rows
 
 
@@ -281,20 +302,35 @@ DUOS = [
 ]
 
 
+#: Los roles de cada contexto del tipo 4, en el orden (rol de A, rol de B) se decide por campeon.
+CONTEXT_ROLES = {"bot": ("adc", "support"), "top_jungle": ("top", "jungle"),
+                 "mid_jungle": ("mid", "jungle")}
+ROLES_BY_ID = {c[0]: c[3] for c in CHAMPS}
+
+
+def duo_roles(ctx, aid, bid):
+    """`role_a` y `role_b`: el rol que juega cada campeon dentro de la dupla (ADR-023)."""
+    first, second = CONTEXT_ROLES[ctx]
+    if first in ROLES_BY_ID[aid] and second in ROLES_BY_ID[bid]:
+        return first, second
+    assert second in ROLES_BY_ID[aid] and first in ROLES_BY_ID[bid], (ctx, aid, bid)
+    return second, first
+
+
 def build_duos():
     header = ["champion_a_id", "champion_a_key", "champion_b_id", "champion_b_key",
-              "duo_context",
+              "role_a", "role_b",
               "synergy", "synergy_ci_low", "synergy_ci_high", "synergy_n",
               "synergy_support", "synergy_is_observed",
               "lane_strength", "lane_strength_ci_low", "lane_strength_ci_high",
               "lane_strength_n", "lane_strength_support", "lane_strength_is_observed",
               "patch_window"]
-    assert len(header) == 18, len(header)
+    assert len(header) == 19, len(header)
     rows = []
     for aid, akey, bid, bkey, ctx, syn, sn, lane, ln in DUOS:
         if aid == 12 and bid == 9:
             continue
-        row = [aid, akey, bid, bkey, ctx]
+        row = [aid, akey, bid, bkey, *duo_roles(ctx, aid, bid)]
         if syn is None:
             row += ["", "", "", 0, "insufficient", "false"]
         elif sn == 0:
@@ -308,7 +344,7 @@ def build_duos():
             lo, hi, w = ci(lane, ln, 4.20)
             row += [f3(lane), f3(lo), f3(hi), ln, support("synergy", ln, w), "true"]
         row.append(PATCH_WINDOW)
-        assert len(row) == 18, len(row)
+        assert len(row) == 19, len(row)
         rows.append(row)
     return header, rows
 
@@ -325,6 +361,9 @@ def write(name, header, rows):
 if __name__ == "__main__":
     import sys
     OUT = sys.argv[1]
-    write("champion_features_v16.20.csv", *build_champion_features())
+    write("champion_dimensions_v16.20.csv", *build_champion_dimensions())
+    write("peak_timing_v16.20.csv", *build_peak_timing())
+    write("champion_lane_strength_v16.20.csv", *build_champion_lane_strength())
+    write("champion_traits_v16.20.csv", *build_champion_traits())
     write("matchup_matrix_v16.20.csv", *build_matchups())
     write("duo_features_v16.20.csv", *build_duos())

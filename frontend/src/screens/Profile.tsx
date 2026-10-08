@@ -27,7 +27,7 @@ import { useSession } from '../store/session';
 
 /** Cómo se nombra cada tipo en el perfil, en el orden de `docs/30-ux-flujos.md` §6. */
 const COVERAGE: [QuestionType, string][] = [
-  ['pairwise_dimension', 'Champion pairs'],
+  ['pairwise_dimension', 'Champion rankings'],
   ['peak_timing', 'Power spikes'],
   ['lane_matchup', 'Lane matchups'],
   ['duo_synergy', 'Duos'],

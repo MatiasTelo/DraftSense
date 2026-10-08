@@ -143,17 +143,44 @@ async def _serve_honeypot_now(
     respondent.next_retest_at = FAR
     await db.commit()
     response = await as_respondent(client, token).get("/questions/next?count=1")
-    question_id: int = response.json()["questions"][0]["question_id"]
-    assert question_id in {q.question_id for q in catalog}
-    return question_id, response.text
+    item: dict[str, Any] = response.json()["questions"][0]
+    assert item["question_id"] in {q.question_id for q in catalog}
+    return item, response.text
 
 
-async def _answer(client: AsyncClient, token: str, question_id: int, choice: str) -> None:
+async def _ranked(db: AsyncSession, item: dict[str, Any], choice: str) -> dict[str, Any]:
+    """El `answer` de un ranking que dice `choice` sobre el par ancla (ADR-022).
+
+    `a` pone a `champion_a` del ancla primero y a `champion_b` último; `b`, al revés. El ítem no
+    dice cuál es el ancla —para eso es indistinguible—, así que se lee de la base.
+    """
+    if choice == "unknown":
+        return {"choice": "unknown"}
+    anchor = await db.get(Question, item["question_id"])
+    assert anchor is not None and anchor.champion_b is not None
+    top, bottom = (
+        (anchor.champion_a, anchor.champion_b)
+        if choice == "a"
+        else (anchor.champion_b, anchor.champion_a)
+    )
+    rest = [c["id"] for c in item["champions"] if c["id"] not in (top, bottom)]
+    return {"order": [top, *rest, bottom]}
+
+
+async def _answer(
+    client: AsyncClient, db: AsyncSession, token: str, item: dict[str, Any], choice: str
+) -> Any:
     response = await as_respondent(client, token).post(
         "/responses",
-        json={"question_id": question_id, "answer": {"choice": choice}, "response_time_ms": 2500},
+        json={
+            "question_id": item["question_id"],
+            "ranking_id": item["ranking_id"],
+            "answer": await _ranked(db, item, choice),
+            "response_time_ms": 2500,
+        },
     )
     assert response.status_code == 201
+    return response
 
 
 @requires_db
@@ -189,9 +216,9 @@ async def test_la_respuesta_a_una_honeypot_actualiza_el_trust_en_el_acto(
     expected_trust: str,
 ) -> None:
     row, token = respondent
-    question_id, _ = await _serve_honeypot_now(client, db, row, token, patch)
+    item, _ = await _serve_honeypot_now(client, db, row, token, patch)
 
-    await _answer(client, token, question_id, choice)
+    await _answer(client, db, token, item, choice)
 
     await db.refresh(row)
     assert (row.honeypot_attempts, row.honeypot_passed) == (attempts, passed)
@@ -207,11 +234,8 @@ async def test_ca303_el_trust_no_sale_por_la_api(
 ) -> None:
     """Ni en la respuesta del POST de una honeypot, ni en `/me`."""
     row, token = respondent
-    question_id, _ = await _serve_honeypot_now(client, db, row, token, patch)
-    posted = await as_respondent(client, token).post(
-        "/responses",
-        json={"question_id": question_id, "answer": {"choice": "b"}, "response_time_ms": 2500},
-    )
+    item, _ = await _serve_honeypot_now(client, db, row, token, patch)
+    posted = await _answer(client, db, token, item, "b")
     me = await as_respondent(client, token).get("/me")
 
     for body in (posted.text, me.text):
@@ -219,14 +243,18 @@ async def test_ca303_el_trust_no_sale_por_la_api(
         assert "honeypot" not in body
 
 
-def _answer_for(question: dict[str, Any]) -> dict[str, Any]:
+def _body_for(question: dict[str, Any]) -> dict[str, Any]:
+    """El cuerpo del POST para cualquier tipo servido; el tipo 1 ordena tal como llegó."""
+    body: dict[str, Any] = {"question_id": question["question_id"], "response_time_ms": 2500}
     match question["type"]:
         case "peak_timing":
-            return {"minute": 20}
+            body["answer"] = {"minute": 20}
         case "lane_matchup":
-            return {"choice": "even"}
+            body["answer"] = {"choice": "even"}
         case _:
-            return {"choice": "a"}
+            body["ranking_id"] = question["ranking_id"]
+            body["answer"] = {"order": [c["id"] for c in question["champions"]]}
+    return body
 
 
 @requires_db
@@ -252,14 +280,7 @@ async def test_ca301_sesenta_preguntas_traen_entre_cuatro_y_seis_honeypots(
         for question in batch[: 60 - answered]:
             if question["question_id"] in catalog:
                 positions.append(answered)
-            response = await http.post(
-                "/responses",
-                json={
-                    "question_id": question["question_id"],
-                    "answer": _answer_for(question),
-                    "response_time_ms": 2500,
-                },
-            )
+            response = await http.post("/responses", json=_body_for(question))
             assert response.status_code == 201
             answered += 1
 
@@ -304,14 +325,7 @@ async def test_ca301_con_la_precarga_del_frontend(
         question = queue.pop(0)
         if question["question_id"] in catalog:
             positions.append(answered)
-        response = await http.post(
-            "/responses",
-            json={
-                "question_id": question["question_id"],
-                "answer": _answer_for(question),
-                "response_time_ms": 2500,
-            },
-        )
+        response = await http.post("/responses", json=_body_for(question))
         assert response.status_code == 201
         answered += 1
         if len(queue) <= 2:
@@ -383,10 +397,11 @@ async def test_contestar_la_honeypot_libera_la_pendiente(
 ) -> None:
     row, token = respondent
     catalog = await _due_now(db, row, patch)
-    first = await _batch(client, token, 1)
-    assert first[0] in catalog
+    response = await as_respondent(client, token).get("/questions/next?count=1")
+    [item] = response.json()["questions"]
+    assert item["question_id"] in catalog
 
-    await _answer(client, token, first[0], "a")
+    await _answer(client, db, token, item, "a")
 
     await db.refresh(row)
     assert row.pending_honeypot is None

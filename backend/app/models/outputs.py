@@ -24,7 +24,16 @@ from app.models.enums import (
     SupportLevel,
 )
 
-EXPORT_KINDS = ("champion_features", "matchup_matrix", "duo_features", "quality_report")
+#: Los seis CSV de `docs/26-esquema-de-salida.md` §1 más el informe (ADR-023).
+EXPORT_KINDS = (
+    "champion_dimensions",
+    "peak_timing",
+    "champion_lane_strength",
+    "champion_traits",
+    "matchup_matrix",
+    "duo_features",
+    "quality_report",
+)
 
 
 class Aggregate(Base):

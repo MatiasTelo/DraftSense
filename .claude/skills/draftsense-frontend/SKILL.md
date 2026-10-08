@@ -28,7 +28,7 @@ sale del canvas de Claude Design, que las diseñó a partir de `docs/30-ux-flujo
 |---|---|
 | `src/lib/` | `client.ts` (una función por endpoint, `ApiError` y `NetworkError`) y `fingerprint.ts` |
 | `src/store/` | `session.ts` (identidad y contadores) y `queue.ts` (cola de preguntas y precarga) |
-| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `PairwiseDimensionCard`, `PeakTimingCard`, `LaneMatchupCard`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
+| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `DimensionRankingCard` (tipo 1, `@dnd-kit`), `PeakTimingCard`, `LaneMatchupCard`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
 | `src/screens/` | Una por ruta |
 
 **Del motor de tarjetas están el tipo 1, el tipo 2 y la variante 1v1 del tipo 3** (semana 4).
@@ -42,10 +42,13 @@ Cosas de las semanas 4 y 5 que no hay que deshacer:
 - **`Enter` lo maneja la tarjeta que tiene confirmación**, no `Play`, porque es la que conoce el
   valor. Ignora el `Enter` sobre un botón con foco, que el navegador ya convierte en clic. `Play`
   además tiene un candado sincrónico (`inFlight`) contra el doble envío.
-- **La posición de cada opción es fija** (semana 5). `PairwiseDimensionCard` pone `a` a la
-  izquierda por su clave, no por el orden del arreglo, y `LaneMatchupCard` dibuja la escala en el
-  orden en que llega. El *straightlining* del backend se cuenta por la clave de la opción
-  (`docs/22-calidad-de-datos.md` §5.2) y depende de eso. Hay tests que lo cuidan.
+- **La posición de cada opción es fija en el tipo 3** (semana 5). `LaneMatchupCard` dibuja la
+  escala en el orden en que llega: el *straightlining* del backend se cuenta por la clave de la
+  opción (`docs/22-calidad-de-datos.md` §5.2) y depende de eso. Hay tests que lo cuidan.
+- **El tipo 1 es un ranking** (ADR-022, 08/10). `DimensionRankingCard` ordena los cinco con
+  `@dnd-kit` (puntero, touch y teclado), confirma con *Confirm* o `Enter` y manda `ranking_id` con
+  el `{order}`. Quedó fuera del *straightlining*. El arrastre no se prueba en jsdom: se verifica a
+  mano a 360 px.
 - **La precarga manda los ids de la cola** (`fetchQuestions(BATCH_SIZE, queued)` en
   `store/queue.ts`). El servidor los usa para ubicar las preguntas nuevas —de eso dependen las
   cadencias de honeypots y retests— y para no repetirlas (`docs/12-api.md` §2.3, ADR-020). Si

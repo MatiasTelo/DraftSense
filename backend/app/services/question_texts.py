@@ -1,7 +1,8 @@
 """Los textos de las preguntas que no salen de un catálogo (ADR-018).
 
 El tipo 1 lee su enunciado y su definición de `dimensions`, porque agregar una dimensión es
-insertar una fila (RF-603). Los tipos 2 y 3 miden un único concepto fijo y no tienen tabla: sus
+insertar una fila (RF-603); sólo su instrucción de cómo ordenar, que no depende de la dimensión,
+vive acá. Los tipos 2 y 3 miden un único concepto fijo y no tienen tabla: sus
 textos viven acá, y el servidor los compone antes de enviarlos (`docs/12-api.md` §1.1). Son el
 texto literal que ve el usuario, en inglés (ADR-010); el español de la semana 8 entra en este
 mismo módulo.
@@ -16,9 +17,14 @@ from typing import Final
 
 from app.services.answers import PEAK_MAX_MINUTE, PEAK_MIN_MINUTE
 
-#: La opción de escape del tipo 1. El «no sé» es información real —alimenta `D_unknown_rate`—
-#: y por eso es una opción explícita y no la ausencia de respuesta.
+#: La opción de escape del tipo 1. El «no sé» es información real —alimenta `unknown_rate`—
+#: y por eso es una opción explícita y no la ausencia de respuesta. Desde ADR-022 vale para el
+#: ranking entero.
 UNKNOWN_LABEL: Final = "Not sure"
+
+#: La segunda línea del tipo 1: cómo se contesta un ranking (`docs/20-tipos-de-pregunta.md` §2).
+#: Es la misma para todas las dimensiones, así que no va en `dimensions`.
+RANKING_INSTRUCTION: Final = "Drag to order: most at the top."
 
 # --- Tipo 2: pico de poder (`docs/20-tipos-de-pregunta.md` §3) ---------------------------------
 

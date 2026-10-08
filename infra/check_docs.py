@@ -6,7 +6,8 @@ Corre en CI y también a mano. Comprueba tres cosas que se rompen solas con el t
 1. El DDL de `11-modelo-de-datos.md` parsea como Postgres válido, y sus claves foráneas e
    índices apuntan a tablas que existen.
 2. Ningún enlace interno entre documentos está roto.
-3. Los conteos de columnas que declara `26-esquema-de-salida.md` coinciden con su desglose.
+3. Los conteos de columnas que declara `26-esquema-de-salida.md` coinciden con su desglose y con
+   las cabeceras de los CSV de ejemplo de `docs/examples/`.
 
 Requiere `sqlglot`.
 """
@@ -38,17 +39,27 @@ UNPARSEABLE_BY_SQLGLOT = {
     "CREATE EXTENSION IF NOT EXISTS pgcrypto",
 }
 
-#: Bloques del CSV de campeones: cuántas columnas aporta cada uno.
-CHAMPION_FEATURE_BLOCKS = {
-    "identificación": 7,
-    "dimensiones (8 x 7)": 8 * 7,
-    "pico de poder": 10,
-    "fuerza de línea (3 x 5)": 3 * 5,
-    "sinergia": 3,
-    "atributos (7 x 5)": 7 * 5,
+#: Columnas de cada CSV de salida (ADR-023): identificación + lo propio de cada archivo.
+#: Los cuatro archivos por campeón repiten las 7 columnas de identificación.
+IDENTIFICATION = 7
+OUTPUT_COLUMNS = {
+    # dimension, score, IC (2), n, support, unknown_rate, norm
+    "champion_dimensions": IDENTIFICATION + 8,
+    "peak_timing": IDENTIFICATION + 10,  # peak_minute, IC (2), n, support, power_at_* (5)
+    "champion_lane_strength": IDENTIFICATION + 6,  # role, lane_strength, IC (2), n, support
+    "champion_traits": IDENTIFICATION + 6,  # trait, proportion, IC (2), n, support
+    "matchup_matrix": 12,
+    "duo_features": 19,
 }
-#: Magnitudes medidas por campeón: 8 dimensiones + pico + 3 líneas + sinergia + 7 atributos.
-CHAMPION_MAGNITUDES = 8 + 1 + 3 + 1 + 7
+#: Los archivos cuyo conteo declara el documento en su encabezado de sección.
+DECLARED_IN_HEADING = (
+    "champion_dimensions",
+    "peak_timing",
+    "champion_lane_strength",
+    "champion_traits",
+)
+#: Magnitudes medidas por campeón: 8 dimensiones + pico + 3 líneas + 7 atributos.
+CHAMPION_MAGNITUDES = 8 + 1 + 3 + 7
 
 EXPECTED_TABLES = {
     "patches",
@@ -58,6 +69,7 @@ EXPECTED_TABLES = {
     "dimensions",
     "traits",
     "respondents",
+    "rankings",
     "questions",
     "responses",
     "aggregates",
@@ -130,12 +142,31 @@ def check_links(errors: list[str]) -> None:
 
 def check_output_schema(errors: list[str]) -> None:
     text = (DOCS / "26-esquema-de-salida.md").read_text(encoding="utf-8")
-    total = sum(CHAMPION_FEATURE_BLOCKS.values())
-    print(f"columnas de champion_features: {total}, magnitudes: {CHAMPION_MAGNITUDES}")
-    if f"{total} columnas" not in text:
-        errors.append(f"26-esquema-de-salida.md no declara '{total} columnas'")
+    print(f"columnas por archivo: {OUTPUT_COLUMNS}, magnitudes: {CHAMPION_MAGNITUDES}")
     if f"{CHAMPION_MAGNITUDES} magnitudes" not in text:
         errors.append(f"26-esquema-de-salida.md no declara '{CHAMPION_MAGNITUDES} magnitudes'")
+    for kind in DECLARED_IN_HEADING:
+        heading = f"`{kind}_v<patch>.csv`: {OUTPUT_COLUMNS[kind]} columnas"
+        if heading not in text:
+            errors.append(f"26-esquema-de-salida.md no declara '{heading}'")
+    if f"**{OUTPUT_COLUMNS['duo_features']} columnas" not in text:
+        errors.append("26-esquema-de-salida.md no declara las columnas de duo_features")
+
+    # Los ejemplos son el fixture de los tests de exportación: su cabecera manda tanto como el doc.
+    examples = DOCS / "examples"
+    for kind, expected in OUTPUT_COLUMNS.items():
+        files = sorted(examples.glob(f"{kind}_v*.csv"))
+        if len(files) != 1:
+            errors.append(
+                f"docs/examples/ debería tener un único {kind}_v*.csv, tiene {len(files)}"
+            )
+            continue
+        header = files[0].read_text(encoding="utf-8").splitlines()[0].split(",")
+        if len(header) != expected:
+            errors.append(f"{files[0].name}: {len(header)} columnas, se esperaban {expected}")
+    leftovers = sorted(p.name for p in examples.glob("champion_features_v*.csv"))
+    if leftovers:
+        errors.append(f"docs/examples/ conserva el archivo ancho reemplazado: {leftovers}")
 
 
 def main() -> int:

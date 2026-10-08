@@ -21,11 +21,13 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import QuestionType, Respondent, Response
-from app.services import app_settings, trust
+from app.services import app_settings, submissions, trust
 from app.services.answers import UNKNOWN_CHOICE
 
 #: Los tipos con posición en pantalla. El tipo 2 es un slider; los 4 y 5 entran en la semana 8.
-STRAIGHTLINE_TYPES: Final = (QuestionType.PAIRWISE_DIMENSION, QuestionType.LANE_MATCHUP)
+#: El tipo 1 salió el 08/10: es un ranking de cinco en orden aleatorio que se ordena arrastrando,
+#: y «tocar siempre la misma posición» deja de estar definido (ADR-022, 22 §5.2).
+STRAIGHTLINE_TYPES: Final = (QuestionType.LANE_MATCHUP,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,12 +81,18 @@ def count(rows: Sequence[HistoryRow], fast_answer_ms: int, run_length: int) -> t
 async def history(
     session: AsyncSession, respondent_ids: Collection[uuid.UUID]
 ) -> dict[uuid.UUID, list[HistoryRow]]:
-    """Las respuestas de cada respondedor, en el orden en que las dio."""
+    """Las respuestas de cada respondedor, en el orden en que las dio.
+
+    Una por envío: las diez filas de un ranking del tipo 1 comparten `response_time_ms`, y
+    contarlas a todas multiplicaría por diez una respuesta apurada (ADR-022).
+    """
     if not respondent_ids:
         return {}
     rows = await session.execute(
-        sa.select(
-            Response.respondent_id, Response.type, Response.answer, Response.response_time_ms
+        submissions.heads(
+            sa.select(
+                Response.respondent_id, Response.type, Response.answer, Response.response_time_ms
+            ).select_from(Response)
         )
         .where(Response.respondent_id.in_(list(respondent_ids)))
         .order_by(Response.respondent_id, Response.created_at, Response.response_id)

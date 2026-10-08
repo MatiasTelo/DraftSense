@@ -1,6 +1,10 @@
 # 21 — Sampling adaptativo
 
-> Estado: **v1** · Última revisión: 16/09/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 08/10/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+>
+> **08/10/2026:** el tipo 1 se sirve como un ranking de cinco campeones armado alrededor de un par
+> ancla (§5.1, [ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Todo lo que este documento
+> dice sobre elegir «una pregunta de tipo 1» se refiere desde ahora a elegir ese par ancla.
 
 Cómo el sistema decide **qué pregunta mostrar a continuación**. Es el componente que convierte un
 presupuesto chico de respuestas —1 000 comprometidas, unos miles como meta de trabajo— en un
@@ -201,7 +205,7 @@ decisión que se pueda equivocar.
 >
 > - **Los tres tipos servidos tienen déficit**, con la misma fórmula sobre su propia celda:
 >   (campeón, dimensión) en el tipo 1, campeón en el tipo 2 y (campeón, rol) en el tipo 3. Las
->   cuentas son las de `D_n`, `peak_minute_n` y `lane_strength_R_n` de
+>   cuentas son las de `score_n`, `peak_minute_n` y `lane_strength_n` de
 >   [`25-agregacion.md`](25-agregacion.md) §5.
 > - **`n` cuenta las respuestas que entrarían a la agregación**: las del parche vigente que pasan
 >   los filtros de 25 §1 (respondedor no marcado, `trust_score ≥ export.min_trust`, sin honeypots
@@ -341,6 +345,39 @@ por pregunta: `GET /questions/next?count=5` hace una sola consulta sobre `respon
 > pie de la letra, §10 pasaría directo al retest, y con `ε = 0.30` el 70 % de los sorteos
 > terminaría en un retest o en un lote corto. La transición continua que promete §4.2 necesita
 > este camino. El retest sigue siendo el último recurso, cuando ningún tipo tiene nada.
+
+### 5.1 El tipo 1: un par ancla y tres campeones más
+
+> **Agregado el 08/10/2026** ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
+
+Cuando la posición es de tipo 1, el sampler hace lo mismo que antes para elegir **un par y su
+dimensión** —honeypot o retest si toca su cadencia, si no el mejor puente, si no explotación o
+exploración—, y ese par pasa a ser el **ancla** del ranking. Después:
+
+1. Sortea **tres campeones más**, distintos del ancla y entre sí, de los habilitados del espacio de
+   §2.3.
+2. **Rechaza y vuelve a sortear** si alguno de los otros nueve pares es una honeypot en esa
+   dimensión: una honeypot sólo se contesta como ancla y con su cadencia. Si después de
+   `sampler.max_rejection_retries` sorteos no lo consigue, sirve el último sorteo, y al guardar
+   **no inserta la fila** del par que es honeypot.
+3. **No** rechaza pares que el respondedor ya contestó: esos se ignoran al guardar. Filtrarlos
+   achicaría cada vez más las combinaciones posibles a medida que la persona avanza.
+4. Crea la fila de `rankings` con los cinco campeones en orden aleatorio, que es el orden en que se
+   muestran.
+
+Lo que ya respondió el respondedor (§5) se sigue excluyendo **sólo para el ancla**. `queued` lleva
+el `question_id` del ancla, así que tampoco se repite un ancla que el cliente tiene en cola.
+
+**El ancla tampoco puede ser un par de un ranking pendiente**: ni de los que el cliente tiene en
+cola (los que `queued` nombra y siguen sin contestar), ni de los que ya salieron en el mismo lote.
+Si lo fuera, contestar primero el otro ranking dejaría ese par respondido y el ancla del segundo
+sería un `409`. Por eso el ranking se arma apenas se elige su ancla, y sus diez pares quedan
+reservados para el resto del lote. Con el pool real —decenas de campeones y ocho dimensiones— la
+reserva casi no achica el espacio; en un pool chico puede agotar el tipo 1 antes del final del lote.
+
+**Un ranking ocupa una posición**, igual que cualquier otra pregunta: para el arranque (§6), la
+regla de variedad y las cadencias, cuenta como una respuesta y no como diez. La regla de variedad
+mira el tipo de los últimos **envíos**, no de las últimas filas de `responses`.
 
 ---
 

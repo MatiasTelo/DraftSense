@@ -155,7 +155,11 @@ async def dimension(db: AsyncSession) -> Dimension:
 
 @pytest.fixture
 async def champions(db: AsyncSession, patch: Patch) -> list[Champion]:
-    """Cuatro campeones de tier 1, suficientes para armar pares distintos."""
+    """Cuatro campeones de tier 1, suficientes para armar pares distintos.
+
+    El tipo 1 necesita cinco habilitados para armar un ranking (ADR-022): los tests que lo sirven
+    completan el pool con `pad_pool`.
+    """
     rows = [
         Champion(
             riot_key=f"TestChamp{i}",
@@ -173,6 +177,12 @@ async def champions(db: AsyncSession, patch: Patch) -> list[Champion]:
     for row in rows:
         await db.refresh(row)
     return rows
+
+
+@pytest.fixture
+async def ranking_pool(db: AsyncSession, champions: list[Champion]) -> list[Champion]:
+    """`champions` completados a diez, para que se sirvan varios rankings seguidos (ADR-022)."""
+    return await pad_pool(db, champions)
 
 
 @pytest.fixture
@@ -226,6 +236,24 @@ async def make_champions(
     for row in rows:
         await db.refresh(row)
     return rows
+
+
+async def pad_pool(
+    db: AsyncSession, champions: Sequence[Champion], size: int = 10
+) -> list[Champion]:
+    """Los mismos campeones, más los que falten para llegar a `size`. Los de relleno se llaman
+    `Pad…`.
+
+    Un ranking del tipo 1 necesita cinco campeones, y sus diez pares no pueden ser el ancla de
+    otro ranking del mismo lote (ADR-022). Con diez campeones y una dimensión hay 45 pares: alcanza
+    para servir varios rankings seguidos sin que el tipo 1 se agote.
+    """
+    missing = size - len(champions)
+    if missing <= 0:
+        return list(champions)
+    patch = await db.get(Patch, champions[0].patch_first_seen)
+    assert patch is not None
+    return [*champions, *await make_champions(db, patch, missing, prefix="Pad")]
 
 
 async def make_dimensions(db: AsyncSession, codes: Sequence[str]) -> list[Dimension]:

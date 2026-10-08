@@ -1,6 +1,11 @@
 # 12 — Contrato de la API REST
 
-> Estado: **v1** · Última revisión: 16/09/2026
+> Estado: **v1** · Última revisión: 08/10/2026
+>
+> **08/10/2026:** el tipo 1 es un ranking de cinco campeones
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)): cambian su ítem en §2.3, su envío y su
+> `feedback` en §2.4, un error nuevo en §3 y el conteo del rate limit en §4. Cambia también el
+> texto que muestra el cliente cuando todavía no hay consenso.
 
 Base: `https://api.draftsense.dev/api/v1` · OpenAPI autogenerada en `/docs`.
 
@@ -159,25 +164,33 @@ tarjeta y tarjeta.
 
 #### `pairwise_dimension`
 
+> **Cambiado el 08/10/2026** ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). El ítem ya no
+> trae dos opciones `a` / `b`: trae **cinco campeones para ordenar**, en orden aleatorio.
+> `question_id` es el del **par ancla** que eligió el sampler —es el que el cliente manda en
+> `queued`— y `ranking_id` identifica el ranking servido.
+
 ```jsonc
 {
   "question_id": 88412,
+  "ranking_id": 5021,
   "type": "pairwise_dimension",
   "prompt": "Who has more engage?",
+  "instruction": "Drag to order: most at the top.",
   "help": { "label": "Engage", "text": "Starting fights on your terms." },
-  "options": [
-    { "key": "a", "champions": [
-        { "id": 12, "key": "Alistar", "name": "Alistar",
-          "image_url": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Alistar.png" }
-    ]},
-    { "key": "b", "champions": [
-        { "id": 157, "key": "Yasuo", "name": "Yasuo",
-          "image_url": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Yasuo.png" }
-    ]},
-    { "key": "unknown", "label": "Not sure", "champions": [] }
-  ]
+  "champions": [
+    { "id": 12, "key": "Alistar", "name": "Alistar",
+      "image_url": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Alistar.png" },
+    { "id": 157, "key": "Yasuo", "name": "Yasuo", "image_url": "…" },
+    { "id": 89, "key": "Leona", "name": "Leona", "image_url": "…" },
+    { "id": 24, "key": "Jax", "name": "Jax", "image_url": "…" },
+    { "id": 99, "key": "Lux", "name": "Lux", "image_url": "…" }
+  ],
+  "unknown_label": "Not sure"
 }
 ```
+
+Nada en el ítem dice cuál de los diez pares es el ancla, ni si el ancla es una honeypot o un retest
+(§1.4).
 
 #### `peak_timing`
 
@@ -309,12 +322,33 @@ Misma forma; `sides` lleva dos campeones por lado y las etiquetas hablan de pare
 
 ```jsonc
 // request
-{ "question_id": 88412, "answer": { "choice": "a" }, "response_time_ms": 2140 }
+{ "question_id": 77310, "answer": { "choice": "a_slight" }, "response_time_ms": 4120 }
 ```
 
 La forma de `answer` depende del tipo de la pregunta (ver
 [`11-modelo-de-datos.md`](11-modelo-de-datos.md) §5). El servidor la valida contra el tipo real de
 `question_id`, no contra lo que declare el cliente.
+
+> **Agregado el 08/10/2026.** El tipo 1 manda además `ranking_id`, y su `answer` es el orden de los
+> cinco campeones, de más a menos, o *Not sure* para el ranking entero
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)):
+>
+> ```jsonc
+> { "question_id": 88412, "ranking_id": 5021,
+>   "answer": { "order": [89, 12, 24, 99, 157] }, "response_time_ms": 9140 }
+> { "question_id": 88412, "ranking_id": 5021,
+>   "answer": { "choice": "unknown" }, "response_time_ms": 3020 }
+> ```
+>
+> - `order` tiene que ser una permutación de los cinco campeones del ranking; si no, `400
+>   answer_shape_mismatch`.
+> - El ranking tiene que existir, ser del respondedor de la sesión y tener a `question_id` como
+>   ancla; si no, `404 ranking_not_found`.
+> - El servidor guarda **diez filas** en `responses`, una por par, con `{"choice": "a" | "b"}` en
+>   forma canónica, o diez `unknown`. Un par que el respondedor ya había contestado se ignora y se
+>   guardan los demás. Si el ancla ya estaba contestada, el envío entero es un `409
+>   duplicate_response`.
+> - Para el progreso, el rate limit y las rachas, **el ranking cuenta como una respuesta**.
 
 ```jsonc
 // 201 Created
@@ -336,9 +370,14 @@ La forma de `answer` depende del tipo de la pregunta (ver
 }
 ```
 
-**`feedback` es `null` cuando `sample_size < 20`.** El cliente muestra entonces *"you're one of the
-first to answer this"*, para no anclar las respuestas de los primeros usuarios sobre ruido
+**`feedback` es `null` cuando `sample_size < 20`.** El cliente muestra entonces *"You're one of the
+first to answer this"* y, debajo, *"There aren't enough answers yet to show how the community
+compares."*, para no anclar las respuestas de los primeros usuarios sobre ruido
 ([ADR-012](13-adr/ADR-012-sampler-uniforme-en-arranque-en-frio.md)).
+
+> **Cambiado el 08/10/2026.** La segunda línea es nueva: la primera sola no explicaba por qué no
+> aparecía la comparación con la comunidad. Pedido en la reunión del 05/10 con el tutor de la
+> organización.
 
 `consensus` sale del campo denormalizado `questions.answer_counts`, refrescado cada 15 minutos. Puede
 estar levemente desactualizado; es irrelevante para un mensaje motivacional y evita un `GROUP BY` en
@@ -361,6 +400,19 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 > - En `lane_matchup`, `consensus` tiene las cinco claves de la escala y `agreed_with_majority`
 >   compara contra el **nivel exacto** más votado: *wins hard* y *wins slightly* del mismo campeón
 >   son respuestas distintas.
+
+> **Cambiado el 08/10/2026.** En `pairwise_dimension` el feedback es por pares
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)):
+>
+> ```jsonc
+> "feedback": { "pairs_agreed": 7, "pairs_compared": 9, "sample_size": 412 }
+> ```
+>
+> `pairs_compared` son los pares del ranking con al menos `sampler.consensus_threshold` respuestas,
+> `pairs_agreed` en cuántos de ellos el orden del usuario coincide con la opción más votada, y
+> `sample_size` la suma de respuestas de esos pares. El cliente muestra *"You agree with the
+> community on 7 of 9 pairs"*. Si ningún par llega al umbral, o si la respuesta fue *Not sure*,
+> `feedback` es `null`.
 
 ---
 
@@ -387,6 +439,10 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 ```
 
 `trust_score` **no se expone**, ni ninguna métrica de la que se pueda despejar.
+
+> **08/10/2026.** `coverage.pairwise_dimension` cuenta **rankings**, no pares: cada ranking
+> contestado suma 1, igual que en `answers_count`
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
 
 Las dos rachas miden cosas distintas: `current_streak` son respuestas seguidas sin una pausa de más
 de 30 minutos, `current_day_streak` son días consecutivos con al menos 5 respuestas. Ninguna depende
@@ -528,6 +584,7 @@ Formato uniforme, compatible con el manejador de excepciones de FastAPI:
 | `400` | `invalid_parameter` | Parámetro de query fuera de rango |
 | `401` | `admin_key_required` | Falta o es inválido `X-Admin-Key` |
 | `404` | `question_not_found` | `question_id` inexistente |
+| `404` | `ranking_not_found` | Tipo 1: `ranking_id` falta, no existe, es de otro respondedor o no tiene a `question_id` como ancla |
 | `409` | `duplicate_response` | Ya respondió esa pregunta y no está marcada como retest |
 | `422` | `validation_error` | Error de esquema de Pydantic |
 | `429` | `rate_limit_exceeded` | Ver §4 |
@@ -572,6 +629,10 @@ Al excederse, `429` con `Retry-After` en segundos.
 Se implementa **contando sobre el índice `responses (respondent_id, created_at DESC)`**, sin Redis
 ni contador en memoria. Además de ahorrar infraestructura, evita que el límite se reinicie en cada
 despliegue.
+
+> **Cambiado el 08/10/2026.** Se cuentan **envíos**, no filas: un ranking del tipo 1 son diez filas
+> y una sola respuesta ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
+> [`11-modelo-de-datos.md`](11-modelo-de-datos.md) §6).
 
 ---
 

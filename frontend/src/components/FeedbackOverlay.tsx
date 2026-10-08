@@ -9,15 +9,19 @@
  * Dos textos que no se tocan:
  *
  * - Con menos de 20 respuestas no se muestra consenso sino *«You're one of the first to answer
- *   this»*. No es un estado vacío disfrazado: mostrar una distribución sobre cinco respuestas
- *   anclaría a los primeros usuarios sobre ruido, y durante los primeros días **todas** las
- *   preguntas caen ahí (ADR-012, RF-114).
+ *   this»* y, debajo, *«There aren't enough answers yet to show how the community compares.»*.
+ *   No es un estado vacío disfrazado: mostrar una distribución sobre cinco respuestas anclaría a
+ *   los primeros usuarios sobre ruido, y durante los primeros días **todas** las preguntas caen
+ *   ahí (ADR-012, RF-114). La segunda línea se agregó el 08/10, a pedido del tutor de la
+ *   organización: sin ella no quedaba claro por qué no aparecía la comparación.
  * - La discrepancia se dice *«You're in the 19%»*, **sin ninguna connotación de error**. No hay
  *   respuesta correcta: la discrepancia es el dato, no una falla del usuario. Decir «wrong»
  *   arruinaría la motivación y la calidad de las respuestas siguientes.
  *
  * El tipo 2 no tiene opciones sino un minuto, y su consenso es la mediana: se informa con una
- * frase —*«Most players said 26 min. You said 27.»*— y sin barras.
+ * frase —*«Most players said 26 min. You said 27.»*— y sin barras. El tipo 1 es un ranking y se
+ * compara por pares —*«You agree with the community on 7 of 9 pairs»*—, también sin barras
+ * (ADR-022).
  */
 
 import type { Feedback } from '../api';
@@ -55,6 +59,7 @@ export function FeedbackOverlay({
   // una clave nula no puede romper la tarjeta que sigue.
   const consensus = feedback?.consensus ?? undefined;
   const median = feedback?.consensus_median ?? undefined;
+  const pairsCompared = feedback?.pairs_compared ?? undefined;
   const yourShare = consensus?.[yourKey] ?? 0;
   const milestone = streak > 0 && streak % 10 === 0;
 
@@ -72,9 +77,19 @@ export function FeedbackOverlay({
           )}
 
           {feedback === null ? (
-            <p className="flex items-center gap-3 text-center font-display text-[22px] leading-snug font-semibold text-ink">
-              <span className="text-[19px] text-cyan">⚡</span>
-              You&apos;re one of the first to answer this
+            <>
+              <p className="flex items-center gap-3 text-center font-display text-[22px] leading-snug font-semibold text-ink">
+                <span className="text-[19px] text-cyan">⚡</span>
+                You&apos;re one of the first to answer this
+              </p>
+              <p className="max-w-[300px] text-center text-sm leading-relaxed text-ink-4">
+                There aren&apos;t enough answers yet to show how the community compares.
+              </p>
+            </>
+          ) : pairsCompared !== undefined ? (
+            <p className="text-center font-display text-[22px] leading-snug font-semibold text-ink">
+              You agree with the community on {feedback.pairs_agreed ?? 0} of {pairsCompared}{' '}
+              {pairsCompared === 1 ? 'pair' : 'pairs'}
             </p>
           ) : median !== undefined ? (
             <p className="text-center font-display text-[22px] leading-snug font-semibold text-ink">
@@ -91,7 +106,7 @@ export function FeedbackOverlay({
             </p>
           )}
 
-          {median !== undefined && (
+          {(median !== undefined || pairsCompared !== undefined) && (
             <p className="font-mono text-[11px] tracking-[0.14em] text-faint uppercase">
               {feedback?.sample_size} answers
             </p>

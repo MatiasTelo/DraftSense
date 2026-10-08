@@ -27,8 +27,28 @@ describe('FeedbackOverlay', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       "You're one of the first to answer this",
     );
+    // La segunda línea explica por qué no hay comparación (pedido del 05/10).
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "There aren't enough answers yet to show how the community compares.",
+    );
     // No hay distribución que mostrar: durante los primeros días todas las preguntas caen acá.
     expect(screen.queryByText('Alistar')).not.toBeInTheDocument();
+  });
+
+  it('CA-507 — en el ranking del tipo 1 dice en cuántos pares coincide, sin barras', () => {
+    render(
+      <FeedbackOverlay
+        feedback={{ pairs_agreed: 7, pairs_compared: 9, sample_size: 412 }}
+        labels={[]}
+        yourKey=""
+        streak={3}
+      />,
+    );
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('You agree with the community on 7 of 9 pairs');
+    expect(status).toHaveTextContent('412 answers');
+    expect(status).not.toHaveTextContent('%');
   });
 
   it('muestra el porcentaje de acuerdo cuando coincide con la mayoría', () => {

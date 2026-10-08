@@ -11,6 +11,8 @@ from app.schemas.common import is_absent
 
 class ResponseIn(BaseModel):
     question_id: int
+    #: Sólo el tipo 1: el ranking servido, cuyo ancla tiene que ser `question_id` (ADR-022).
+    ranking_id: int | None = None
     #: La forma del `answer` depende del tipo real de la pregunta, no de lo que declare el
     #: cliente: se valida contra `questions.type` leído de la base (RF-108).
     answer: dict[str, Any]
@@ -21,8 +23,9 @@ class Feedback(BaseModel):
     """Se omite entero cuando el soporte es menor a 20 (ADR-012, RF-114).
 
     Cada tipo usa un subconjunto de campos: los de elección, `consensus` y
-    `agreed_with_majority`; el tipo 2, `consensus_median` y `your_answer`. Los que no aplican no
-    viajan, ni siquiera en `null` (`docs/12-api.md` §2.4).
+    `agreed_with_majority`; el tipo 2, `consensus_median` y `your_answer`; el tipo 1, que es un
+    ranking, `pairs_agreed` y `pairs_compared` (ADR-022). Los que no aplican no viajan, ni siquiera
+    en `null` (`docs/12-api.md` §2.4).
     """
 
     consensus: dict[str, float] | None = Field(default=None, exclude_if=is_absent)
@@ -30,6 +33,10 @@ class Feedback(BaseModel):
     consensus_median: int | None = Field(default=None, exclude_if=is_absent)
     your_answer: int | None = Field(default=None, exclude_if=is_absent)
     agreed_with_majority: bool | None = Field(default=None, exclude_if=is_absent)
+    #: Tipo 1: en cuántos de los pares con soporte coincide el orden con la mayoría.
+    pairs_agreed: int | None = Field(default=None, exclude_if=is_absent)
+    #: Tipo 1: cuántos pares del ranking tienen al menos `sampler.consensus_threshold` respuestas.
+    pairs_compared: int | None = Field(default=None, exclude_if=is_absent)
     sample_size: int
 
 

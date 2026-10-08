@@ -7,7 +7,7 @@ description: >-
   ante cualquier tarea de ingeniería o ciencia de datos del proyecto. Activar con: Bradley-Terry,
   `choix`, ILSR, iteración MM de Hunter, Rao-Kupper, bootstrap, intervalo de confianza, intervalo de
   Wilson, alfa de Krippendorff, mediana ponderada, trust score como peso, decaimiento por recencia,
-  ventana de parches, conectividad del grafo de comparaciones, `champion_features`, `matchup_matrix`,
+  ventana de parches, conectividad del grafo de comparaciones, `champion_dimensions`, `peak_timing`, `champion_lane_strength`, `champion_traits`, `matchup_matrix`,
   `duo_features`, `_support`, `_n`, `power_at_*`, `peak_minute`, `synergy`, `lane_strength`,
   reproducibilidad, SHA-256 de una exportación, o el Informe de Calidad de Datos. Complementa a
   `draftsense` (alcance) y a `draftsense-backend` (el código que persiste las respuestas): las

@@ -1,6 +1,12 @@
 # 25 — Pipeline de agregación: del respondedor al CSV
 
-> Estado: **v1** · Última revisión: 15/09/2026 · Ola 4 · Desbloquea la semana 9 del cronograma
+> Estado: **v1** · Última revisión: 08/10/2026 · Ola 4 · Desbloquea la semana 9 del cronograma
+>
+> **08/10/2026:** la salida por campeón son cuatro archivos en formato largo, `synergy_mean` se
+> eliminó y `duo_features` lleva `role_a` / `role_b`
+> ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Las comparaciones del tipo 1 llegan de
+> a diez por ranking ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Los estimadores no
+> cambian: cambia a qué archivo y columna va cada resultado.
 
 Qué hace exactamente el sistema con cada dato que produce una persona —los tres que declara al
 entrar y cada respuesta que da después— desde que la fila entra a `responses` hasta que sale como
@@ -36,8 +42,10 @@ Requerimientos que implementa: RF-005, RF-206, RF-501 a RF-510, RF-512.
                                              │
                      ┌───────────────────────┼───────────────────────┐
                      ▼                       ▼                       ▼
-            champion_features.csv    matchup_matrix.csv      duo_features.csv
-                 126 columnas            12 columnas            18 columnas
+            4 archivos por campeón   matchup_matrix.csv      duo_features.csv
+            dimensions · peak_timing     12 columnas            19 columnas
+            lane_strength · traits
+            (15 · 17 · 13 · 13 col.)
 ```
 
 La flecha tachada es el punto que más se malinterpreta y por eso está en el mapa: **lo que el
@@ -120,7 +128,7 @@ se trata igual:**
 
 | Tipo | Opción | Qué se hace con ella |
 |---|---|---|
-| 1 — pareada | `choice: "unknown"` | Fuera del ajuste de Bradley-Terry; **entra a `D_unknown_rate`** (§5.1) |
+| 1 — pareada | `choice: "unknown"` | Fuera del ajuste de Bradley-Terry; **entra a `unknown_rate`** (§5.1) |
 | 2 — pico | *(no existe)* | Un slider no tiene "no sé": si no lo movió, lo delata `response_time_ms` |
 | 3 — matchup | `choice: "even"` | **Es un dato.** Lo consume el umbral `τ₁` del modelo ordinal (§5.3) |
 | 4 — sinergia | `choice: "similar"` | **Es un dato.** Lo consume el umbral `τ` (§5.5) |
@@ -207,7 +215,7 @@ que permite pedirlas sin login y sin consentimiento de datos personales
 | **No ponderan** | No aparecen en `peso(r)` (§2.1). Una respuesta de un *challenger* declarado y una de un *iron* declarado pesan exactamente lo mismo si tienen el mismo trust y la misma antigüedad |
 | **No filtran** | Ningún valor —ni `NULL`— excluye a nadie de una corrida. Los filtros son los cinco de §1.2 y ninguno los menciona |
 | **No dirigen el sampler** | A nadie se le muestran preguntas distintas por lo que declaró. El sampler decide por escasez, entropía, déficit de cobertura y puente ([`21-sampler.md`](21-sampler.md) §3), sobre variables de la pregunta, no del respondedor |
-| **No salen en ningún CSV** | Las tres salidas son a nivel campeón o par de campeones. Ninguna de las 126 + 12 + 18 columnas contiene un atributo de una persona, ni siquiera agregado |
+| **No salen en ningún CSV** | Las tres salidas son a nivel campeón o par de campeones. Ninguna columna de los seis CSV contiene un atributo de una persona, ni siquiera agregado |
 
 ### 3.3 Por qué no ponderan
 
@@ -298,8 +306,8 @@ El mismo análisis se corre con `declared_hours_bucket`, que es la otra variable
 `declared_main_role` no está ordenado, así que la comparación de §3.5 no aplica igual. Lo que sí
 aporta es una advertencia de validez sobre tres columnas concretas.
 
-`lane_strength_top`, `lane_strength_mid` y `lane_strength_adc` salen de preguntas sobre un carril
-específico. El Informe de Calidad de Datos publica, por cada rol, **qué fracción de las respuestas
+Las tres filas por campeón de `champion_lane_strength` (`top`, `mid` y `adc`) salen de preguntas
+sobre un carril específico. El Informe de Calidad de Datos publica, por cada rol, **qué fracción de las respuestas
 de tipo 3 sobre ese rol vino de gente que declaró jugarlo como principal**:
 
 ```
@@ -377,7 +385,7 @@ Dejarlo escrito con su disparador es lo que separa un límite conocido de un des
 
 ## 4. El bloque común a toda magnitud
 
-Las 20 magnitudes de `champion_features` y las 3 de las otras dos salidas comparten el mismo
+Las 19 magnitudes de los cuatro archivos por campeón y las 3 de las otras dos salidas comparten el mismo
 esqueleto. Se define una vez acá y §5 sólo especifica el estimador.
 
 ### 4.1 El valor
@@ -466,8 +474,8 @@ Fijo, porque de él depende que el SHA-256 sea reproducible (CA-408).
 | Qué | Formato | Ejemplo |
 |---|---|---|
 | Scores en log-odds y sus IC | `%.3f` | `-0.180` |
-| Proporciones (`trait_*`, `_norm`) y sus IC | `%.3f` | `0.040` |
-| `*_unknown_rate` | `%.2f` | `0.34` |
+| Proporciones (`proportion`, `_norm`) y sus IC | `%.3f` | `0.040` |
+| `unknown_rate` | `%.2f` | `0.34` |
 | `power_at_*` | `%.2f` | `0.65` |
 | `peak_minute` y su IC | entero | `22` |
 | `_n` | entero | `148` |
@@ -475,9 +483,12 @@ Fijo, porque de él depende que el SHA-256 sea reproducible (CA-408).
 | Vacío | cadena vacía | `,,` |
 
 Codificación UTF-8 sin BOM, fin de línea `\n`, separador `,`, sin comillas salvo que el valor las
-necesite. Orden de filas: `champion_features` por `champion_id`; `matchup_matrix` por
+necesite. Orden de filas: `peak_timing` por `champion_id`; `champion_dimensions` por
+`(champion_id, dimension)`, con las dimensiones en el orden de 26 §3.2; `champion_lane_strength`
+por `(champion_id, role)` en el orden `top`, `mid`, `adc`; `champion_traits` por
+`(champion_id, trait)` en el orden de 26 §3.5; `matchup_matrix` por
 `(role, champion_a_id, champion_b_id)`; `duo_features` por
-`(duo_context, champion_a_id, champion_b_id)`.
+`(role_a, role_b, champion_a_id, champion_b_id)`.
 
 ### 4.7 Límite conocido: el bootstrap no agrupa por respondedor
 
@@ -499,6 +510,12 @@ Cómo se resuelve, sin cambiar el contrato por cuenta propia:
    deja de ser académica y corresponde un ADR que reemplace lo fijado en 26 §3.2.
 3. Se decide en la semana 10, con los datos del piloto sobre la mesa, no antes.
 
+> **Agregado el 08/10/2026.** Desde que el tipo 1 es un ranking de cinco
+> ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), las diez comparaciones de un mismo
+> ranking tampoco son independientes: son transitivas por construcción. El remuestreo por
+> respondedor de este punto las agrupa naturalmente, así que el mismo criterio sirve para decidir
+> también sobre esto.
+
 ---
 
 ## 5. Los estimadores, uno por tipo de pregunta
@@ -506,7 +523,9 @@ Cómo se resuelve, sin cambiar el contrato por cuenta propia:
 ### 5.1 Tipo 1 → las 8 dimensiones
 
 **Entra:** respuestas `pairwise_dimension` con `choice ∈ {a, b}`, agrupadas por `dimension_id`.
-**Sale:** 56 columnas de `champion_features` (7 por dimensión).
+Desde ADR-022 cada ranking aporta hasta diez de esas filas, una por par: el estimador no distingue
+de qué ranking vino cada comparación.
+**Sale:** `champion_dimensions`, una fila por (campeón, dimensión) con 8 columnas propias.
 **Corridas:** una **independiente por dimensión**. Nada se comparte entre dimensiones.
 
 #### El modelo
@@ -552,24 +571,26 @@ comportamiento deseable.
 > mantiene finito el ajuste **dentro** de una componente. La conectividad se sigue detectando y
 > reportando como manda el ADR (§7).
 
-#### Las siete columnas
+#### Las columnas
 
 | Columna | Cómo se calcula |
 |---|---|
-| `D` | `θᵢ` centrado sobre los campeones del export con estimación en esa dimensión (§4.1) |
-| `D_ci_low`, `D_ci_high` | Bootstrap de §4.2 sobre las comparaciones de esa dimensión |
-| `D_n` | Conteo crudo de respuestas con `choice ∈ {a,b}` en las que participa el campeón, en esa dimensión |
-| `D_support` | Umbrales de Dimensiones: `n ≥ 25` y ancho `≤ 0.60` → `solid` |
-| `D_unknown_rate` | `Σ peso(unknown) / Σ peso(todas, incluidas unknown)` sobre las preguntas de esa dimensión que involucran al campeón |
-| `D_norm` | `(D − mín) / (máx − mín)` sobre el export. Vacía si menos de 2 campeones tienen valor |
+| `dimension` | Código de la dimensión de la corrida |
+| `score` | `θᵢ` centrado sobre los campeones del export con estimación en esa dimensión (§4.1) |
+| `score_ci_low`, `score_ci_high` | Bootstrap de §4.2 sobre las comparaciones de esa dimensión |
+| `score_n` | Conteo crudo de respuestas con `choice ∈ {a,b}` en las que participa el campeón, en esa dimensión |
+| `score_support` | Umbrales de Dimensiones: `n ≥ 25` y ancho `≤ 0.60` → `solid` |
+| `unknown_rate` | `Σ peso(unknown) / Σ peso(todas, incluidas unknown)` sobre las preguntas de esa dimensión que involucran al campeón |
+| `score_norm` | `(score − mín) / (máx − mín)` sobre las filas de esa dimensión en el export. Vacía si menos de 2 campeones tienen valor |
 
-`D_unknown_rate` se pondera y `D_n` no, y la diferencia es deliberada: `_n` responde "cuánta gente
+`unknown_rate` se pondera y `score_n` no, y la diferencia es deliberada: `_n` responde "cuánta gente
 contestó" y tiene que ser un conteo; la tasa de `unknown` es una proporción como cualquier otra del
 export y se pondera igual que todas.
 
 ### 5.2 Tipo 2 → pico de poder y curva
 
-**Entra:** respuestas `peak_timing` del campeón. **Sale:** 10 columnas.
+**Entra:** respuestas `peak_timing` del campeón. **Sale:** `peak_timing`, una fila por campeón con
+10 columnas propias.
 
 ```
 peak_minute = redondeo( mediana_ponderada( minutos, pesos ) )
@@ -602,7 +623,7 @@ quien lea el CSV pueda recalcular las cinco columnas y obtener exactamente los m
 ### 5.3 Tipo 3, variante 1v1 → fuerza de línea y matriz de matchups
 
 **Entra:** respuestas `lane_matchup` con `role ∈ {top, mid, adc}`.
-**Sale:** 15 columnas de `champion_features` y las filas de `matchup_matrix`.
+**Sale:** `champion_lane_strength`, tres filas por campeón, y las filas de `matchup_matrix`.
 **Corridas:** una **independiente por rol**.
 
 #### El modelo ordinal
@@ -648,17 +669,18 @@ Para un par nunca preguntado, es pura predicción del modelo.
 
 | Columna | Cómo se calcula |
 |---|---|
-| `lane_strength_R` | `θᵢ` centrado **dentro del rol R**. Vacía si el campeón no juega ese rol |
-| `lane_strength_R_ci_*` | Bootstrap sobre las comparaciones de ese rol |
-| `lane_strength_R_n` | Conteo crudo de respuestas del campeón en ese rol |
+| `role` | El rol `R` de la corrida. Hay fila para los tres roles aunque el campeón no juegue alguno |
+| `lane_strength` | `θᵢ` centrado **dentro del rol R**. Vacía si el campeón no juega ese rol |
+| `lane_strength_ci_*` | Bootstrap sobre las comparaciones de ese rol |
+| `lane_strength_n` | Conteo crudo de respuestas del campeón en ese rol |
 | `matchup_matrix.advantage` | Fórmula de arriba |
 | `matchup_matrix.advantage_ci_*` | `advantage` recalculado en cada remuestreo, percentiles 2.5 / 97.5 |
 | `matchup_matrix.n_responses` | Conteo crudo de respuestas **a ese par concreto en ese rol** |
 | `matchup_matrix.is_observed` | `n_responses > 0` |
 
 **Qué pares tienen fila:** todos los `(a, b, R)` con `a_id < b_id` en los que ambos campeones están
-en el export, ambos declaran el rol `R` en `champions.roles` y ambos tienen `lane_strength_R`
-estimada. Un par sin respuestas entra igual, con `is_observed = false`, `n_responses = 0` y el
+en el export, ambos declaran el rol `R` en `champions.roles` y ambos tienen `lane_strength`
+estimada en ese rol. Un par sin respuestas entra igual, con `is_observed = false`, `n_responses = 0` y el
 intervalo que le salga —notoriamente más ancho, porque depende de dos parámetros estimados y de
 ningún dato propio (CA-406).
 
@@ -698,12 +720,12 @@ estimada. Sin ese segundo criterio el archivo sería el cuadrado del pool; con �
 que el modelo puede sostener.
 
 `lane_strength` sólo se calcula para `duo_ctx = 'bot'`: es el único carril donde dos campeones
-comparten oponentes durante la fase de líneas. En `top_jungle` y `mid_jungle` la columna queda
-vacía, con `_n = 0` y `is_observed = false`.
+comparten oponentes durante la fase de líneas. En las duplas con jungla (`role_a` / `role_b`
+`top` + `jungle` o `mid` + `jungle`) la columna queda vacía, con `_n = 0` y `is_observed = false`.
 
-### 5.5 Tipo 4 → `synergy` y `synergy_mean`
+### 5.5 Tipo 4 → `synergy`
 
-**Entra:** respuestas `duo_synergy`. **Corridas:** una **independiente por `duo_context`**.
+**Entra:** respuestas `duo_synergy`. **Corridas:** una **independiente por `duo_ctx`**.
 
 Tres resultados (`pair_1`, `similar`, `pair_2`), así que el modelo es Rao-Kupper con **un solo
 umbral** — el caso `τ₂ → ∞` de §5.3:
@@ -724,27 +746,20 @@ menos representativas de lo que se está midiendo.
 Cada corrida se centra en 0 **dentro de su contexto**: la sinergia de un dúo de bot y la de uno
 mid-jungla no son comparables entre sí y no se las hace parecer comparables.
 
-#### `synergy_mean`
+#### En `duo_features`, el contexto se escribe como dos roles
 
-```
-synergy_mean(c)   = media( synergy(d) : d contiene a c, d con synergy_is_observed = true )
-synergy_mean_n    = cantidad de esas duplas
-```
+Las corridas siguen siendo una por `duo_ctx` (`bot`, `top_jungle`, `mid_jungle`). Al escribir el
+CSV, cada fila lleva el rol que juega cada campeón —`role_a` para `champion_a`, `role_b` para
+`champion_b`— en vez del contexto (ADR-023). El rol sale de la pregunta, no de `champions.roles`:
+un campeón que juega adc y support puede aparecer en las dos posiciones de distintas duplas.
 
-Media **sin ponderar por soporte**: ponderar por `_n` premiaría a las duplas que el sampler eligió
-más, que es una decisión de muestreo, no una señal de importancia. Cada `synergy(d)` ya lleva
-adentro toda la evidencia ponderada de esa dupla.
-
-Se promedia sobre los tres contextos juntos, y se puede porque cada uno está centrado en 0 dentro
-del suyo.
-
-`synergy_mean_support` necesita un ancho y la columna no publica intervalo (26 §3.5 explica por
-qué): se usa **el ancho medio de los `synergy_ci` de las duplas promediadas**. Dice cuán precisas
-son las estimaciones que entraron al promedio, sin afirmar un intervalo para el promedio mismo.
+> **Eliminado el 08/10/2026.** Esta sección definía `synergy_mean`, el promedio por campeón de la
+> sinergia de sus duplas. Se sacó de la salida ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)).
 
 ### 5.6 Tipo 5 → los 7 atributos
 
-**Entra:** respuestas `trait_multiselect` del campeón. **Sale:** 35 columnas.
+**Entra:** respuestas `trait_multiselect` del campeón. **Sale:** `champion_traits`, siete filas por
+campeón con 6 columnas propias.
 
 ```
 p̂(c, T) = Σ peso(r) · 1[ T ∈ r.traits ]  /  Σ peso(r)
@@ -766,12 +781,13 @@ más angosto de lo que la muestra ponderada sostiene.
 
 | Columna | Cómo se calcula |
 |---|---|
-| `trait_T` | `p̂` |
-| `trait_T_ci_*` | Wilson 95 % con `p̂` y `n_eff` |
-| `trait_T_n` | Conteo crudo de respuestas de tipo 5 sobre el campeón donde `T` estaba activo |
-| `trait_T_support` | Umbrales de Atributos: `n ≥ 20` y ancho `≤ 0.25` → `solid`, sobre `_n` crudo |
+| `trait` | El código `T` |
+| `proportion` | `p̂` |
+| `proportion_ci_*` | Wilson 95 % con `p̂` y `n_eff` |
+| `proportion_n` | Conteo crudo de respuestas de tipo 5 sobre el campeón donde `T` estaba activo |
+| `proportion_support` | Umbrales de Atributos: `n ≥ 20` y ancho `≤ 0.25` → `solid`, sobre `_n` crudo |
 
-**Los siete `trait_T_n` de una fila son idénticos salvo que un atributo se haya activado o
+**Los siete `proportion_n` de un campeón son idénticos salvo que un atributo se haya activado o
 desactivado a mitad de la ventana.** Una respuesta marca los siete de una vez, así que el soporte es
 por campeón; si difieren, o hubo un cambio de catálogo en la ventana —y el Informe de Calidad de
 Datos lo dice— o hay un error en la agregación.
@@ -780,17 +796,16 @@ Datos lo dice— o hay un error en la agregación.
 
 ## 6. Trazabilidad columna por columna
 
-### 6.1 `champion_features_v<patch>.csv` — 126 columnas
+### 6.1 Los cuatro archivos por campeón
 
-| Columnas | Bloque | Origen | Estimador | Centrado | `_n` cuenta |
+| Archivo | Columnas | Origen | Estimador | Centrado | `_n` cuenta |
 |---|---|---|---|---|---|
-| 1–7 | Identificación | `champions`, parámetros de la corrida | — | — | — |
-| 8–63 | 8 dimensiones × 7 | Tipo 1 | §5.1 | Pool del export, por dimensión | Comparaciones del campeón en esa dimensión, sin `unknown` |
-| 64–68 | `peak_minute` + IC + soporte | Tipo 2 | §5.2 | — | Respuestas de tipo 2 al campeón |
-| 69–73 | `power_at_*` | Derivado de la col. 64 | §5.2 | — | *(sin `_n` propio)* |
-| 74–88 | 3 roles × 5 | Tipo 3 · 1v1 | §5.3 | Dentro del rol | Respuestas del campeón en ese rol |
-| 89–91 | `synergy_mean` | Tipo 4, vía `duo_features` | §5.5 | *(hereda el de cada dupla)* | Duplas observadas que lo incluyen |
-| 92–126 | 7 atributos × 5 | Tipo 5 | §5.6 | — | Respuestas de tipo 5 al campeón |
+| Los cuatro | 1–7, identificación | `champions`, parámetros de la corrida | — | — | — |
+| `champion_dimensions` | 8–15: `dimension`, `score` + IC + `_n` + `_support`, `unknown_rate`, `score_norm` | Tipo 1 | §5.1 | Pool del export, por dimensión | Comparaciones del campeón en esa dimensión, sin `unknown` |
+| `peak_timing` | 8–12: `peak_minute` + IC + `_n` + `_support` | Tipo 2 | §5.2 | — | Respuestas de tipo 2 al campeón |
+| `peak_timing` | 13–17: `power_at_*` | Derivado de la col. 8 | §5.2 | — | *(sin `_n` propio)* |
+| `champion_lane_strength` | 8–13: `role`, `lane_strength` + IC + `_n` + `_support` | Tipo 3 · 1v1 | §5.3 | Dentro del rol | Respuestas del campeón en ese rol |
+| `champion_traits` | 8–13: `trait`, `proportion` + IC + `_n` + `_support` | Tipo 5 | §5.6 | — | Respuestas de tipo 5 al campeón |
 
 ### 6.2 `matchup_matrix_v<patch>.csv` — 12 columnas
 
@@ -803,14 +818,15 @@ Datos lo dice— o hay un error en la agregación.
 | 11 | `is_observed` | `n_responses > 0` |
 | 12 | `patch_window` | Parámetro de la corrida |
 
-### 6.3 `duo_features_v<patch>.csv` — 18 columnas
+### 6.3 `duo_features_v<patch>.csv` — 19 columnas
 
 | Columnas | Contenido | Cómo se calcula |
 |---|---|---|
-| 1–5 | Identificación de la dupla y contexto | Orden canónico `a_id < b_id` |
-| 6–11 | `synergy` + IC + `_n` + `_support` + `_is_observed` | §5.5; centrado dentro del contexto |
-| 12–17 | `lane_strength` + IC + `_n` + `_support` + `_is_observed` | §5.4; sólo `duo_ctx = 'bot'`, vacío en el resto |
-| 18 | `patch_window` | Parámetro de la corrida |
+| 1–4 | Identificación de la dupla | Orden canónico `a_id < b_id` |
+| 5–6 | `role_a`, `role_b` | El rol de cada campeón en la dupla (§5.5) |
+| 7–12 | `synergy` + IC + `_n` + `_support` + `_is_observed` | §5.5; centrado dentro del contexto |
+| 13–18 | `lane_strength` + IC + `_n` + `_support` + `_is_observed` | §5.4; sólo la dupla `adc` + `support`, vacío en el resto |
+| 19 | `patch_window` | Parámetro de la corrida |
 
 ---
 
@@ -822,7 +838,7 @@ Datos lo dice— o hay un error en la agregación.
 | Campeón con **una sola comparación** | Se estima: `ε` mantiene el valor finito y lo encoge hacia 0. Sale con `support = insufficient` |
 | Campeón **sin ninguna respuesta** en una magnitud | Celda vacía, `_n = 0`, `_support = insufficient` (CA-405) |
 | **Todas las respuestas de un par son `even`** | Se ajusta normalmente: `δ ≈ 0` y `τ₁` crece. Es señal legítima de matchup equilibrado (20 §4.3) |
-| Dimensión con **más del 40 % de `unknown`** en un par | Entra igual; la tasa se publica en `D_unknown_rate`. Es el sampler quien desprioriza ese par, no el estimador |
+| Dimensión con **más del 40 % de `unknown`** en un par | Entra igual; la tasa se publica en `unknown_rate`. Es el sampler quien desprioriza ese par, no el estimador |
 | Campeón **desactivado** a mitad de la ventana | Sus respuestas se agregan igual. Aparece en el CSV si sigue en el pool del export |
 | Dimensión o atributo **desactivado** a mitad de la ventana | La columna se calcula sobre las respuestas donde estaba activo, y `_n` lo refleja (20 §6) |
 | **Menos de 2 campeones** con valor en una dimensión | `_norm` queda vacía en toda la columna: un min-max sobre un punto no significa nada |
@@ -863,8 +879,8 @@ exige pasar la fecha registrada.
 4. Ajustar los cinco estimadores (§5). Los **15 ajustes** —8 dimensiones, 3 roles del 1v1, el 2v2 de
    bot y los 3 contextos de sinergia— son independientes entre sí y corren en paralelo.
 5. Bootstrap, con la misma partición de trabajo (§4.2).
-6. Centrar, derivar `power_at_*` y `synergy_mean`, calcular `_n`, anchos y `_support`.
-7. Escribir los tres CSV con el formato fijo de §4.6 y el Informe de Calidad de Datos.
+6. Centrar, derivar `power_at_*`, calcular `_n`, anchos y `_support`.
+7. Escribir los seis CSV con el formato fijo de §4.6 y el Informe de Calidad de Datos.
 8. Insertar una fila en `exports` por archivo, con su SHA-256 y **todos** los parámetros.
 
 ### 8.3 Qué hace falta para que sea reproducible

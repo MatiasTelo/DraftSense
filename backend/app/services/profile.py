@@ -16,14 +16,17 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Question, QuestionType, Respondent, Response
-from app.services import app_settings
+from app.services import app_settings, submissions
 
 
 async def coverage(session: AsyncSession, respondent: Respondent) -> dict[str, int]:
-    """Respuestas por tipo de pregunta. Los tipos sin respuestas aparecen en cero."""
+    """Respuestas por tipo de pregunta. Los tipos sin respuestas aparecen en cero.
+
+    Cuenta envíos: en el tipo 1, rankings y no pares (ADR-022), igual que `answers_count`.
+    """
     rows = (
         await session.execute(
-            sa.select(Response.type, sa.func.count())
+            submissions.heads(sa.select(Response.type, sa.func.count()).select_from(Response))
             .where(Response.respondent_id == respondent.respondent_id)
             .group_by(Response.type)
         )

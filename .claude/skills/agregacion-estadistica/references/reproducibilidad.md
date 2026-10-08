@@ -48,9 +48,12 @@ UTF-8 **sin BOM**, fin de línea `\n`, separador `,`, sin comillas salvo que el 
 
 | Archivo | Orden |
 |---|---|
-| `champion_features` | `champion_id` |
+| `peak_timing` | `champion_id` |
+| `champion_dimensions` | `(champion_id, dimension)`, dimensiones en el orden de 26 §3.2 |
+| `champion_lane_strength` | `(champion_id, role)`, en el orden `top`, `mid`, `adc` |
+| `champion_traits` | `(champion_id, trait)`, atributos en el orden de 26 §3.5 |
 | `matchup_matrix` | `(role, champion_a_id, champion_b_id)` |
-| `duo_features` | `(duo_context, champion_a_id, champion_b_id)` |
+| `duo_features` | `(role_a, role_b, champion_a_id, champion_b_id)` |
 
 ## El bootstrap
 

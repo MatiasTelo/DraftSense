@@ -17,8 +17,9 @@ Ingeniería en Sistemas de Información, UTN Facultad Regional Mendoza. 01/09/20
 
 ## Qué entrega y qué no
 
-**Entrega:** el sistema desplegado, la recolección piloto y tres archivos de datos por parche —
-`champion_features`, `matchup_matrix` y `duo_features` — más un Informe de Calidad de Datos.
+**Entrega:** el sistema desplegado, la recolección piloto y seis archivos de datos por parche
+—cuatro por campeón (`champion_dimensions`, `peak_timing`, `champion_lane_strength`,
+`champion_traits`), más `matchup_matrix` y `duo_features`— y un Informe de Calidad de Datos.
 
 **No entrega:** análisis de partidas, features por partida, integración con el modelo predictivo
 ni interpretación de resultados. DraftSense mide campeones; el laboratorio hace el resto.
