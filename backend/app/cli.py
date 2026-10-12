@@ -2,12 +2,13 @@
 
     draftsense check-seeds                     valida los YAML sin tocar la base
     draftsense seed-catalog                    carga dimensiones y atributos
-    draftsense seed-champions --patch 16.17    puebla el catálogo desde Data Dragon
+    draftsense seed-champions --patch 16.17    puebla el catálogo y registra el parche
     draftsense seed-settings                   carga los parámetros operativos
     draftsense seed-pick-rate --patch 16.17    carga el snapshot, asigna el pool y los roles
     draftsense sync-roles --patch 16.17        toma los roles de un snapshot ya cargado
     draftsense fetch-ddragon --out FILE        guarda un snapshot local de respaldo
     draftsense seed-honeypots --patch 16.17    carga el catálogo de honeypots del parche
+    draftsense activate-patch --patch 16.17    marca el parche como vigente y lo audita (ADR-024)
     draftsense refresh-question-stats          recalcula los denormalizados y retira honeypots
     draftsense check-graph-connectivity        componentes por dimensión y puentes (ADR-021)
     draftsense detect-degenerate-patterns      respuestas apuradas y straightlining
@@ -26,7 +27,6 @@ from pathlib import Path
 
 import httpx
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_sessionmaker
@@ -60,7 +60,14 @@ from app.seeds.pick_rate import (
     validate_pick_rate,
 )
 from app.seeds.settings import load_settings, seed_settings, validate_settings
-from app.services import connectivity, degenerate, fingerprints, question_stats, trust_check
+from app.services import (
+    connectivity,
+    degenerate,
+    fingerprints,
+    patches,
+    question_stats,
+    trust_check,
+)
 
 DIMENSION_FIELDS = {"code", "label_en", "description_en", "prompt_en"}
 TRAIT_FIELDS = {"code", "label_en", "description_en"}
@@ -71,36 +78,6 @@ ROLE_WARNING = (
     "       cargado) antes de habilitar los tipos de pregunta 3 y 4, o el sampler no va a",
     "       encontrar candidatas.",
 )
-
-
-async def _ensure_patch(
-    session: AsyncSession, version: str, released_at: dt.date | None = None
-) -> Patch:
-    """Devuelve el parche pedido, creándolo si no existe, y lo deja como vigente.
-
-    `released_at` es NOT NULL y no se puede deducir de Data Dragon, que sólo publica la versión.
-    Sin `--released-at` se usa la fecha de hoy, que es aproximada: el parche se siembra días
-    después de salir. Pasarla explícitamente es lo correcto cuando se la conoce.
-    """
-    patch = (
-        await session.execute(sa.select(Patch).where(Patch.version == version))
-    ).scalar_one_or_none()
-    if patch is None:
-        patch = Patch(
-            version=version, released_at=released_at or dt.date.today(), is_current=False
-        )
-        session.add(patch)
-        await session.flush()
-    elif released_at is not None:
-        patch.released_at = released_at
-    # El índice único parcial `patches_single_current` sólo admite un vigente a la vez,
-    # así que hay que bajar el anterior antes de subir el nuevo.
-    await session.execute(sa.update(Patch).values(is_current=False))
-    await session.execute(
-        sa.update(Patch).where(Patch.patch_id == patch.patch_id).values(is_current=True)
-    )
-    await session.commit()
-    return patch
 
 
 def _released_at(args: argparse.Namespace) -> dt.date | None:
@@ -169,7 +146,7 @@ async def cmd_seed_champions(args: argparse.Namespace) -> int:
     )
 
     async with get_sessionmaker()() as session:
-        patch = await _ensure_patch(session, args.patch, _released_at(args))
+        patch = await patches.register(session, args.patch, _released_at(args))
         inserted, updated = await seed_champions(
             session, patch, payload, ddragon_version, settings.ddragon_base_url
         )
@@ -209,7 +186,7 @@ async def cmd_seed_pick_rate(args: argparse.Namespace) -> int:
         return 1
 
     async with get_sessionmaker()() as session:
-        patch = await _ensure_patch(session, args.patch, _released_at(args))
+        patch = await patches.register(session, args.patch, _released_at(args))
         result = await seed_pick_rate(
             session,
             patch_id=patch.patch_id,
@@ -242,7 +219,7 @@ async def cmd_seed_pick_rate(args: argparse.Namespace) -> int:
 async def cmd_sync_roles(args: argparse.Namespace) -> int:
     """Aplica ADR-019 sobre un snapshot que ya está en la base.
 
-    No usa `_ensure_patch`: sincronizar roles no debe crear un parche ni cambiar cuál es el
+    No usa `patches.register`: sincronizar roles no debe crear un parche ni cambiar cuál es el
     vigente. Si el parche no existe, no hay snapshot que leer y el comando falla.
     """
     async with get_sessionmaker()() as session:
@@ -324,6 +301,29 @@ async def cmd_seed_honeypots(args: argparse.Namespace) -> int:
     )
     for message in result.skipped:
         print(f"AVISO  {message}", file=sys.stderr)
+    return 0
+
+
+async def cmd_activate_patch(args: argparse.Namespace) -> int:
+    """Marca el parche como vigente (ADR-024). Es el único comando que cambia el vigente.
+
+    Los seeds sólo registran el parche: el orden de CU-06 es `seed-champions`, `seed-pick-rate`,
+    `seed-honeypots` y recién entonces éste.
+    """
+    async with get_sessionmaker()() as session:
+        try:
+            result = await patches.activate(session, args.patch, force=args.force)
+        except patches.PatchActivationError as exc:
+            for problem in exc.problems:
+                print(f"ERROR {problem}", file=sys.stderr)
+            if not isinstance(exc, patches.PatchNotFoundError):
+                print("       Cargalo antes, o pasá --force para activarlo igual.", file=sys.stderr)
+            return 1
+
+    if not result.changed:
+        print(f"OK  el parche {result.version} ya era el vigente; no se cambió nada")
+        return 0
+    print(f"OK  parche vigente: {result.version} (antes: {result.previous or 'ninguno'})")
     return 0
 
 
@@ -499,6 +499,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="reactiva las honeypots que el monitoreo de pass rate retiró",
     )
     honeypot_cmd.set_defaults(handler=cmd_seed_honeypots)
+
+    activate_cmd = sub.add_parser(
+        "activate-patch", help="marca el parche como vigente y lo audita (ADR-024)"
+    )
+    activate_cmd.add_argument("--patch", required=True, help="versión del parche, p. ej. 16.17")
+    activate_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="activa aunque falten el snapshot de pick rate o las honeypots del parche",
+    )
+    activate_cmd.set_defaults(handler=cmd_activate_patch)
 
     stats = sub.add_parser(
         "refresh-question-stats", help="recalcula los denormalizados y retira honeypots"

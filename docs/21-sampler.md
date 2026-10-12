@@ -1,10 +1,13 @@
 # 21 — Sampling adaptativo
 
-> Estado: **v1** · Última revisión: 08/10/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 11/10/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
 >
 > **08/10/2026:** el tipo 1 se sirve como un ranking de cinco campeones armado alrededor de un par
 > ancla (§5.1, [ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Todo lo que este documento
 > dice sobre elegir «una pregunta de tipo 1» se refiere desde ahora a elegir ese par ancla.
+>
+> **11/10/2026:** qué pasa al activar un parche nuevo, en §8
+> ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)).
 
 Cómo el sistema decide **qué pregunta mostrar a continuación**. Es el componente que convierte un
 presupuesto chico de respuestas —1 000 comprometidas, unos miles como meta de trabajo— en un
@@ -479,6 +482,16 @@ plan por defecto es cerrar la práctica con datos densos sobre 40 campeones.
 >
 > «Se registra en el log» usa el módulo `logging` de Python, con un mensaje por lote y por rol
 > salteado, no uno por intento.
+
+> **Agregado el 11/10/2026** ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)). Qué
+> pasa cuando se activa un parche nuevo:
+>
+> | Situación | Comportamiento |
+> |---|---|
+> | La honeypot o el retest pendientes del respondedor son de otro parche | El primer lote después del cambio no los vuelve a servir: se descartan y se elige otro del parche vigente. Las cadencias no se reinician |
+> | El cliente tiene en cola preguntas del parche anterior y las contesta | Se aceptan y quedan con el `patch_id` de la pregunta (12 §2, nota del 11/10) |
+> | Un par que el respondedor ya contestó en el parche anterior | Se puede volver a servir: en el parche nuevo es otra fila de `questions`, porque `questions_identity` incluye `patch_id` (§2) |
+> | Las preguntas, los puentes y las estadísticas del parche nuevo | Arrancan en cero: el parche nuevo empieza en el régimen de arranque en frío (§4). Los puentes los vuelve a crear `check_graph_connectivity`, que sólo mira el parche vigente |
 
 ---
 

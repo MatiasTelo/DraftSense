@@ -25,7 +25,7 @@ Los **siete endpoints públicos** están implementados (semana 2), en cuatro cap
 | Carpeta | Qué hay |
 |---|---|
 | `app/routers/` | `health`, `sessions`, `questions`, `responses`, `profile` — montados en `/api/v1` |
-| `app/services/` | `sessions`, `questions`, `sampler`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias`; desde la semana 5 también `trust`, `trust_check`, `honeypots`, `retests`, `degenerate`, `fingerprints`, `connectivity` y `aggregable` |
+| `app/services/` | `sessions`, `questions`, `sampler`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias`; desde la semana 5 también `trust`, `trust_check`, `honeypots`, `retests`, `degenerate`, `fingerprints`, `connectivity` y `aggregable`; desde la semana 6, `patches` |
 | `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno; `common.is_absent` para omitir claves |
 | `app/` | `main.py`, `errors.py`, `dependencies.py`, además de `config.py`, `db.py`, `cli.py`, `models/` y `seeds/` |
 
@@ -79,11 +79,17 @@ cobertura. **Si el pipeline de la semana 9 los cambia, se cambian ahí.**
   decimales. `trust_check.verify` recalcula todo desde el crudo sin escribir.
 - El catálogo de honeypots se carga con `app/seeds/honeypots.py`, en modo conservador.
 
+**Semana 6: la activación explícita del parche**
+([ADR-024](../../../docs/13-adr/ADR-024-activacion-explicita-de-parche.md)).
+`seed-champions` y `seed-pick-rate` sólo **registran** el parche (`patches.register`); el vigente lo
+cambia `patches.activate`, que rechaza un parche sin snapshot o sin honeypots salvo `force` y
+audita en `admin_audit`. El endpoint de la semana 7 tiene que llamar a ese mismo service.
+
 **Lo que todavía no existe, y en qué semana llega:** los `/admin/*` y la programación del worker
 (7), y la variante 2v2 del tipo 3 y los tipos 4 y 5 (8). Al agregar un tipo hay que sumarlo también
 a `SERVED_TYPES`, a las celdas de cobertura, a `STRAIGHTLINE_TYPES` y a `retests.is_consistent`.
 
-222 tests en `tests/`. A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
+248 tests en `tests/` (`test_patches` es el de la semana 6). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
 `test_honeypots`, `test_retests`, `test_degenerate`, `test_fingerprints` y `test_connectivity`.
 Los que prueban el sorteo lo hacen con `random.Random(seed)`, forzando `TYPE_WEIGHTS` en
 `sampler` o fijando `sampler.epsilon` con `set_setting`. Tienen que pasar igual contra la base
@@ -111,6 +117,7 @@ python -m app.cli sync-roles --patch 16.17        # roles desde el snapshot ya c
 python -m app.cli fetch-ddragon --out ../infra/seeds/ddragon_champions_snapshot.json
 
 python -m app.cli seed-honeypots --patch 16.17    # el catálogo de infra/seeds/honeypots_16.17.yaml
+python -m app.cli activate-patch --patch 16.17    # marca el vigente y lo audita; los seeds ya no (ADR-024)
 python -m app.cli refresh-question-stats          # retira honeypots y recalcula los denormalizados
 python -m app.cli check-graph-connectivity        # componentes y puentes (ADR-021)
 python -m app.cli detect-degenerate-patterns      # apuradas y straightlining, desde cero

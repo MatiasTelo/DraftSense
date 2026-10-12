@@ -1,11 +1,14 @@
 # 12 — Contrato de la API REST
 
-> Estado: **v1** · Última revisión: 08/10/2026
+> Estado: **v1** · Última revisión: 11/10/2026
 >
 > **08/10/2026:** el tipo 1 es un ranking de cinco campeones
 > ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)): cambian su ítem en §2.3, su envío y su
 > `feedback` en §2.4, un error nuevo en §3 y el conteo del rate limit en §4. Cambia también el
 > texto que muestra el cliente cuando todavía no hay consenso.
+>
+> **11/10/2026:** reglas de la activación de un parche y de las respuestas en vuelo, en §2
+> ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)).
 
 Base: `https://api.draftsense.dev/api/v1` · OpenAPI autogenerada en `/docs`.
 
@@ -516,6 +519,21 @@ tocan**: conservan el suyo, y la agregación puede seguir combinando parches con
 ([ADR-004](13-adr/ADR-004-ventana-de-parches-con-decaimiento.md)). Como `patch_id` forma parte de
 `questions_identity`, el sampler empieza a materializar filas nuevas para el parche vigente sin que
 haya que generar nada por adelantado.
+
+> **Agregado el 11/10/2026** ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)). El
+> endpoint usa el mismo service que el comando `activate-patch` del CLI, `services/patches.py`, con
+> las mismas reglas:
+>
+> - Rechaza un parche que no existe, y uno sin snapshot de pick rate o sin al menos una honeypot
+>   activa, salvo que se fuerce. Cómo viaja el forzado en el request se define con el endpoint, en
+>   la semana 7.
+> - Deja una fila en `admin_audit` (`action = 'activate_patch'`) con este mismo cuerpo de respuesta
+>   como `payload`. `previous` es `null` si no había parche vigente.
+> - Activar el parche que ya está vigente no hace nada y no audita.
+>
+> **Una respuesta en vuelo se acepta.** Si el cliente contesta después de la activación una pregunta
+> del parche anterior que ya tenía en cola, `POST /responses` la registra normalmente y la respuesta
+> queda con el `patch_id` de la pregunta.
 
 **`PATCH /admin/champions/pool-tier`** — cambia el tier de uno o varios campeones. Es un `UPDATE`,
 no un despliegue ([ADR-006](13-adr/ADR-006-pool-escalonado-por-pick-rate.md)).
