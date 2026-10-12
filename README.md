@@ -55,7 +55,14 @@ pip install -e ".[dev]"
 alembic upgrade head            # crea el esquema
 python -m app.cli seed-catalog  # 8 dimensiones y 7 atributos
 python -m app.cli seed-champions --patch 16.20
+python -m app.cli seed-pick-rate --patch 16.20 --file ../infra/seeds/pick_rate_16.20.csv     --source lolalytics --source-url URL --captured-at AAAA-MM-DD
+python -m app.cli seed-honeypots --patch 16.20
+python -m app.cli activate-patch --patch 16.20   # los seeds registran el parche; esto lo activa
 ```
+
+Sin `activate-patch` no hay parche vigente y `/questions/next` devuelve lotes vacíos. El comando
+rechaza un parche sin snapshot de pick rate o sin honeypots, salvo con `--force`
+([ADR-024](docs/13-adr/ADR-024-activacion-explicita-de-parche.md)).
 
 ### Frontend
 
@@ -82,6 +89,7 @@ Postgres 17 real.
 ```bash
 python -m app.cli check-seeds                       # valida los YAML sin tocar la base
 python -m app.cli seed-champions --patch 16.20      # relee Data Dragon
+python -m app.cli activate-patch --patch 16.20      # marca el parche como vigente y lo audita
 python -m app.cli fetch-ddragon --out ../infra/seeds/ddragon_champions_snapshot.json
 ```
 

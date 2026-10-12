@@ -34,6 +34,7 @@ escribe uno nuevo. El registro es histórico.
 | [021](ADR-021-puentes-en-cadena.md) | Los puentes del grafo se materializan como una cadena de k−1 preguntas | aceptada |
 | [022](ADR-022-tipo-1-ranking-de-cinco.md) | El tipo 1 es un ranking de cinco campeones que se guarda como diez comparaciones | aceptada |
 | [023](ADR-023-salida-en-formato-largo.md) | La salida por campeón se entrega en formato largo, en cuatro archivos | aceptada |
+| [024](ADR-024-activacion-explicita-de-parche.md) | Un parche se activa con un paso explícito, auditado y con precondiciones | aceptada |
 
 ## Cuál merece un ADR
 

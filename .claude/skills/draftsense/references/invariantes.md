@@ -3,7 +3,7 @@
 Todo lo de acá está cerrado. No se replantea como si fuera una opción abierta; si hay que cambiarlo,
 se escribe un ADR nuevo que reemplace al viejo. Las rutas son relativas a `draftsense/docs/`.
 
-## Las 21 decisiones de arquitectura
+## Las 24 decisiones de arquitectura
 
 Cada línea es la decisión, no el razonamiento. El *por qué* y las alternativas descartadas están en
 el ADR; leerlo entero antes de contradecirlo.
@@ -33,6 +33,7 @@ el ADR; leerlo entero antes de contradecirlo.
 | **021** puentes en cadena | `check_graph_connectivity` **materializa** como mucho **k−1 puentes por dimensión**: una cadena en orden aleatorio entre componentes, sin honeypots, que se desmarcan cuando dejan de hacer falta. En frío, con el tier 1, son 456. Mientras el grafo esté partido, casi todo el tipo 1 sale como puente, por encima de ε |
 | **022** tipo 1 como ranking | La tarjeta del tipo 1 ordena **cinco campeones** (`@dnd-kit` + *Confirm*; *Not sure* para todo el ranking) y el servidor guarda **diez filas** `pairwise_dimension`, una por par, con el mismo `ranking_id` (tabla `rankings`, migración `0004`). El sampler elige el **par ancla** como antes elegía la pregunta y suma tres al azar; el ancla nunca es par de un ranking pendiente. Los pares ya contestados se ignoran. Honeypot = el ancla; retest = el par de las puntas; el tipo 1 sale del *straightlining*. **Un ranking cuenta como una respuesta**: todo lo que cuenta respuestas de alguien cuenta envíos (`services/submissions.py`) |
 | **023** salida en formato largo | `champion_features` (126 col.) pasa a **cuatro archivos**: `champion_dimensions` (8 filas por campeón), `peak_timing` (1), `champion_lane_strength` (siempre 3) y `champion_traits` (7). Sin `synergy_mean`. `duo_features` cambia `duo_context` por `role_a` / `role_b`. Métrica: **19 magnitudes por campeón**, sin conteo de columnas |
+| **024** activación explícita de parche | Los seeds **registran** el parche y sólo `activate-patch` (y en la semana 7 `POST /admin/patches/{id}/activate`, mismo service `services/patches.py`) lo marca vigente. Rechaza un parche sin snapshot de pick rate o sin honeypots activas, salvo `--force`. Audita en `admin_audit` (`{patch_id, version, previous}`); activar el vigente no hace nada. Las respuestas en vuelo se aceptan con el parche de su pregunta; la honeypot y el retest pendientes de otro parche se descartan |
 
 ## Los cinco tipos de pregunta
 

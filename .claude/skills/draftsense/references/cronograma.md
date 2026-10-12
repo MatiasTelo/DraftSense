@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 08/10/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 11/10/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -16,7 +16,7 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | 3 | 15/09 – 21/09 | Primer tipo de pregunta operativo de extremo a extremo | 20 | **cerrada** |
 | 4 | 22/09 – 28/09 | Tipos de pregunta 2 y 3 operativos con feedback | 20 | **cerrada** — prueba a 360 px hecha el 16/09 |
 | 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | **cerrada** — mergeada a `main` el 08/10 (PR #4) |
-| 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | **en curso** — correcciones de la reunión del 05/10 hechas en la rama `semana-6-correcciones-marinozi`; falta lo propio de la semana y el Informe de Avance |
+| 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | **cerrada** el 11/10 — correcciones del 05/10 (PR #5) y versionado por parche en la rama `semana-6-versionado-y-gamificacion`; la gamificación no necesitó ajuste |
 | 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | pendiente |
 | 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | pendiente |
 | 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | pendiente |
@@ -84,6 +84,25 @@ Informe de Avance también tiene que registrar:
   el reordenamiento por teclado y por puntero funciona, el ranking guardó 10 filas con el mismo
   `ranking_id` y el mensaje nuevo aparece. Bundle 79 KB gzip.
 - **Staging todavía no tiene la migración `0004`.** Aplicarla antes de usar la rama ahí.
+
+**El cierre de la semana 6, 11/10/2026**, en la rama `semana-6-versionado-y-gamificacion`:
+
+- **Gamificación: sin ajuste.** Lo implementado en las semanas 2 y 3 ya cumple
+  `23-gamificacion.md`, y CA-303 y CA-310 a CA-313 tienen tests. Decisión del alumno.
+- **Versionado por parche, ADR-024:** registrar un parche y activarlo pasan a ser pasos distintos.
+  - `seed-champions` y `seed-pick-rate` ya **no** activan (`patches.register`).
+  - El comando nuevo `activate-patch` (`services/patches.py`) rechaza un parche sin snapshot de
+    pick rate o sin honeypots activas, salvo `--force`, y audita en `admin_audit`.
+  - Las respuestas en vuelo se aceptan con el parche de su pregunta, y la honeypot y el retest
+    pendientes de otro parche se descartan, como ya hacía el sampler.
+  - Notas fechadas el 11/10 en 02 (CU-06), 12 §2 y 21 §8, y en el `README.md`.
+- **Tests:** backend 248 (antes 238, 10 nuevos en `test_patches.py`) contra un Postgres 17 local
+  en Docker; frontend sin cambios, 80. Prueba manual del flujo CU-06 por CLI contra la misma base.
+- **Staging no se tocó.** No hay migración nueva, y el 16.17 tendría que seguir vigente porque lo
+  activaron los seeds viejos: verificarlo con `GET /health` antes de usar la rama ahí. Sigue
+  faltando la migración `0004`.
+- **El Informe de Avance no se tocó** en este cierre. Sigue diciendo que el versionado por parche
+  queda pendiente (§13).
 
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos

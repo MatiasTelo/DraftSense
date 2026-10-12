@@ -32,6 +32,7 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Dónde se guardan las cadencias y cómo sabe el servidor que algo es un retest | `13-adr/ADR-020-estado-de-cadencias-en-el-servidor.md` y `11-modelo-de-datos.md` §3.7 |
 | Qué es `queued` en `GET /questions/next` y por qué existe | `12-api.md` §2.3 (nota del 17/09) y ADR-020 |
 | Cómo funciona el ranking de cinco del tipo 1 (ancla, diez filas, honeypot, retest) | `13-adr/ADR-022-tipo-1-ranking-de-cinco.md`, `20-tipos-de-pregunta.md` §2, `21-sampler.md` §5.1, `22-calidad-de-datos.md` §3.7 y §4.1 |
+| Cómo se activa un parche y qué pasa con lo que está en vuelo | `13-adr/ADR-024-activacion-explicita-de-parche.md`, `02-casos-de-uso.md` CU-06, `12-api.md` §2 y `21-sampler.md` §8 (notas del 11/10) |
 | Por qué la salida por campeón son cuatro archivos largos | `13-adr/ADR-023-salida-en-formato-largo.md` y `26-esquema-de-salida.md` §3 |
 | Cómo se aplican variedad, honeypot y retest en un lote | `21-sampler.md` §6 (nota del 16/09) |
 | Cómo se generan las preguntas sin enumerarlas todas | `21-sampler.md` §2 |
@@ -69,7 +70,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (23 ADR) | v1 |
+| `13-adr/` (24 ADR) | v1 |
 | `20-tipos-de-pregunta.md` | **v2** (08/10: tipo 1 como ranking) |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |

@@ -1,6 +1,9 @@
 # 02 — Casos de uso
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 11/10/2026
+>
+> **11/10/2026:** registrar un parche y activarlo pasan a ser pasos distintos en CU-06
+> ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)).
 
 Actores del sistema y los flujos que ejecutan, con sus caminos alternativos y sus excepciones.
 Cada caso de uso referencia los requerimientos que satisface.
@@ -183,6 +186,19 @@ el tier siguiente. Es un cambio de datos, no un despliegue: cambia
 **Postcondición:** las preguntas nuevas se generan contra el parche vigente y el pool actualizado.
 Las preguntas y respuestas anteriores conservan su parche original. **Las cuatro acciones dejan una
 fila en `admin_audit`** (RF-405).
+
+> **Agregado el 11/10/2026** ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)).
+> Registrar el parche y activarlo son pasos distintos. `seed-champions` y `seed-pick-rate` crean el
+> parche, pero no lo marcan como vigente. El orden del flujo principal queda así:
+>
+> 1. `seed-champions --patch X`
+> 2. `seed-pick-rate --patch X`
+> 3. `seed-honeypots --patch X`
+> 4. `activate-patch --patch X`
+>
+> El paso 4 rechaza un parche sin snapshot de pick rate o sin al menos una honeypot activa, salvo
+> con `--force`, y deja la fila de auditoría. **Alternativo C — falta el snapshot o las honeypots:**
+> el parche vigente no cambia y el comando informa cada faltante.
 
 ---
 
