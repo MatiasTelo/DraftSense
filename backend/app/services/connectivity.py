@@ -83,10 +83,15 @@ class ConnectivityResult:
         return sum(1 for d in self.dimensions if d.components <= 1)
 
 
-async def _edges(
+async def edges(
     session: AsyncSession, patch_id: int
 ) -> dict[int, set[tuple[int, int]]]:
-    """Los pares comparados con una respuesta decisiva que entraría a la agregación."""
+    """Los pares comparados con una respuesta decisiva que entraría a la agregación.
+
+    Es pública porque el panel de administración calcula las componentes en lectura con estas
+    mismas aristas (`docs/24-panel-admin.md` §3.2): si el panel contara otras, mostraría un grafo
+    conectado que el job ve partido.
+    """
     threshold = await aggregable.min_trust(session)
     rows = await session.execute(
         sa.select(Question.dimension_id, Question.champion_a, Question.champion_b)
@@ -99,11 +104,21 @@ async def _edges(
         )
         .distinct()
     )
-    edges: dict[int, set[tuple[int, int]]] = defaultdict(set)
+    found: dict[int, set[tuple[int, int]]] = defaultdict(set)
     for dimension_id, a, b in rows.tuples():
         if dimension_id is not None and b is not None:
-            edges[dimension_id].add((a, b))
-    return edges
+            found[dimension_id].add((a, b))
+    return found
+
+
+def components(enabled: Iterable[int], pairs: Iterable[tuple[int, int]]) -> UnionFind:
+    """El grafo de una dimensión sobre el pool habilitado. Los pares fuera del pool no cuentan."""
+    pool = set(enabled)
+    graph = UnionFind(pool)
+    for a, b in pairs:
+        if a in pool and b in pool:
+            graph.union(a, b)
+    return graph
 
 
 def _pair(
@@ -177,7 +192,7 @@ async def check(session: AsyncSession, rng: random.Random | None = None) -> Conn
 
     space = await questions.load_space(session)
     enabled = space.champion_ids
-    edges = await _edges(session, patch.patch_id)
+    by_dimension = await edges(session, patch.patch_id)
     marked_rows = (
         await session.execute(
             sa.select(Question)
@@ -202,11 +217,8 @@ async def check(session: AsyncSession, rng: random.Random | None = None) -> Conn
     reports: list[DimensionReport] = []
     for dimension in space.dimensions:
         did = dimension.dimension_id
-        graph = UnionFind(enabled)
-        for a, b in edges.get(did, ()):
-            if a in enabled and b in enabled:
-                graph.union(a, b)
-        components = len(graph.groups())
+        graph = components(enabled, by_dimension.get(did, ()))
+        n_components = len(graph.groups())
 
         # Los puentes marcados que todavía unen componentes cuentan como aristas tentativas: se
         # van a contestar. Los que ya no unen nada —o repiten lo que une otro— se desmarcan.
@@ -230,7 +242,7 @@ async def check(session: AsyncSession, rng: random.Random | None = None) -> Conn
         reports.append(
             DimensionReport(
                 code=dimension.code,
-                components=components,
+                components=n_components,
                 bridges=kept + len(new),
                 marked=len(new),
                 cleared=cleared,

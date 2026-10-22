@@ -90,8 +90,9 @@ Las cuatro últimas son las que corre CI, en ese orden, más el presupuesto de b
 ## Estilos: Tailwind v4
 
 Decidido en [ADR-017](../../../docs/13-adr/ADR-017-tailwind-como-sistema-de-estilos.md). Se integra
-con `@tailwindcss/vite`, no con PostCSS, y **no hay `tailwind.config.js`**: todo vive en
-`src/index.css`.
+con `@tailwindcss/vite`, no con PostCSS, y **no hay `tailwind.config.js`**: los tokens y las
+utilidades viven en `src/tokens.css` (desde el 21/10, compartido con el panel de `admin/frontend`,
+ADR-025), y `src/index.css` importa Tailwind, los tokens y la base.
 
 - **Los tokens están en el bloque `@theme`** y son la única representación de los valores de diseño
   en el código. Escribir `#E4B457` dentro de un componente es un error, no una abreviatura: usá

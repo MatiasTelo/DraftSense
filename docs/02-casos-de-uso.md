@@ -200,6 +200,10 @@ fila en `admin_audit`** (RF-405).
 > con `--force`, y deja la fila de auditoría. **Alternativo C — falta el snapshot o las honeypots:**
 > el parche vigente no cambia y el comando informa cada faltante.
 
+> **Agregado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). Los cuatro pasos se pueden dar también desde la vista
+> *Parches y seeds* de la app de administración local ([`24-panel-admin.md`](24-panel-admin.md) §3.8), con los mismos services y
+> eligiendo los archivos de `infra/seeds/`. Cada paso deja una fila en `admin_audit`.
+
 ---
 
 ## CU-07 — Monitorear la recolección
@@ -213,6 +217,10 @@ dimensión**.
 Este último es el indicador que decide si el piloto va a producir datos utilizables: una dimensión
 con el grafo partido no produce scores comparables entre sus componentes, y detectarlo tarde no
 tiene arreglo.
+
+> **Agregado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). La consulta se hace en la app de administración local, que
+> escucha sólo en `127.0.0.1` y no pide clave: RF-404 se cumple con eso. Las vistas están en
+> [`24-panel-admin.md`](24-panel-admin.md) §3.1 a §3.4.
 
 ---
 
@@ -240,6 +248,10 @@ está intacto, así que la corrida anterior sigue siendo reproducible.
 **Excepción — corrida interrumpida.** No queda estado parcial visible: los agregados se escriben en
 una transacción y la fila de exportación sólo se registra cuando el archivo está escrito y su
 checksum calculado.
+
+> **Agregado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). El paso 1 se dispara desde la vista *Exportaciones* de la
+> app de administración local ([`24-panel-admin.md`](24-panel-admin.md) §3.9). Hasta que exista el paquete `aggregation/`
+> (semana 9), el formulario está y el botón está deshabilitado.
 
 **Postcondición:** archivos entregados y trazables hasta las respuestas que los produjeron.
 

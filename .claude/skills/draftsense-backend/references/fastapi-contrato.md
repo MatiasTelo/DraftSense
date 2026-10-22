@@ -15,7 +15,7 @@ request y el response de cada endpoint se leen del documento, no de esta skill.
    `champions`, tenga uno o dos elementos**, para que el cliente renderice duplas y campeones con el
    mismo componente. No "optimices" mandando un objeto suelto cuando hay un solo campeón.
 3. **Sin autenticación de usuario** (§1.3). Cookie `ds_session`:
-   `HttpOnly; Secure; SameSite=Lax; Max-Age=15552000`. Los `/admin/*` van con header `X-Admin-Key`.
+   `HttpOnly; Secure; SameSite=Lax; Max-Age=15552000`. No hay `/admin/*` en la API pública ni `X-Admin-Key` (ADR-025): la administración es la app local de `admin/`, con su contrato en `docs/24-panel-admin.md` §5.
 4. **Versión en la ruta: `/api/v1`** (§6). Dentro de `v1` sólo cambios **aditivos**: campos
    opcionales, endpoints nuevos, valores nuevos en un enum que el cliente ya trate con un caso por
    defecto. Quitar un campo o cambiar un tipo es `v2`.
@@ -37,9 +37,6 @@ modelo ORM entero.**
 |---|---|
 | `POST` | `/sessions` · `/sessions/onboarding` · `/responses` |
 | `GET` | `/questions/next` · `/me` · `/leaderboard` · `/health` |
-| `GET` | `/admin/stats` |
-| `POST` | `/admin/exports` · `/admin/patches/{patch_id}/activate` · `/admin/respondents/{id}/flag` |
-| `PATCH` | `/admin/champions/pool-tier` · `/admin/settings/{key}` |
 
 ## Errores
 

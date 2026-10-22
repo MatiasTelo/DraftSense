@@ -35,8 +35,9 @@ respuestas**, y ahí va el mensaje de "sos de los primeros en responder". No lo 
 ## Estilos
 
 Tailwind v4 con `@tailwindcss/vite` (ADR-017). No hay `tailwind.config.js`: los tokens están en el
-bloque `@theme` de `src/index.css` y las utilidades propias (`bevel-8/12/14`, `portrait-hatch`,
-`range-slider`) en bloques `@utility` del mismo archivo.
+bloque `@theme` de `src/tokens.css` y las utilidades propias (`bevel-8/12/14`, `portrait-hatch`,
+`range-slider`) en bloques `@utility` del mismo archivo. `tokens.css` no importa Tailwind: lo
+comparte el panel de administración (`admin/frontend`, ADR-025), que lo importa por ruta relativa.
 
 La regla práctica al escribir un componente: **si estás por poner un valor literal —un hex, un
 `clip-path`, un nombre de fuente— el token ya existe o hay que agregarlo a `@theme`**. Lo que sí va

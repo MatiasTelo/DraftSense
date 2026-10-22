@@ -25,7 +25,7 @@ Los **siete endpoints públicos** están implementados (semana 2), en cuatro cap
 | Carpeta | Qué hay |
 |---|---|
 | `app/routers/` | `health`, `sessions`, `questions`, `responses`, `profile` — montados en `/api/v1` |
-| `app/services/` | `sessions`, `questions`, `sampler`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias`; desde la semana 5 también `trust`, `trust_check`, `honeypots`, `retests`, `degenerate`, `fingerprints`, `connectivity` y `aggregable`; desde la semana 6, `patches` |
+| `app/services/` | `sessions`, `questions`, `sampler`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias`; desde la semana 5 también `trust`, `trust_check`, `honeypots`, `retests`, `degenerate`, `fingerprints`, `connectivity` y `aggregable`; desde la semana 6, `patches`; desde la semana 7, `seeding` (el camino de los seeds que comparten el CLI y la app admin) |
 | `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno; `common.is_absent` para omitir claves |
 | `app/` | `main.py`, `errors.py`, `dependencies.py`, además de `config.py`, `db.py`, `cli.py`, `models/` y `seeds/` |
 
@@ -83,13 +83,13 @@ cobertura. **Si el pipeline de la semana 9 los cambia, se cambian ahí.**
 ([ADR-024](../../../docs/13-adr/ADR-024-activacion-explicita-de-parche.md)).
 `seed-champions` y `seed-pick-rate` sólo **registran** el parche (`patches.register`); el vigente lo
 cambia `patches.activate`, que rechaza un parche sin snapshot o sin honeypots salvo `force` y
-audita en `admin_audit`. El endpoint de la semana 7 tiene que llamar a ese mismo service.
+audita en `admin_audit`. La app admin de la semana 7 (`admin/backend`, ADR-025) llama a ese mismo service.
 
-**Lo que todavía no existe, y en qué semana llega:** los `/admin/*` y la programación del worker
-(7), y la variante 2v2 del tipo 3 y los tipos 4 y 5 (8). Al agregar un tipo hay que sumarlo también
+**Lo que todavía no existe, y en qué semana llega:** la programación del worker (con el
+despliegue, pendiente desde el 21/10), y la variante 2v2 del tipo 3 y los tipos 4 y 5 (8). Al agregar un tipo hay que sumarlo también
 a `SERVED_TYPES`, a las celdas de cobertura, a `STRAIGHTLINE_TYPES` y a `retests.is_consistent`.
 
-248 tests en `tests/` (`test_patches` es el de la semana 6). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
+249 tests en `tests/` (`test_patches` es el de la semana 6; CA-606, que la API pública no tenga administración, está en `test_api_contract`). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
 `test_honeypots`, `test_retests`, `test_degenerate`, `test_fingerprints` y `test_connectivity`.
 Los que prueban el sorteo lo hacen con `random.Random(seed)`, forzando `TYPE_WEIGHTS` en
 `sampler` o fijando `sampler.epsilon` con `set_setting`. Tienen que pasar igual contra la base
@@ -146,7 +146,7 @@ fecha): para re-aplicar los roles está `sync-roles`, que **escribe en la base**
 el parche vigente.
 
 La configuración se lee del entorno con prefijo `DS_` y desde `backend/.env`
-(`DS_DATABASE_URL`, `DS_ADMIN_KEY`, `DS_CORS_ORIGIN`, `DS_DDRAGON_BASE_URL`). **`.env` está en
+(`DS_DATABASE_URL`, `DS_CORS_ORIGIN`, `DS_DDRAGON_BASE_URL`). **`.env` está en
 `.gitignore` y nunca se versiona**; `backend/.env.example` tiene las claves sin valores.
 
 ## Las cinco reglas que no se negocian
@@ -161,8 +161,8 @@ La configuración se lee del entorno con prefijo `DS_` y desde `backend/.env`
 4. **El servidor arma los textos, el cliente los muestra** (`docs/12-api.md` §1.1). El enunciado
    viaja compuesto, con los nombres de campeón ya sustituidos.
 5. **Sin autenticación de usuario.** Sesión anónima por cookie `ds_session`; en base sólo el
-   SHA-256 del token ([ADR-001](../../../docs/13-adr/ADR-001-sin-autenticacion.md)). Los endpoints
-   `/admin/*` sí van con `DS_ADMIN_KEY`. **No tener sesión no es un error:** los endpoints que
+   SHA-256 del token ([ADR-001](../../../docs/13-adr/ADR-001-sin-autenticacion.md)). La API pública no
+   tiene administración (ADR-025): eso vive en `admin/backend`, sin clave y sólo en `127.0.0.1`. **No tener sesión no es un error:** los endpoints que
    necesitan identidad la crean al vuelo y devuelven la cookie (`docs/12-api.md` §1.3).
 6. **Todo error sale por `ApiError`.** Un `HTTPException` de FastAPI devuelto a mano produce
    `{"detail": ...}` y rompe el contrato en silencio, porque el cliente no valida la forma del

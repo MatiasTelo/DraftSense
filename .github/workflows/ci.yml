@@ -99,6 +99,78 @@ jobs:
             exit 1
           fi
 
+  # La app de administración local (ADR-025). Importa `backend/app`: un cambio de firma en un
+  # service del backend tiene que romper acá también, no recién en el servidor del laboratorio.
+  admin-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin/backend
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: draftsense
+          POSTGRES_PASSWORD: draftsense
+          POSTGRES_DB: draftsense
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DS_DATABASE_URL: postgresql+asyncpg://draftsense:draftsense@localhost:5432/draftsense
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -e ../../backend -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tipos
+        run: mypy draftsense_admin
+
+      - name: Migrar
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Tests
+        run: pytest -q
+
+  admin-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin/frontend/package-lock.json
+
+      # Sin presupuesto de bundle: el panel no es público y se sirve desde la misma máquina.
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
   docs:
     runs-on: ubuntu-latest
     steps:

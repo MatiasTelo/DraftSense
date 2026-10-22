@@ -1,0 +1,49 @@
+[project]
+name = "draftsense-admin"
+version = "0.1.0"
+description = "DraftSense — app de administración local del servidor del laboratorio (ADR-025)"
+requires-python = ">=3.12"
+# `draftsense-backend` no se publica en ningún índice: se instala editable desde `../../backend`
+# antes que este paquete (`pip install -e ../../backend -e ".[dev]"`). Es el que trae FastAPI,
+# SQLAlchemy y el resto, en las mismas versiones que la API pública.
+dependencies = ["draftsense-backend"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "types-pyyaml",
+]
+
+[project.scripts]
+draftsense-admin = "draftsense_admin.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["draftsense_admin*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["draftsense_admin", "app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# La instalación editable de setuptools resuelve `app` con un import hook que mypy no sigue: sin
+# esto, todo `from app...` es `Any` y el chequeo estricto no ve los services que reutiliza.
+mypy_path = "../../backend"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

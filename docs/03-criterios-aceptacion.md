@@ -366,6 +366,9 @@ proceso ni desplegar código**.
 **Entonces** hay tres filas con su `action`, su `payload` y su timestamp, y el rol de aplicación no
 tiene permiso de `UPDATE` ni `DELETE` sobre esa tabla.
 
+> **Agregado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). Las tres acciones se hacen desde la app de administración
+> local. Los criterios CA-605 a CA-612 de RF-401 a RF-405 están en [`24-panel-admin.md`](24-panel-admin.md) §7.
+
 ---
 
 ## 8. Gamificación

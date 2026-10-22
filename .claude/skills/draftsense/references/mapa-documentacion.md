@@ -43,7 +43,8 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Cómo se detecta un patrón degenerado o un duplicado | `22-calidad-de-datos.md` §5 y §6 (cómo se cuenta el *straightlining*: nota del 16/09 en §5.2) |
 | La fórmula del trust score y cuándo se recalcula | `22-calidad-de-datos.md` §7 |
 | Cómo funcionan las rachas, el perfil o la tabla de posiciones | `23-gamificacion.md` §2, §3, §5 |
-| El panel de administración | `24-panel-admin.md` — **pendiente** |
+| El panel de administración: vistas, acciones, auditoría, contrato interno | `24-panel-admin.md` (v1) y `13-adr/ADR-025-app-de-administracion-local.md` |
+| Por qué la administración es una app local sin clave y no `/admin/*` en la API | `13-adr/ADR-025-app-de-administracion-local.md` |
 | Qué respuestas entran a una corrida y cuáles no | `25-agregacion.md` §1 |
 | Cómo se pondera una respuesta | `25-agregacion.md` §2 |
 | Para qué sirven el rol, el tiempo de juego y el rango declarados | `25-agregacion.md` §3 |
@@ -70,12 +71,12 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (24 ADR) | v1 |
+| `13-adr/` (25 ADR) | v1 |
 | `20-tipos-de-pregunta.md` | **v2** (08/10: tipo 1 como ranking) |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |
 | `23-gamificacion.md` | v1 |
-| `24-panel-admin.md` | **pendiente** |
+| `24-panel-admin.md` | v1 (21/10) |
 | `25-agregacion.md` | v1 |
 | `26-esquema-de-salida.md` | **v2** (08/10: formato largo) |
 | `examples/` | **v2** |

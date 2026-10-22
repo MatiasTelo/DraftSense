@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 11/10/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 21/10/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -17,7 +17,7 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | 4 | 22/09 – 28/09 | Tipos de pregunta 2 y 3 operativos con feedback | 20 | **cerrada** — prueba a 360 px hecha el 16/09 |
 | 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | **cerrada** — mergeada a `main` el 08/10 (PR #4) |
 | 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | **cerrada** el 11/10 — correcciones del 05/10 (PR #5) y versionado por parche en la rama `semana-6-versionado-y-gamificacion`; la gamificación no necesitó ajuste |
-| 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | pendiente |
+| 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | **en curso** — panel como app local (ADR-025) en la rama `semana-7-panel-admin-local`, sin mergear; producción y worker pendientes por decisión del 21/10 |
 | 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | pendiente |
 | 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | pendiente |
 | 10 | 03/11 – 09/11 | Módulo de validación e Informe de Calidad de Datos | 12 | pendiente |
@@ -104,6 +104,33 @@ Informe de Avance también tiene que registrar:
 - **El Informe de Avance no se tocó** en este cierre. Sigue diciendo que el versionado por parche
   queda pendiente (§13).
 
+**La semana 7, 21/10/2026**, en la rama `semana-7-panel-admin-local` (sale de `main` con el PR #6):
+
+- **ADR-025, pedido de Marinozi:** la administración es una **app local del servidor del
+  laboratorio** (`admin/backend` FastAPI + `admin/frontend` React), sólo en `127.0.0.1:5000`, **sin
+  clave**, conectada directo a la base con `admin/.env`. La API pública **no** tiene `/admin/*`:
+  se quitaron `X-Admin-Key`, `require_admin_key` y `DS_ADMIN_KEY`. Interfaz en español.
+- **`24-panel-admin.md` a v1**: diez vistas, contrato interno, auditoría, CA-605 a CA-612. Notas
+  fechadas el 21/10 en 01 (RF-404 reformulado), 02, 03, 10, 11, 12 (§1.3 y §2.7 sin efecto), 21,
+  22 y 30.
+- Decisiones del alumno en la planificación: jobs **en segundo plano** (estado en memoria, `409`
+  si ya corre), parámetros con **cualquier JSON válido**, volumen 7/30/90 días, histograma de 20
+  intervalos, auditoría paginada de a 50, seeds elegidos de `infra/seeds/`, `D_n` sobre
+  agregables, y el botón de CSV **deshabilitado** hasta la semana 9.
+- **Migración `0005`**: `run_job` y `run_seed` en el `CHECK` de `admin_audit`. **Staging no la
+  tiene** (tampoco la `0004`).
+- Backend: `services/seeding.py` (el camino de los seeds, compartido por CLI y panel),
+  `connectivity.edges` y `components` públicas. Los tokens de ADR-017 pasan a
+  `frontend/src/tokens.css`, más los colores de los gráficos del panel.
+- **Tests:** backend 249 (antes 248: CA-606), admin backend 51, admin frontend 12, frontend 80, todo
+  contra un Postgres 17 local en Docker. Prueba manual por Chrome contra esa base: CU-06 entero
+  desde el panel (58/38/77, 131 roles, 34 honeypots, 4 filas de auditoría), el job de conectividad
+  con los 456 puentes de ADR-021, y CA-605 (la IP de la máquina rechaza la conexión).
+- **Staging no responde desde el 21/10:** el pooler de Supabase devuelve `tenant/user ... not
+  found`. Hay que revisar el proyecto antes de usarlo.
+- **Pendiente de la semana 7:** el despliegue a producción y la programación periódica del worker,
+  hasta que se confirme el servidor del laboratorio.
+
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos
 destinos muertos. La semana 6 queda entonces con el versionado por parche, el ajuste de
@@ -181,8 +208,8 @@ Al 16/09/2026:
   (en local, 23 y 54 ms). El presupuesto de latencia se mide en la semana 7, con la API y la base
   en la misma región.
 - **`aggregation/` está vacía.** El paquete se implementa en la semana 9.
-- **Lo que NO tiene el backend todavía:** los `/admin/*` y la programación del worker (semana 7: hoy
-  los cuatro jobs se disparan a mano por CLI), y la variante 2v2 del tipo 3 y los tipos 4 y 5
+- **Lo que NO tiene el backend todavía:** la programación del worker (con el despliegue, pendiente
+  desde el 21/10: los cuatro jobs se disparan a mano por CLI o desde el panel), y la variante 2v2 del tipo 3 y los tipos 4 y 5
   (semana 8), que además tienen que sumarse a la cobertura, al *straightlining* y a la consistencia
   del retest.
 - **Del motor de tarjetas faltan la variante 2v2 del tipo 3 y los tipos 4 y 5**, todos de la

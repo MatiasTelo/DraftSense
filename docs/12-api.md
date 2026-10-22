@@ -44,6 +44,9 @@ Ninguna para el usuario final. La sesión anónima viaja en la cookie `ds_sessio
 
 Los endpoints `/admin/*` requieren el header `X-Admin-Key`.
 
+> **Sin efecto desde el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). La API pública no tiene endpoints de
+> administración ni header `X-Admin-Key`. Ver §2.7.
+
 > **Agregado el 09/09/2026.** Los endpoints que necesitan identidad —`GET /me`, `POST /responses`,
 > `GET /questions/next`— **crean la sesión al vuelo** si la petición llega sin cookie o con una
 > cookie que ya no existe en la base, y devuelven `Set-Cookie` como lo haría `POST /sessions`.
@@ -573,6 +576,13 @@ positivo conocido de la deduplicación por huella ([`22-calidad-de-datos.md`](22
 `admin_audit` con su `action`, su `payload` y su timestamp, que es lo que permite explicar por qué
 dos corridas del pipeline sobre el mismo crudo dieron distinto.
 
+> **Cambiado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). **Los seis endpoints de esta sección no forman parte de la
+> API pública.** Ninguno llegó a implementarse en ella: su contenido pasó al contrato interno de la
+> app de administración local, en [`24-panel-admin.md`](24-panel-admin.md) §5, con estas diferencias: sin `X-Admin-Key`, el
+> forzado de la activación viaja como `{"force": true}`, y la corrida de exportación está
+> deshabilitada hasta la semana 9. Lo que queda escrito arriba se conserva como registro; el
+> contrato vigente es el de 24.
+
 **`GET /health`** — verifica conectividad a la base y devuelve el parche vigente. Sin autenticación.
 
 ```jsonc
@@ -601,6 +611,7 @@ Formato uniforme, compatible con el manejador de excepciones de FastAPI:
 | `400` | `unknown_trait_code` | Un código de `traits` no existe o está inactivo |
 | `400` | `invalid_parameter` | Parámetro de query fuera de rango |
 | `401` | `admin_key_required` | Falta o es inválido `X-Admin-Key` |
+| | | *Sin efecto desde el 21/10/2026 ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)): no hay `X-Admin-Key`.* |
 | `404` | `question_not_found` | `question_id` inexistente |
 | `404` | `ranking_not_found` | Tipo 1: `ranking_id` falta, no existe, es de otro respondedor o no tiene a `question_id` como ancla |
 | `409` | `duplicate_response` | Ya respondió esa pregunta y no está marcada como retest |

@@ -529,6 +529,10 @@ honestamente — y alguien que ve su trust bajar aprende a evitar la detección,
 El único lugar donde vive es el panel de administración, detrás de `X-Admin-Key`, y ahí como
 distribución agregada.
 
+> **Cambiado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). Ya no hay `X-Admin-Key`: el panel es una app local del
+> servidor del laboratorio, accesible sólo desde esa máquina. La distribución se muestra como
+> histograma de veinte intervalos ([`24-panel-admin.md`](24-panel-admin.md) §3.4).
+
 ---
 
 ## 8. Parámetros

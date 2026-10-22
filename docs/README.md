@@ -31,7 +31,7 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 | [`21-sampler.md`](21-sampler.md) | Sampling adaptativo: prioridad, exploración, composición de sesión, arranque en frío | **v1** |
 | [`22-calidad-de-datos.md`](22-calidad-de-datos.md) | Honeypots, test-retest, patrones degenerados, trust score, deduplicación | **v1** |
 | [`23-gamificacion.md`](23-gamificacion.md) | Rachas, acuerdo con el consenso, perfil, leaderboard, anti-gaming | **v1** |
-| [`24-panel-admin.md`](24-panel-admin.md) | Métricas, vistas, acciones de operación, autenticación | pendiente |
+| [`24-panel-admin.md`](24-panel-admin.md) | App de administración local: vistas, acciones, auditoría, contrato interno | **v1** |
 | [`25-agregacion.md`](25-agregacion.md) | Del respondedor al CSV: qué se hace con los datos declarados, ponderación, los 5 estimadores y los casos límite | **v1** |
 | [`26-esquema-de-salida.md`](26-esquema-de-salida.md) | Los seis CSV columna por columna: fórmula, rango, origen, soporte | **v2** |
 | [`examples/`](examples/) | Ejemplo ejecutable de los seis CSV, con el diccionario de cada columna | **v2** |

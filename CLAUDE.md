@@ -38,6 +38,8 @@ especificación describe *qué* y *cómo*; el ADR explica *por qué* y qué se d
 ```bash
 cd backend && ruff check . && mypy app && pytest -q
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+cd admin/backend && ruff check . && mypy draftsense_admin && pytest -q
+cd admin/frontend && npm run lint && npm run typecheck && npm test && npm run build
 python infra/check_docs.py
 ```
 
@@ -54,6 +56,7 @@ diez con un `backend/.env` configurado, y siempre en CI contra un Postgres 17 re
 |---|---|
 | `frontend/` | SPA React 18 + TypeScript + Vite |
 | `backend/` | API REST FastAPI + SQLAlchemy 2.0 async |
+| `admin/` | App de administración local del servidor del lab: `admin/backend` (FastAPI) y `admin/frontend` (React). Sin clave, sólo `127.0.0.1` ([ADR-025](docs/13-adr/ADR-025-app-de-administracion-local.md)) |
 | `aggregation/` | Paquete Python ejecutable como CLI. **Vacío hasta la semana 9** |
 | `infra/` | Seeds, `check_docs.py`, configuración de despliegue |
 | `docs/` | Documentación técnica — empezar por [`docs/README.md`](docs/README.md) |

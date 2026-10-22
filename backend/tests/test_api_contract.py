@@ -85,3 +85,14 @@ async def test_la_openapi_expone_los_siete_endpoints(client: AsyncClient) -> Non
         "/api/v1/leaderboard",
     }
     assert not any("admin" in path for path in paths)
+
+
+@requires_db
+async def test_la_api_publica_no_tiene_administracion(client: AsyncClient) -> None:
+    """CA-606 (ADR-025): la administración es la app local de `admin/`, no un `/admin/*` acá.
+
+    Ni con un `X-Admin-Key` cualquiera: el header ya no significa nada para la API pública.
+    """
+    for path in ("/admin/stats", "/admin/exports", "/admin/patches/1/activate"):
+        response = await client.get(path, headers={"X-Admin-Key": "lo-que-sea"})
+        assert response.status_code == 404, path

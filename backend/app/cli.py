@@ -41,21 +41,16 @@ from app.seeds.catalog import (
 from app.seeds.champions import (
     fetch_champion_data,
     fetch_latest_version,
-    load_champion_data,
     roles_without_champions,
-    seed_champions,
 )
 from app.seeds.honeypots import (
-    HoneypotCatalogError,
     honeypot_path,
     load_honeypots,
-    seed_honeypots,
     validate_honeypots,
 )
 from app.seeds.pick_rate import (
     latest_snapshot_id,
     load_pick_rate,
-    seed_pick_rate,
     sync_roles,
     validate_pick_rate,
 )
@@ -66,6 +61,7 @@ from app.services import (
     fingerprints,
     patches,
     question_stats,
+    seeding,
     trust_check,
 )
 
@@ -139,25 +135,22 @@ async def cmd_seed_catalog(args: argparse.Namespace) -> int:
 
 
 async def cmd_seed_champions(args: argparse.Namespace) -> int:
-    settings = get_settings()
-    snapshot = Path(args.snapshot) if args.snapshot else None
-    ddragon_version, payload = await load_champion_data(
-        settings.ddragon_base_url, args.ddragon_version, snapshot
-    )
-
     async with get_sessionmaker()() as session:
-        patch = await patches.register(session, args.patch, _released_at(args))
-        inserted, updated = await seed_champions(
-            session, patch, payload, ddragon_version, settings.ddragon_base_url
+        result = await seeding.load_champions(
+            session,
+            args.patch,
+            base_url=get_settings().ddragon_base_url,
+            ddragon_version=args.ddragon_version,
+            snapshot=Path(args.snapshot) if args.snapshot else None,
+            released_at=_released_at(args),
         )
-        missing = await roles_without_champions(session)
 
     print(
-        f"OK  parche {args.patch} (Data Dragon {ddragon_version}): "
-        f"{inserted} campeones nuevos, {updated} actualizados"
+        f"OK  parche {args.patch} (Data Dragon {result.ddragon_version}): "
+        f"{result.inserted} campeones nuevos, {result.updated} actualizados"
     )
-    if missing:
-        roles = ", ".join(role.value for role in missing)
+    if result.missing_roles:
+        roles = ", ".join(result.missing_roles)
         print(f"AVISO  ningún campeón activo declara el rol: {roles}.", file=sys.stderr)
         for line in ROLE_WARNING:
             print(line, file=sys.stderr)
@@ -178,24 +171,22 @@ async def cmd_seed_settings(args: argparse.Namespace) -> int:
 
 async def cmd_seed_pick_rate(args: argparse.Namespace) -> int:
     path = Path(args.file)
-    rows = load_pick_rate(path)
-    problems = validate_pick_rate(rows)
-    if problems:
-        for problem in problems:
-            print(f"ERROR {path.name}: {problem}", file=sys.stderr)
-        return 1
-
     async with get_sessionmaker()() as session:
-        patch = await patches.register(session, args.patch, _released_at(args))
-        result = await seed_pick_rate(
-            session,
-            patch_id=patch.patch_id,
-            rows=rows,
-            source=args.source,
-            source_url=args.source_url,
-            captured_at=dt.date.fromisoformat(args.captured_at),
-            notes=args.notes,
-        )
+        try:
+            result = await seeding.load_pick_rate_file(
+                session,
+                args.patch,
+                path,
+                source=args.source,
+                source_url=args.source_url,
+                captured_at=dt.date.fromisoformat(args.captured_at),
+                released_at=_released_at(args),
+                notes=args.notes,
+            )
+        except seeding.SeedFileError as exc:
+            for problem in exc.problems:
+                print(f"ERROR {path.name}: {problem}", file=sys.stderr)
+            return 1
 
     counts = result.tiers
     print(
@@ -273,23 +264,14 @@ async def cmd_seed_honeypots(args: argparse.Namespace) -> int:
     campeones que ya tiene que estar sembrado, con su pool asignado.
     """
     path = Path(args.file) if args.file else honeypot_path(args.patch)
-    entries = load_honeypots(path)
-    problems = validate_honeypots(entries)
-    if problems:
-        for problem in problems:
-            print(f"ERROR {path.name}: {problem}", file=sys.stderr)
-        return 1
-
     async with get_sessionmaker()() as session:
-        patch = (
-            await session.execute(sa.select(Patch).where(Patch.version == args.patch))
-        ).scalar_one_or_none()
-        if patch is None:
-            print(f"ERROR no existe el parche {args.patch}", file=sys.stderr)
-            return 1
         try:
-            result = await seed_honeypots(session, patch.patch_id, entries, force=args.force)
-        except HoneypotCatalogError as exc:
+            result = await seeding.load_honeypot_file(session, args.patch, path, force=args.force)
+        except patches.PatchNotFoundError as exc:
+            for problem in exc.problems:
+                print(f"ERROR {problem}", file=sys.stderr)
+            return 1
+        except seeding.SeedFileError as exc:
             for problem in exc.problems:
                 print(f"ERROR {path.name}: {problem}", file=sys.stderr)
             return 1

@@ -59,6 +59,14 @@ del desarrollador o desde una GitHub Action manual, contra la base de datos en m
 unas pocas veces en toda la práctica —una por corte de datos— y ajustar Bradley-Terry sobre todas
 las dimensiones lleva minutos, no milisegundos. Exponerlo como servicio sería infraestructura sin uso.
 
+> **Cambiado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). Hay una **sexta pieza: la app de administración**
+> (`admin/`), que corre en local en el servidor del laboratorio, escucha sólo en `127.0.0.1` y se
+> conecta directo a la base con su propio `admin/.env`. Reutiliza los services del backend. La API
+> pública ya no tiene endpoints `/admin/*`. Cuando exista el pipeline (semana 9), se dispara desde
+> esa app, en el mismo servidor; correrlo desde la máquina del desarrollador o una GitHub Action
+> queda como alternativa. El despliegue a producción y la programación del worker quedaron
+> pendientes el 21/10/2026 hasta que se confirme dónde va a correr el sistema.
+
 ---
 
 ## 2. Vista de despliegue

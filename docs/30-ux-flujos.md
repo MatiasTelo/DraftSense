@@ -44,6 +44,9 @@ graph LR
 
 Cinco rutas públicas más `/admin`, que no se enlaza desde ninguna parte.
 
+> **Cambiado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). La SPA pública no tiene ruta `/admin`: la administración es
+> una aplicación aparte que corre en local en el servidor del laboratorio ([`24-panel-admin.md`](24-panel-admin.md)).
+
 **El camino principal es `/` → `/start` → `/play` y termina ahí.** Perfil y leaderboard son ramas
 laterales a las que se llega desde la barra inferior durante el juego, y de las que siempre se
 vuelve con un botón grande.
