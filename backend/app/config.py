@@ -15,8 +15,6 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+asyncpg://draftsense:draftsense@localhost:5432/draftsense"
     )
-    #: Clave de los endpoints /admin/*.
-    admin_key: str = Field(default="")
     #: Origen permitido por CORS. Con credenciales no puede ser comodín.
     cors_origin: str = Field(default="http://localhost:5173")
     #: URL base de Data Dragon, para el seeder de campeones.

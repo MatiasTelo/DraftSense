@@ -25,6 +25,9 @@ AUDIT_ACTIONS = (
     "set_setting",
     "flag_respondent",
     "trigger_export",
+    # Desde la migración 0005: la app admin también audita jobs y seeds (ADR-025).
+    "run_job",
+    "run_seed",
 )
 
 

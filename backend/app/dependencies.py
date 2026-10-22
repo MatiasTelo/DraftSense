@@ -1,7 +1,8 @@
-"""Dependencias de FastAPI: identidad del respondedor y autorización del panel.
+"""Dependencias de FastAPI: la identidad del respondedor.
 
 Es la única capa que traduce entre HTTP y el dominio: de acá para adentro los services reciben un
-`Respondent`, no una `Request`.
+`Respondent`, no una `Request`. La API pública no tiene administración desde ADR-025: el panel
+es la app local de `admin/`.
 """
 
 from __future__ import annotations
@@ -9,12 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header, Request, Response, status
+from fastapi import Depends, Header, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings, get_settings
 from app.db import get_session
-from app.errors import ApiError
 from app.models import Respondent
 from app.services import sessions
 
@@ -85,19 +84,3 @@ async def resolve_session(
 
 CurrentSessionDep = Annotated[CurrentSession, Depends(resolve_session)]
 
-
-async def require_admin_key(
-    settings: Annotated[Settings, Depends(get_settings)],
-    x_admin_key: Annotated[str | None, Header()] = None,
-) -> None:
-    """Guard de `/admin/*` (RF-404). Los endpoints son de la semana 7; el guard es de acá.
-
-    Con `DS_ADMIN_KEY` vacío rechaza todo: un despliegue al que se le olvidó configurar la clave
-    tiene que quedar cerrado, no abierto.
-    """
-    if not settings.admin_key or x_admin_key != settings.admin_key:
-        raise ApiError(
-            "admin_key_required",
-            "a valid X-Admin-Key header is required",
-            status.HTTP_401_UNAUTHORIZED,
-        )

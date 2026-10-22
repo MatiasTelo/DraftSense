@@ -30,6 +30,7 @@ ni interpretación de resultados. DraftSense mide campeones; el laboratorio hace
 |---|---|
 | `frontend/` | SPA en React 18 + TypeScript + Vite. Interfaz pública de etiquetado |
 | `backend/` | API REST en FastAPI + SQLAlchemy 2.0 async. Sesiones, sampler, registro de respuestas |
+| `admin/` | App de administración local del servidor del laboratorio: panel, jobs, seeds y exportación ([ADR-025](docs/13-adr/ADR-025-app-de-administracion-local.md)) |
 | `aggregation/` | Paquete Python ejecutable como CLI. Agregación estadística y exportación |
 | `infra/` | Migraciones Alembic, seeds, configuración de despliegue |
 | `docs/` | Documentación técnica — **empezar por [`docs/README.md`](docs/README.md)** |
@@ -72,11 +73,34 @@ npm install
 npm run dev                     # http://localhost:5173, con proxy de /api al backend
 ```
 
+### App de administración
+
+Corre en el servidor del laboratorio, **sólo en `http://127.0.0.1:5000`** y sin clave: quien llega
+está en la máquina ([ADR-025](docs/13-adr/ADR-025-app-de-administracion-local.md),
+[`docs/24-panel-admin.md`](docs/24-panel-admin.md)).
+
+```bash
+cd admin/backend
+python -m venv .venv
+.venv/Scripts/activate          # Windows;  source .venv/bin/activate en Linux/macOS
+pip install -e ../../backend -e ".[dev]"
+# Crear admin/.env desde admin/.env.example (está en .gitignore, nunca se versiona)
+
+cd ..
+./run.sh                        # o .
+un.ps1 en Windows: construye el frontend si falta y levanta el panel
+```
+
+En desarrollo, `npm run dev` en `admin/frontend` levanta Vite en `127.0.0.1:5174` con proxy de
+`/api` al backend del panel.
+
 ### Comprobaciones
 
 ```bash
 cd backend && ruff check . && mypy app && pytest -q
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+cd admin/backend && ruff check . && mypy draftsense_admin && pytest -q
+cd admin/frontend && npm run lint && npm run typecheck && npm test && npm run build
 python infra/check_docs.py      # DDL, enlaces y conteos de la documentación
 ```
 

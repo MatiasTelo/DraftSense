@@ -1,0 +1,26 @@
+/**
+ * Estilos del panel: Tailwind y los tokens de la SPA pública, sin copiarlos (ADR-017, ADR-025).
+ */
+
+@import 'tailwindcss';
+@import '../../../frontend/src/tokens.css';
+
+@layer base {
+  html {
+    background: var(--color-void);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-void);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-cyan);
+    outline-offset: 2px;
+  }
+}

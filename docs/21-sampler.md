@@ -460,6 +460,11 @@ El panel muestra ambos indicadores, así que la decisión se toma mirando un nú
 Con el volumen esperado del piloto es **improbable que la condición se cumpla**, y eso está bien: el
 plan por defecto es cerrar la práctica con datos densos sobre 40 campeones.
 
+> **Agregado el 21/10/2026.** El panel ([`24-panel-admin.md`](24-panel-admin.md) §3.2) calcula `D_n` como el `score_n` de
+> `25-agregacion.md` §5.1: respuestas **agregables** del tipo 1 del parche vigente con
+> `choice ∈ {a, b}` en las que participa el campeón, en esa dimensión. Las dimensiones conectadas
+> salen de las mismas aristas que `check_graph_connectivity`, calculadas en lectura.
+
 ---
 
 ## 8. Casos borde

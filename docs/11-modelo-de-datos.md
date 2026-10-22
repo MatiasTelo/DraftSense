@@ -704,7 +704,8 @@ CREATE TABLE admin_audit (
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT admin_audit_action_valid CHECK (
         action IN ('activate_patch', 'set_pool_tier', 'set_enabled_tiers',
-                   'set_setting', 'flag_respondent', 'trigger_export')
+                   'set_setting', 'flag_respondent', 'trigger_export',
+                   'run_job', 'run_seed')
     )
 );
 
@@ -715,6 +716,11 @@ Es append-only por la misma razón que `responses`: un registro de auditoría qu
 es un registro de auditoría. No guarda quién —el panel se autentica con una clave compartida
 (`X-Admin-Key`), no con identidades— sino **qué cambió y cuándo**, que es lo que hace falta para
 explicar por qué dos corridas del pipeline sobre el mismo crudo dieron distinto.
+
+> **Cambiado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). La migración `0005` agrega `run_job` y `run_seed` al
+> `CHECK` de `action`: correr un job o cargar un seed desde el panel también se audita. El payload
+> de cada acción está en [`24-panel-admin.md`](24-panel-admin.md) §4. El panel ya no usa `X-Admin-Key`; `admin_audit` sigue sin
+> guardar quién porque no hay identidades.
 
 ### 3.14 `rankings`
 

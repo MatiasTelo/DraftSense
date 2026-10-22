@@ -79,6 +79,11 @@ entrega.
 | RF-404 | Los endpoints de administración deben requerir una clave de acceso | M |
 | RF-405 | Toda acción de administración debe quedar registrada en un log de auditoría append-only | S |
 
+> **Cambiado el 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). La administración es una aplicación local del servidor del
+> laboratorio, sin clave. **RF-404 se lee ahora así:** «la administración sólo debe ser accesible
+> desde la máquina del servidor»; se cumple escuchando sólo en `127.0.0.1`, no con una clave. Los
+> RF-401 a RF-405 los cumple esa aplicación, cuyas vistas y criterios están en [`24-panel-admin.md`](24-panel-admin.md).
+
 ### RF-5xx — Agregación y exportación
 
 | # | Requerimiento | Pr. |
