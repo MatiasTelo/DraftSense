@@ -24,7 +24,8 @@ class Feedback(BaseModel):
 
     Cada tipo usa un subconjunto de campos: los de elección, `consensus` y
     `agreed_with_majority`; el tipo 2, `consensus_median` y `your_answer`; el tipo 1, que es un
-    ranking, `pairs_agreed` y `pairs_compared` (ADR-022). Los que no aplican no viajan, ni siquiera
+    ranking, `pairs_agreed` y `pairs_compared` (ADR-022); el tipo 5, `trait_shares`,
+    `traits_agreed` y `traits_compared` (nota del 29/10). Los que no aplican no viajan, ni siquiera
     en `null` (`docs/12-api.md` §2.4).
     """
 
@@ -37,6 +38,11 @@ class Feedback(BaseModel):
     pairs_agreed: int | None = Field(default=None, exclude_if=is_absent)
     #: Tipo 1: cuántos pares del ranking tienen al menos `sampler.consensus_threshold` respuestas.
     pairs_compared: int | None = Field(default=None, exclude_if=is_absent)
+    #: Tipo 5: qué fracción de la comunidad marcó cada atributo activo.
+    trait_shares: dict[str, float] | None = Field(default=None, exclude_if=is_absent)
+    #: Tipo 5: en cuántos atributos coincide con la mayoría, y cuántos se compararon.
+    traits_agreed: int | None = Field(default=None, exclude_if=is_absent)
+    traits_compared: int | None = Field(default=None, exclude_if=is_absent)
     sample_size: int
 
 

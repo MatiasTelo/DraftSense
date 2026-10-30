@@ -67,6 +67,56 @@ jobs:
       - name: Tests
         run: pytest -q
 
+  # El pipeline de agregación (semana 9, docs/25-agregacion.md). Lee la base del backend: los
+  # tests de CA-407 a CA-409 corren contra el mismo Postgres 17 que el job del backend.
+  aggregation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aggregation
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: draftsense
+          POSTGRES_PASSWORD: draftsense
+          POSTGRES_DB: draftsense
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DS_DATABASE_URL: postgresql+asyncpg://draftsense:draftsense@localhost:5432/draftsense
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -e ../backend -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tipos
+        run: mypy -p aggregation
+
+      - name: Migrar
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Tests
+        run: pytest -q
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -134,7 +184,7 @@ jobs:
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -e ../../backend -e ".[dev]"
+        run: pip install -e ../../backend -e ../../aggregation -e ".[dev]"
 
       - name: Lint
         run: ruff check .

@@ -1,0 +1,66 @@
+[project]
+name = "draftsense-aggregation"
+version = "1.0.0"
+description = "DraftSense — pipeline de agregación: del respondedor a los seis CSV (docs/25-agregacion.md)"
+requires-python = ">=3.12"
+# `draftsense-backend` no se publica en ningún índice: se instala editable desde `../backend`
+# antes que este paquete (`pip install -e ../backend -e ".[dev]"`). Trae la configuración, los
+# modelos y la conexión a la base, que el pipeline lee y no redefine.
+dependencies = [
+    "draftsense-backend",
+    "numpy>=2.0",
+    "scipy>=1.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    # La verificación cruzada del Bradley-Terry de §5.1 (ADR-003): el pipeline implementa el MM de
+    # Hunter con ε, y el test lo compara contra la biblioteca con ε = 0.
+    "choix>=0.3.5",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "scipy-stubs",
+    "types-pyyaml",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# El paquete es esta misma carpeta, para que `python -m aggregation.run` funcione desde la raíz del
+# repositorio tal como lo escribe docs/25-agregacion.md §8.1.
+[tool.setuptools]
+package-dir = { "aggregation" = "." }
+packages = ["aggregation", "aggregation.estimators"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+# Las fórmulas usan nombres de una letra en mayúscula —W, N, D— como en el documento, y los
+# comentarios la notación de docs/25-agregacion.md (σ, τ, δ, −): reescribirla en ASCII la volvería
+# ilegible al compararla con el documento.
+ignore = ["N803", "N806", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aggregation", "app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# Igual que en `admin/backend`: el import hook de la instalación editable no lo sigue mypy.
+mypy_path = "../backend,.."
+# Los tests no son parte del paquete, aunque vivan en su carpeta.
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = ["choix"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -5,6 +5,11 @@
 > **08/10/2026:** mensaje nuevo para el soporte bajo, feedback por pares del tipo 1 y confirmación
 > en el tipo 1 (§5.1, §6, §9, §10), por las correcciones de la reunión del 05/10 con el tutor de la
 > organización ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
+>
+> **29/10/2026:** tarjetas de la variante 2v2 y de los tipos 4 y 5, su feedback, sus atajos y el
+> selector de idioma (§5, §5.1, §9, §10). Desde [ADR-028](13-adr/ADR-028-idioma-por-parametro.md) la
+> interfaz también está en español; los literales de este documento siguen siendo los del inglés, y
+> la tabla de equivalencias vive en `frontend/src/i18n/`.
 
 Mapa de navegación, maquetado de cada pantalla, estados y microcopy. Todo el texto de esta
 especificación es el literal que ve el usuario, en inglés
@@ -181,6 +186,22 @@ nivel. Todo lo que se agregue ahí compite con la tarjeta.
 
 **Barra inferior:** tres destinos, siempre visibles, sin menú desplegable.
 
+> **Agregado el 29/10/2026.** La barra superior de `/play` suma el selector de idioma `EN | ES`
+> ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)), por decisión del alumno: es la excepción
+> deliberada a «nada más», porque es el único lugar desde donde se cambia sin salir del juego. Va
+> entre la racha y el contador, con el idioma activo resaltado y cada opción de 44 px.
+>
+> Las tarjetas de la semana 8, sobre los wireframes de [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md):
+>
+> - **2v2 y tipo 4** comparten las duplas apiladas: dos bloques, uno arriba y otro abajo, cada uno
+>   con los dos retratos y «Caitlyn + Lux», separados por `vs` en el 2v2 y sin separador en el
+>   tipo 4. Encima va la etiqueta del contexto (`BOT`, `TOP + JUNGLE`, `MID + JUNGLE`). Las opciones
+>   son una lista de botones de 52 px que registran al primer toque.
+> - **Tipo 5**: el retrato, el nombre y la grilla de siete atributos en dos columnas, con *Split
+>   push* a lo ancho. Cada atributo es un botón de alternar (`aria-pressed`) y tiene su `?` con la
+>   definición. *Confirm* está deshabilitado hasta que haya uno marcado
+>   ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)).
+
 ### 5.1 Feedback post-respuesta
 
 Al responder, la tarjeta no salta de inmediato: se superpone el resultado durante **1,2 segundos** y
@@ -240,6 +261,12 @@ durante los primeros días **todas** las preguntas van a caer ahí.
 | Tipo 1 (pares) | `You agree with the community on 7 of 9 pairs` |
 | Racha en múltiplo de 10 | `10 in a row 🔥` sobre el feedback normal |
 | Tipo 2 (mediana) | `Most players said 26 min. You said 27.` |
+| Tipo 5 (atributos), agregado el 29/10/2026 | `You agree with the community on 5 of 7 traits`, con una barra por atributo |
+
+> **Agregado el 29/10/2026.** El 2v2 y el tipo 4 usan las barras de consenso con la barra debajo
+> de la etiqueta, como el 1v1. El tipo 5 muestra la frase de arriba y, debajo, los siete atributos
+> con la fracción de la comunidad que marcó cada uno; los que marcó la persona van en dorado. El
+> formato es el de [`12-api.md`](12-api.md) §2.4 (nota del 29/10).
 
 `You're in the 19%` está redactado deliberadamente **sin connotación de error**. No hay respuesta
 correcta: la discrepancia es el dato, no una falla del usuario. Decir "wrong" arruinaría tanto la
@@ -356,6 +383,10 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
   etiqueta, no por color.
 - Los íconos de campeón llevan `alt` con el nombre del campeón.
 
+> **Agregado el 29/10/2026.** Teclado en las tarjetas de la semana 8: el 2v2 usa `1`–`5` como el
+> 1v1; el tipo 4, `1`–`3`; el tipo 5, `1`–`7` para marcar y desmarcar atributos en el orden de la
+> grilla y `Enter` para confirmar, sólo con uno marcado.
+
 > **Agregado el 16/09/2026.** La prueba a 360 px del cierre de la semana 4 encontró tres objetivos
 > táctiles por debajo de 44 px: el ícono de ayuda `?` (36 × 36), `Skip` en `/start` (32 de alto) y
 > las pestañas de ventana de `/leaderboard` (40 de alto). Se corrigieron los tres **sin cambiar lo
@@ -376,3 +407,4 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
 | Orden del leaderboard | Cantidad de respuestas | Premiar acuerdo induciría a responder lo popular |
 | Trust score visible | No | Convertiría la calidad en una métrica a optimizar |
 | Deshacer una respuesta | No existe | `responses` es append-only y una corrección tardía es peor dato que la primera reacción |
+| Idioma, agregado el 29/10/2026 | Selector `EN \| ES` en `/` y en la barra superior de `/play`, recordado en el navegador; por defecto inglés | Lo elige la persona y no el navegador ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)). Cambiarlo descarta la cola de preguntas ya cargadas |

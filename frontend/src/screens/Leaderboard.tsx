@@ -18,19 +18,17 @@ import { AppFrame } from '../components/AppFrame';
 import { SecondaryButton } from '../components/Button';
 import { BottomNav, TopBar } from '../components/Chrome';
 import { fetchLeaderboard } from '../lib/client';
+import { useT } from '../store/lang';
 import { useSession } from '../store/session';
 
-const WINDOWS: [LeaderboardWindow, string, string][] = [
-  ['day', 'Today', 'today'],
-  ['week', 'This week', 'this week'],
-  ['all', 'All time', 'all time'],
-];
+const WINDOWS: LeaderboardWindow[] = ['day', 'week', 'all'];
 
 export function Leaderboard() {
   const navigate = useNavigate();
   const counters = useSession((state) => state.counters);
   const [range, setRange] = useState<LeaderboardWindow>('week');
   const [table, setTable] = useState<LeaderboardResponse | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let current = true;
@@ -47,7 +45,7 @@ export function Leaderboard() {
   }, [range]);
 
   const you = table?.entries.find((entry) => entry.is_you);
-  const phrase = WINDOWS.find(([value]) => value === range)?.[2] ?? '';
+  const phrase = t.leaderboard.phrases[range];
 
   return (
     <AppFrame>
@@ -55,7 +53,7 @@ export function Leaderboard() {
 
       <main className="flex flex-1 flex-col">
         <div className="flex gap-2 px-[22px] pt-6 pb-4">
-          {WINDOWS.map(([value, label]) => (
+          {WINDOWS.map((value) => (
             <button
               key={value}
               type="button"
@@ -67,7 +65,7 @@ export function Leaderboard() {
                   : 'border border-edge font-medium text-label'
               }`}
             >
-              {label}
+              {t.leaderboard.windows[value]}
             </button>
           ))}
         </div>
@@ -105,11 +103,11 @@ export function Leaderboard() {
 
           {you !== undefined && (
             <p className="pt-[18px] pb-2 font-display text-[17px] font-semibold text-ink">
-              You&apos;re #{you.rank} {phrase}
+              {t.leaderboard.you(you.rank, phrase)}
             </p>
           )}
           <div className="mb-[22px]">
-            <SecondaryButton onClick={() => navigate('/play')}>Keep playing</SecondaryButton>
+            <SecondaryButton onClick={() => navigate('/play')}>{t.leaderboard.keepPlaying}</SecondaryButton>
           </div>
         </div>
       </main>

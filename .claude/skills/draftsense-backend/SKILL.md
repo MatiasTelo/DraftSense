@@ -85,11 +85,25 @@ cobertura. **Si el pipeline de la semana 9 los cambia, se cambian ahí.**
 cambia `patches.activate`, que rechaza un parche sin snapshot o sin honeypots salvo `force` y
 audita en `admin_audit`. La app admin de la semana 7 (`admin/backend`, ADR-025) llama a ese mismo service.
 
-**Lo que todavía no existe, y en qué semana llega:** la programación del worker (con el
-despliegue, pendiente desde el 21/10), y la variante 2v2 del tipo 3 y los tipos 4 y 5 (8). Al agregar un tipo hay que sumarlo también
-a `SERVED_TYPES`, a las celdas de cobertura, a `STRAIGHTLINE_TYPES` y a `retests.is_consistent`.
+**Semana 8 (29/10): los cinco tipos, en seis variantes, y el español.**
 
-249 tests en `tests/` (`test_patches` es el de la semana 6; CA-606, que la API pública no tenga administración, está en `test_api_contract`). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
+- `questions.Variant` separa el 1v1 del 2v2: la mezcla (`sampler.TYPE_WEIGHTS`, 50/20/15/5/5/5) se
+  sortea por variante y la variedad por tipo. Las duplas viven en `DuoPool` (`Space.bot_lane` con
+  los tiers habilitados, `Space.synergy` sólo con el tier 1) y guardan el rol de cada campeón en
+  `role_a … role_d` ([ADR-026](../../../docs/13-adr/ADR-026-rol-explicito-en-las-duplas.md),
+  migración `0006`).
+- El tipo 5 exige al menos un atributo (ADR-027) y su `answer_counts` lleva `_total`; el feedback
+  trae `trait_shares`, `traits_agreed` y `traits_compared`.
+- `question_texts.TEXTS` tiene inglés y español; `GET /questions/next?lang=es` (ADR-028). Los
+  catálogos cargan `label_es`, `description_es` y `prompt_es` desde los YAML.
+- `services/synthetic.py` y `draftsense seed-synthetic-responses`: respuestas de una verdad oculta
+  para probar el consenso y la agregación. **`guard()` se niega a correr si la base no es local.**
+
+**Lo que todavía no existe:** la programación del worker (con el despliegue, pendiente desde el
+21/10). Al agregar un tipo o una variante hay que sumarlo a `Variant`, a `SERVED_TYPES`, a las
+celdas de cobertura de `question_stats`, a `STRAIGHTLINE_TYPES` y a `retests.is_consistent`.
+
+286 tests en `tests/` (`test_semana_8` y `test_synthetic` son los de la semana 8) (`test_patches` es el de la semana 6; CA-606, que la API pública no tenga administración, está en `test_api_contract`). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
 `test_honeypots`, `test_retests`, `test_degenerate`, `test_fingerprints` y `test_connectivity`.
 Los que prueban el sorteo lo hacen con `random.Random(seed)`, forzando `TYPE_WEIGHTS` en
 `sampler` o fijando `sampler.epsilon` con `set_setting`. Tienen que pasar igual contra la base
@@ -127,6 +141,11 @@ python -m app.cli verify-trust-scores             # sólo lee; sale con 1 si alg
 uvicorn app.main:app --reload                     # la API en :8000, OpenAPI en /docs
 ```
 
+> **Desde el 21/10 todo se prueba contra el contenedor `draftsense-pg17-test` publicado en
+> `127.0.0.1:5433`** (`DS_DATABASE_URL=postgresql+asyncpg://draftsense:draftsense@127.0.0.1:5433/draftsense`).
+> Desde el 29/10 tiene sembrada la seed sintética (seed 42): `test_overview_counts_submissions_and_aggregable`
+> de `admin/backend` cuenta las respuestas de hoy en toda la base y falla mientras esté.
+>
 > **Cuidado con el `.env`: apunta a staging.** `alembic downgrade base` contra él borra el esquema
 > de staging, y `pytest` a secas corre `alembic upgrade head` ahí (`test_migration_applies_cleanly`).
 > Para probar una migración nueva o la reversibilidad, usá un Postgres 17 descartable y pasá la

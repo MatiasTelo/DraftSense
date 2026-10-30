@@ -85,12 +85,15 @@ def validate_shape(question_type: QuestionType, answer: dict[str, Any]) -> None:
             traits = _only_key(answer, "traits")
             if not isinstance(traits, list) or not all(isinstance(t, str) for t in traits):
                 raise AnswerShapeError("traits must be an array of strings")
+            # Al menos uno (ADR-027): `[]` dejó de ser «ninguno de estos» el 29/10/2026.
+            if not traits:
+                raise AnswerShapeError("traits must have at least one code")
             if len(set(traits)) != len(traits):
                 raise AnswerShapeError("traits must not repeat")
 
 
 async def validate_trait_codes(session: AsyncSession, answer: dict[str, Any]) -> None:
-    """Que cada código exista y esté activo. La lista vacía es válida: significa 'ninguno'."""
+    """Que cada código exista y esté activo. La lista vacía la rechaza antes `validate_shape`."""
     codes: list[str] = answer.get("traits", [])
     if not codes:
         return

@@ -5,6 +5,12 @@
 > **08/10/2026:** tabla `rankings` (§3.14), columna `responses.ranking_id` y los tipos de archivo
 > nuevos de `exports` ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
 > [ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Migración `0004`.
+>
+> **29/10/2026:** `questions.role_a … role_d`, el rol de cada campeón en las preguntas de duplas
+> ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)); el tipo 5 exige al menos un atributo
+> ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)); `exports.params`, que cierra el punto 3
+> de [`25-agregacion.md`](25-agregacion.md) §12; y las claves de `answer_counts` de los tipos 4 y 5.
+> Migración `0006`.
 
 Esquema completo, diccionario de datos, esquemas de validación de las respuestas y estrategia de
 migraciones. El DDL de este documento es **ejecutable tal cual**: se corre contra un Postgres 16
@@ -205,6 +211,11 @@ exactamente lo que esta tabla existe para evitar.
 Los campos en español son nulos hasta la internacionalización de la semana 8
 ([ADR-010](13-adr/ADR-010-interfaz-en-ingles.md)).
 
+> **Agregado el 29/10/2026.** Desde la semana 8 las ocho filas tienen `label_es`, `description_es`
+> y `prompt_es`, cargados por `seed-catalog` desde `infra/seeds/dimensions.yaml`. El servidor los
+> usa cuando la pregunta se pide con `lang=es` y cae al inglés si alguno falta
+> ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)). Lo mismo vale para `traits`.
+
 ### 3.6 `traits`
 
 Los atributos del tipo 5. `legacy_tag` marca las 7 etiquetas originales del laboratorio, que son
@@ -335,6 +346,11 @@ CREATE TABLE questions (
     dimension_id int         REFERENCES dimensions (dimension_id),
     role         lane_role,    -- variantes 1v1: quién ocupa ese rol
     duo_ctx      duo_context,  -- variantes de dupla: dónde actúan juntos
+    -- Variantes de dupla: el rol de cada campeón (ADR-026). role_a es el de champion_a.
+    role_a       lane_role,
+    role_b       lane_role,
+    role_c       lane_role,
+    role_d       lane_role,
     patch_id     int NOT NULL REFERENCES patches (patch_id),
 
     is_honeypot     boolean NOT NULL DEFAULT false,
@@ -379,6 +395,25 @@ CREATE TABLE questions (
         END
     ),
 
+    -- Los roles de las duplas (ADR-026): presentes sólo con duo_ctx, y cada dupla con los dos
+    -- roles de su contexto, en cualquier orden.
+    CONSTRAINT questions_duo_roles CHECK (
+        CASE
+            WHEN duo_ctx IS NULL THEN
+                role_a IS NULL AND role_b IS NULL AND role_c IS NULL AND role_d IS NULL
+            WHEN duo_ctx = 'bot' THEN
+                ((role_a = 'adc' AND role_b = 'support') OR (role_a = 'support' AND role_b = 'adc'))
+                AND ((role_c = 'adc' AND role_d = 'support') OR (role_c = 'support' AND role_d = 'adc'))
+            WHEN duo_ctx = 'top_jungle' THEN
+                ((role_a = 'top' AND role_b = 'jungle') OR (role_a = 'jungle' AND role_b = 'top'))
+                AND ((role_c = 'top' AND role_d = 'jungle') OR (role_c = 'jungle' AND role_d = 'top'))
+            WHEN duo_ctx = 'mid_jungle' THEN
+                ((role_a = 'mid' AND role_b = 'jungle') OR (role_a = 'jungle' AND role_b = 'mid'))
+                AND ((role_c = 'mid' AND role_d = 'jungle') OR (role_c = 'jungle' AND role_d = 'mid'))
+            ELSE false
+        END
+    ),
+
     -- Orden canónico: (A,B) y (B,A) son la MISMA pregunta y no deben duplicarse.
     -- En las variantes de dupla se ordena dentro de cada pareja y entre parejas.
     CONSTRAINT questions_canonical_order CHECK (
@@ -406,9 +441,10 @@ CREATE TABLE questions (
 -- La alternativa con COALESCE(role::text, '') no es valida: castear un enum a text es
 -- STABLE, no IMMUTABLE, y Postgres lo rechaza en la expresion de un indice. Ademas un
 -- indice por expresion solo lo usa el planificador si la consulta repite la expresion.
+-- Desde la migración 0006 incluye los roles de las duplas (ADR-026).
 CREATE UNIQUE INDEX questions_identity ON questions (
     type, patch_id, champion_a, champion_b, champion_c, champion_d,
-    dimension_id, role, duo_ctx
+    dimension_id, role, duo_ctx, role_a, role_b, role_c, role_d
 ) NULLS NOT DISTINCT;
 
 -- Camino del sampler: filtra por tipo y parche, ordena por exposición
@@ -432,6 +468,19 @@ La lee el feedback post-respuesta y de ella se deriva `entropy`.
 >
 > En `peak_timing` es un histograma: la clave es texto porque las claves de un objeto JSON lo son, y
 > quien lo lea tiene que ordenarlas como números. Una opción que nadie eligió no aparece.
+
+> **Agregado el 29/10/2026.** Los dos tipos de la semana 8. La variante 2v2 del tipo 3 usa las
+> mismas claves que el 1v1.
+>
+> | Tipo | Claves | Ejemplo |
+> |---|---|---|
+> | `duo_synergy` | `pair_1`, `similar`, `pair_2` | `{"pair_1": 11, "similar": 7, "pair_2": 4}` |
+> | `trait_multiselect` | un conteo por código de atributo, más `_total` | `{"engage": 18, "dive": 9, "_total": 23}` |
+>
+> En el tipo 5 una respuesta marca varios atributos, así que la suma de los conteos no es la
+> cantidad de respuestas: esa cantidad es `_total`, que es además el `exposure_count` de la
+> pregunta y el denominador de la fracción de cada atributo. El guion bajo inicial la separa de los
+> códigos, que por `traits_code_format` empiezan siempre con una letra.
 
 `coverage_deficit` es el tercer término de la función de prioridad del sampler: cuánto le falta al
 campeón peor cubierto de esta pregunta para llegar a la mediana global de cobertura. Está
@@ -481,6 +530,7 @@ CREATE TABLE responses (
                 AND (answer - 'choice') = '{}'::jsonb
             WHEN 'trait_multiselect' THEN
                 jsonb_typeof(answer -> 'traits') = 'array'
+                AND jsonb_array_length(answer -> 'traits') >= 1   -- ADR-027
                 AND (answer - 'traits') = '{}'::jsonb
         END
     )
@@ -627,6 +677,9 @@ CREATE TABLE exports (
     decay_halflife_days numeric(6,2),
     bootstrap_samples   int,
     aggregation_version text NOT NULL,   -- versión del paquete draftsense_agg
+    -- Todos los parámetros efectivamente usados, también los que no tienen columna propia
+    -- (power_sigma, los umbrales de _support, exported_at). Migración 0006.
+    params              jsonb NOT NULL DEFAULT '{}'::jsonb,
 
     created_at timestamptz NOT NULL DEFAULT now(),
 
@@ -643,6 +696,13 @@ CREATE INDEX exports_by_patch ON exports (patch_id, created_at DESC);
 > **Cambiado el 08/10/2026.** `champion_features` se reemplazó por los cuatro archivos por campeón
 > de [`26-esquema-de-salida.md`](26-esquema-de-salida.md) §3
 > ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)).
+
+> **Agregado el 29/10/2026.** `params` guarda **todos** los parámetros de la corrida tal como se
+> usaron: `patch_window`, `min_trust`, `decay_halflife_days`, `power_sigma`, `bootstrap_samples`,
+> `bt_prior`, los dos `duo_lambda_*`, `max_iter`, `tol`, `support_thresholds`, `exported_at` y la
+> semilla. Las columnas sueltas se conservan; lo que no tenía columna —26 §2.4 y §3.3 dicen que el
+> `σ` y los umbrales quedan registrados— vive acá. Cierra el punto 3 de
+> [`25-agregacion.md`](25-agregacion.md) §12.
 
 ### 3.12 `app_settings`
 
@@ -822,7 +882,7 @@ puede expresar cómodamente: que `minute` sea entero y que cada código de `trai
 | `peak_timing` | `{"minute": 27}` | entero, no decimal |
 | `lane_matchup` | `{"choice": "a_strong" \| "a_slight" \| "even" \| "b_slight" \| "b_strong"}` | — |
 | `duo_synergy` | `{"choice": "pair_1" \| "pair_2" \| "similar"}` | — |
-| `trait_multiselect` | `{"traits": ["engage", "dive"]}` | códigos existentes y activos, sin repetidos |
+| `trait_multiselect` | `{"traits": ["engage", "dive"]}`, con al menos un código | códigos existentes y activos, sin repetidos |
 
 **Las dos variantes de `lane_matchup` comparten la forma del `answer`.** En el 1v1, `a` y `b` son
 campeones; en el 2v2 de bot, son duplas. La escala de cinco niveles y el modelo de agregación son
@@ -831,6 +891,10 @@ y no un sexto tipo de pregunta.
 
 `{"traits": []}` es una respuesta **válida y significativa**: quiere decir "ninguno de estos".
 No se confunde con no haber respondido, porque una no-respuesta no genera fila.
+
+> **Cambiado el 29/10/2026.** El párrafo anterior queda sin efecto: el tipo 5 exige al menos un
+> atributo ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)). `{"traits": []}` responde
+> `400 answer_shape_mismatch` en la API y la rechaza el `CHECK responses_answer_shape` en la base.
 
 `expected_answer` de los honeypots usa exactamente la misma forma que `answer`, de modo que la
 comparación es una igualdad de `jsonb`.

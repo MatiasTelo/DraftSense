@@ -25,6 +25,25 @@ from app.models.enums import (
     QuestionType,
 )
 
+#: Los roles de cada dupla según su contexto (ADR-026), en cualquier orden dentro de la dupla.
+#: Lo comparten el modelo y la migración 0006: el CHECK de la base es el árbitro.
+DUO_ROLES_CHECK = """
+CASE
+    WHEN duo_ctx IS NULL THEN
+        role_a IS NULL AND role_b IS NULL AND role_c IS NULL AND role_d IS NULL
+    WHEN duo_ctx = 'bot' THEN
+        ((role_a = 'adc' AND role_b = 'support') OR (role_a = 'support' AND role_b = 'adc'))
+        AND ((role_c = 'adc' AND role_d = 'support') OR (role_c = 'support' AND role_d = 'adc'))
+    WHEN duo_ctx = 'top_jungle' THEN
+        ((role_a = 'top' AND role_b = 'jungle') OR (role_a = 'jungle' AND role_b = 'top'))
+        AND ((role_c = 'top' AND role_d = 'jungle') OR (role_c = 'jungle' AND role_d = 'top'))
+    WHEN duo_ctx = 'mid_jungle' THEN
+        ((role_a = 'mid' AND role_b = 'jungle') OR (role_a = 'jungle' AND role_b = 'mid'))
+        AND ((role_c = 'mid' AND role_d = 'jungle') OR (role_c = 'jungle' AND role_d = 'mid'))
+    ELSE false
+END
+"""
+
 VALID_RANKS = (
     "iron",
     "bronze",
@@ -200,6 +219,13 @@ class Question(Base):
     role: Mapped[LaneRole | None] = mapped_column(LANE_ROLE)
     #: Variantes de dupla: dónde actúan juntos.
     duo_ctx: Mapped[DuoContext | None] = mapped_column(DUO_CONTEXT)
+    #: Variantes de dupla: el rol de cada campeón, `role_a` el de `champion_a` (ADR-026). Sin
+    #: esto el orden canónico por id borraría quién juega qué, y un campeón con los dos roles del
+    #: contexto dejaría la dupla ambigua.
+    role_a: Mapped[LaneRole | None] = mapped_column(LANE_ROLE)
+    role_b: Mapped[LaneRole | None] = mapped_column(LANE_ROLE)
+    role_c: Mapped[LaneRole | None] = mapped_column(LANE_ROLE)
+    role_d: Mapped[LaneRole | None] = mapped_column(LANE_ROLE)
     patch_id: Mapped[int] = mapped_column(
         sa.Integer, sa.ForeignKey("patches.patch_id"), nullable=False
     )
@@ -276,6 +302,7 @@ class Question(Base):
             """,
             name="questions_canonical_order",
         ),
+        sa.CheckConstraint(DUO_ROLES_CHECK, name="questions_duo_roles"),
         sa.CheckConstraint(
             "NOT is_honeypot OR expected_answer IS NOT NULL",
             name="questions_honeypot_has_expected",
@@ -299,6 +326,10 @@ class Question(Base):
             sa.text("COALESCE(dimension_id, 0)"),
             sa.text("COALESCE(role::text, '')"),
             sa.text("COALESCE(duo_ctx::text, '')"),
+            sa.text("COALESCE(role_a::text, '')"),
+            sa.text("COALESCE(role_b::text, '')"),
+            sa.text("COALESCE(role_c::text, '')"),
+            sa.text("COALESCE(role_d::text, '')"),
             unique=True,
         ),
         # Camino del sampler: filtra por tipo y parche, ordena por exposición.
@@ -425,6 +456,7 @@ class Response(Base):
                     AND (answer - 'choice') = '{}'::jsonb
                 WHEN 'trait_multiselect' THEN
                     jsonb_typeof(answer -> 'traits') = 'array'
+                    AND jsonb_array_length(answer -> 'traits') >= 1
                     AND (answer - 'traits') = '{}'::jsonb
             END
             """,

@@ -135,11 +135,15 @@ export async function saveOnboarding(body: OnboardingRequest): Promise<{ onboard
  * para saber en qué posición cae cada pregunta nueva —de eso dependen las cadencias de calidad— y
  * para no volver a mandarlas (`docs/12-api.md` §2.3, nota del 17/09).
  */
+/** `lang` es el idioma en que el servidor arma los textos (ADR-028). */
 export async function fetchQuestions(
   count = 5,
   queued: readonly number[] = [],
+  lang: 'en' | 'es' = 'en',
 ): Promise<QuestionBatch> {
-  return request<QuestionBatch>(`/questions/next?count=${count}&queued=${queued.join(',')}`);
+  return request<QuestionBatch>(
+    `/questions/next?count=${count}&queued=${queued.join(',')}&lang=${lang}`,
+  );
 }
 
 export async function postResponse(body: ResponseRequest): Promise<RecordedResponse> {

@@ -6,6 +6,11 @@
 > ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), y las salidas se nombran con los
 > archivos nuevos ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Correcciones de la
 > reunión del 05/10/2026 con el tutor de la organización.
+>
+> **29/10/2026:** precisiones de la semana 8 en §4.2, §5 y §6 (rol explícito en las duplas,
+> [ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md); al menos un atributo en el tipo 5,
+> [ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md); español,
+> [ADR-028](13-adr/ADR-028-idioma-por-parametro.md)).
 
 Especifica cada tipo de pregunta de punta a punta: qué mide, cómo se enuncia, cómo se ve, qué
 payload produce, cómo se generan las candidatas, cómo se agrega y qué pasa en los casos borde.
@@ -419,6 +424,12 @@ Idéntico al 1v1. `a` es la dupla de arriba, `b` la de abajo.
 Dos duplas de bot distintas, cada una formada por **un campeón con rol `adc` y uno con rol
 `support`**, los cuatro activos y en tiers habilitados. Los cuatro campeones deben ser distintos.
 
+> **Agregado el 29/10/2026.** La pregunta guarda qué rol juega cada uno
+> ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)): un campeón con `adc` y `support` en
+> `champions.roles` puede ocupar cualquiera de los dos lugares. Las etiquetas de las opciones son
+> las de [`12-api.md`](12-api.md) §2.3 (*Top pair wins slightly*, *Bottom pair wins slightly*), no
+> las abreviadas del wireframe. Las teclas `1`–`5` eligen, como en el 1v1.
+
 #### Agregación
 
 Rao-Kupper tomando cada **dupla como competidor**. Salida: `lane_strength` en `duo_features.csv`.
@@ -488,6 +499,18 @@ contexto**: la sinergia de un dúo de bot no es comparable con la de un dúo mid
 
 El espacio de duplas es enorme, así que el sampler lo restringe agresivamente a duplas formadas por
 campeones del `pool_tier` 1.
+
+> **Agregado el 29/10/2026.** Precisiones de la semana 8:
+>
+> - **El tier 1 es fijo para el tipo 4**, cualquiera sea `sampler.enabled_pool_tiers`. La variante
+>   2v2 del tipo 3 sí usa los tiers habilitados, como dice §4.2.
+> - **El contexto se sortea en proporción a sus pares de duplas válidas**, igual que el 1v1 pesa el
+>   rol por su cantidad de pares ([`21-sampler.md`](21-sampler.md) §4.4, errata del 16/09). Con un
+>   contexto uniforme, una pregunta del contexto más chico saldría más seguido.
+> - **Cada pregunta guarda el rol de cada campeón**
+>   ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)), y cada lado de la tarjeta lista a
+>   sus campeones en el orden de roles del contexto.
+> - Las teclas `1`–`3` eligen la opción, en el orden *Top pair*, *About the same*, *Bottom pair*.
 
 ### Agregación
 
@@ -563,6 +586,11 @@ Cada atributo tiene su propia definición desplegable, igual que las dimensiones
 confunde con no haber respondido, porque una no-respuesta no genera fila. Confirmar sin marcar nada
 requiere un toque en *Confirm*, así que es deliberado.
 
+> **Cambiado el 29/10/2026.** El párrafo anterior queda sin efecto: **hay que marcar al menos un
+> atributo** ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)). *Confirm* está deshabilitado
+> mientras no haya ninguno marcado, y `{"traits": []}` responde `400 answer_shape_mismatch`. Las
+> teclas `1`–`7` marcan y desmarcan los atributos en el orden de la tarjeta, y `Enter` confirma.
+
 ### Generación de candidatas
 
 Un campeón activo de un tier habilitado. Una pregunta por (campeón, parche).
@@ -596,7 +624,8 @@ produce extremos fuera de `[0,1]`.
 | Situación | Comportamiento |
 |---|---|
 | Un atributo se agrega o desactiva | Las respuestas viejas conservan los códigos que tenían; la proporción se calcula sobre las respuestas donde el atributo estaba activo, y `_n` lo refleja |
-| Un respondedor marca los 7 | Válido, pero contribuye al patrón de *straightlining* si se repite |
+| Un respondedor marca los 7 | Válido, pero contribuye al patrón de *straightlining* si se repite. **Cambiado el 29/10/2026:** el tipo 5 quedó fuera del *straightlining* ([`22-calidad-de-datos.md`](22-calidad-de-datos.md) §5.2) |
+| Confirmar sin marcar ninguno | **Agregado el 29/10/2026.** No se puede: *Confirm* está deshabilitado y la API responde `400` ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)) |
 | Código de atributo inexistente en el payload | `400`. La validación de la API cruza contra `traits` activos |
 
 ---

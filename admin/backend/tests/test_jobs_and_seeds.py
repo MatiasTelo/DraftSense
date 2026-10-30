@@ -254,12 +254,12 @@ async def test_seed_outside_infra_seeds_is_400(
     assert response.json()["error"]["field"] == "file"
 
 
-async def test_exports_button_waits_for_week_9(client: AsyncClient, patch: Patch) -> None:
-    """CA-612, la parte que se puede automatizar: el contrato dice que no está habilitado."""
+async def test_exports_form_defaults(client: AsyncClient, patch: Patch) -> None:
+    """24 §3.9: desde la semana 9 el botón está habilitado y el formulario trae los valores de
+    `app_settings`. La corrida completa es CA-612, en `test_exports.py`."""
     body = (await client.get("/exports")).json()
-    assert body["enabled"] is False
+    assert body["enabled"] is True
     assert body["defaults"]["patch_window"] == patch.version
-    assert body["exports"] == []
 
 
 async def test_reading_connectivity_creates_nothing(

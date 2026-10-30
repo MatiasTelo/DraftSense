@@ -27,13 +27,15 @@ sale del canvas de Claude Design, que las diseñó a partir de `docs/30-ux-flujo
 | Carpeta | Qué hay |
 |---|---|
 | `src/lib/` | `client.ts` (una función por endpoint, `ApiError` y `NetworkError`) y `fingerprint.ts` |
-| `src/store/` | `session.ts` (identidad y contadores) y `queue.ts` (cola de preguntas y precarga) |
-| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `DimensionRankingCard` (tipo 1, `@dnd-kit`), `PeakTimingCard`, `LaneMatchupCard`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
+| `src/store/` | `session.ts` (identidad y contadores), `queue.ts` (cola de preguntas y precarga) y `lang.ts` (idioma, `useT()`) |
+| `src/i18n/` | `en.ts` y `es.ts`: el microcopy de las pantallas, tipado contra `Messages` (ADR-028) |
+| `src/components/` | `AppFrame`, `Button`, `Chrome` (las dos barras), `QuestionCard`, `DimensionRankingCard` (tipo 1, `@dnd-kit`), `PeakTimingCard`, `LaneMatchupCard` (1v1 y 2v2), `DuoStack` (duplas apiladas y `OptionList`), `DuoSynergyCard`, `TraitMultiselectCard`, `LanguageToggle`, `QuestionPrompt`, `ChampionPortrait`, `FeedbackOverlay`, `States` |
 | `src/screens/` | Una por ruta |
 
-**Del motor de tarjetas están el tipo 1, el tipo 2 y la variante 1v1 del tipo 3** (semana 4).
-`QuestionCard` tiene una rama por tipo; `duo_synergy` y `trait_multiselect` devuelven `null` hasta
-la semana 8, igual que la variante 2v2, y hoy el servidor no puede mandarlos.
+**Desde la semana 8 están los cinco tipos.** `QuestionCard` tiene una rama por tipo;
+`LaneMatchupCard` decide entre 1v1 y 2v2 por `context.duo_context`. El tipo 5 no se confirma vacío
+(ADR-027) y maneja sus teclas `1`–`7` y `Enter`. El feedback del tipo 5 son barras por atributo y
+«You agree with the community on k of n traits».
 
 Cosas de las semanas 4 y 5 que no hay que deshacer:
 
@@ -109,9 +111,11 @@ ADR-025), y `src/index.css` importa Tailwind, los tokens y la base.
 
 ## Las reglas que no se negocian
 
-1. **Interfaz en inglés.** Todo texto visible al usuario va en inglés desde el día 1; el español
-   entra por i18n hacia la semana 8 ([ADR-010](../../../docs/13-adr/ADR-010-interfaz-en-ingles.md)).
-   Los comentarios y los nombres de los tests van en español, como el resto del proyecto.
+1. **Interfaz en inglés y en español.** Ningún texto visible va literal en un componente: sale de
+   `useT()` (`src/i18n/`), y el inglés es el idioma por defecto
+   ([ADR-010](../../../docs/13-adr/ADR-010-interfaz-en-ingles.md),
+   [ADR-028](../../../docs/13-adr/ADR-028-idioma-por-parametro.md)). Un texto nuevo va en los dos
+   diccionarios, aprobado por el alumno. Los comentarios y los nombres de los tests van en español.
 2. **El cliente no compone enunciados.** El servidor manda el texto ya renderizado, con los nombres
    de campeón sustituidos. Si te encontrás concatenando strings para armar una pregunta, el problema
    está en el backend, no acá (`docs/12-api.md` §1.1).

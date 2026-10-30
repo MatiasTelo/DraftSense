@@ -16,6 +16,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import type { PeakTimingQuestion } from '../api';
+import { useT } from '../store/lang';
 import { PrimaryButton } from './Button';
 import { ChampionPortrait } from './ChampionPortrait';
 import { QuestionPrompt } from './QuestionPrompt';
@@ -43,6 +44,7 @@ function alignment(at: number): string {
 export function PeakTimingCard({ question, helpOpen, onToggleHelp, onConfirm, disabled }: Props) {
   const { slider } = question;
   const champion = question.subject.champions[0];
+  const t = useT();
   const [minute, setMinute] = useState(slider.default);
 
   // `Enter` confirma (§9). El `button` o el enlace con foco ya lo convierte en un clic: confirmar
@@ -128,7 +130,7 @@ export function PeakTimingCard({ question, helpOpen, onToggleHelp, onConfirm, di
       </div>
 
       <PrimaryButton onClick={() => onConfirm(minute)} disabled={disabled}>
-        Confirm
+        {t.play.confirm}
       </PrimaryButton>
     </div>
   );

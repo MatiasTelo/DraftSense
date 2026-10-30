@@ -4,6 +4,10 @@
 >
 > **08/10/2026:** criterios nuevos del ranking del tipo 1 (CA-210 a CA-213, CA-507) y cambios en
 > CA-201, CA-305 y CA-503 ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
+>
+> **29/10/2026:** semana 8. CA-207 cambia ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)),
+> CA-405 se reescribe en formato largo, y hay criterios nuevos de idioma, duplas y tipo 5 (CA-107,
+> CA-108, CA-214, CA-508 a CA-510).
 
 Criterios verificables en formato Dado/Cuando/Entonces. Tienen doble uso: son la **definición de
 «terminado»** de cada funcionalidad y el **guion de los tests automatizados**.
@@ -84,6 +88,18 @@ distintos entre sí.
 **Cuando** se piden 100 lotes consecutivos
 **Entonces** el percentil 95 del tiempo de respuesta es menor a 100 ms.
 
+### CA-107 · Las preguntas llegan en el idioma pedido — ADR-028 · `I`
+**Dado** una pregunta de tipo 1 en la dimensión `scaling`
+**Cuando** se pide con `lang=es`
+**Entonces** el enunciado es el `prompt_es` de la dimensión y las demás etiquetas salen en español;
+con `lang=en` o sin el parámetro, en inglés; y con `lang=fr`, `400 invalid_parameter` con
+`field: "lang"`.
+
+### CA-108 · Cada lado de una dupla respeta el orden de roles — ADR-026 · `I`
+**Dado** una pregunta de tipo 4 del contexto `mid_jungle` cuyo `champion_a` es el jungla
+**Cuando** se recibe del servidor
+**Entonces** cada lado lista primero al campeón que juega `mid` y después al que juega `jungle`.
+
 ---
 
 ## 3. Registro de respuestas
@@ -138,6 +154,11 @@ fila**.
 **Cuando** se responde `{"traits": []}`
 **Entonces** se registra correctamente: significa "ninguno de estos", que es información real.
 
+> **Cambiado el 29/10/2026.** Sustituido por [ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md):
+> **Dado** una pregunta de tipo 5 **Cuando** se responde `{"traits": []}` **Entonces** el sistema
+> responde `400 answer_shape_mismatch` y no se crea ninguna fila; y un `INSERT` directo con esa
+> forma lo rechaza `responses_answer_shape`.
+
 ### CA-208 · El crudo es inmutable — RNF-04 · `I`
 **Dado** una conexión con el rol de aplicación
 **Cuando** se intenta `UPDATE` o `DELETE` sobre `responses`
@@ -173,6 +194,14 @@ sube en **uno**.
 **Dado** un ranking servido
 **Cuando** se responde `{"choice": "unknown"}`
 **Entonces** se crean diez filas con `{"choice": "unknown"}` y `answers_count` sube en uno.
+
+### CA-214 · Una dupla guarda el rol de cada campeón — ADR-026 · `I`
+**Dado** una pregunta de tipo 4 en `bot` con Xerath como `support` y Seraphine como `adc` en la
+misma dupla
+**Cuando** se materializa
+**Entonces** `role_a … role_d` guardan esos roles; la misma combinación con los roles invertidos es
+otra pregunta; y un `INSERT` directo de una dupla de `bot` con dos `adc` lo rechaza
+`questions_duo_roles`.
 
 ---
 
@@ -266,6 +295,10 @@ producir un orden global inventado.
 **Entonces** la celda `engage` está **vacía**, no en `0`; `engage_n` es `0` y `engage_support` es
 `insufficient`.
 
+> **Cambiado el 29/10/2026.** En el formato largo de [ADR-023](13-adr/ADR-023-salida-en-formato-largo.md):
+> la fila de `champion_dimensions` con ese campeón y `dimension = engage` tiene `score`,
+> `score_ci_low` y `score_ci_high` vacíos, `score_n = 0` y `score_support = insufficient`.
+
 ### CA-406 · Observado y predicho se distinguen — RF-510 · `I`
 **Dado** un par de campeones sobre el que nunca se preguntó
 **Cuando** aparece en la matriz de matchups
@@ -339,6 +372,23 @@ answers yet to show how the community compares.`, no un panel de consenso vacío
 > ellos se verifica que la ayuda llegue compuesta desde el servidor
 > ([ADR-018](13-adr/ADR-018-textos-fijos-de-los-tipos-2-y-3.md)).
 
+### CA-508 · El feedback del tipo 5 es por atributo — `12-api.md` §2.4 · `C`
+**Dado** una pregunta de tipo 5 con al menos 20 respuestas
+**Cuando** el respondedor confirma y coincide con la mayoría en 5 de los 7 atributos
+**Entonces** se muestra `You agree with the community on 5 of 7 traits` y una barra por atributo
+con la fracción de la comunidad que lo marcó.
+
+### CA-509 · El tipo 5 no se confirma vacío — ADR-027 · `C`
+**Dado** una tarjeta de tipo 5 sin ningún atributo marcado
+**Cuando** se toca *Confirm* o se aprieta `Enter`
+**Entonces** no se envía nada; al marcar uno, *Confirm* se habilita.
+
+### CA-510 · El idioma se elige y se recuerda — ADR-028 · `C`
+**Dado** la landing en inglés
+**Cuando** se elige `ES` en el selector
+**Entonces** las pantallas pasan al español, la cola de preguntas se descarta y el lote siguiente se
+pide con `lang=es`; al recargar, el idioma sigue siendo español.
+
 ---
 
 ## 7. Extensibilidad y operación
@@ -403,11 +453,11 @@ score de nadie.
 | Grupo | Criterios | Requerimientos cubiertos |
 |---|---|---|
 | Sesión e identidad | CA-001 a CA-005 | RF-001 a RF-006, RNF-05 |
-| Entrega de preguntas | CA-101 a CA-106 | RF-101, RF-105, RF-106, RF-112, RF-202, RNF-01 |
-| Registro de respuestas | CA-201 a CA-213 | RF-108 a RF-110, RF-203, RF-209, RNF-04 |
+| Entrega de preguntas | CA-101 a CA-108 | RF-101, RF-105, RF-106, RF-112, RF-202, RNF-01 |
+| Registro de respuestas | CA-201 a CA-214 | RF-108 a RF-110, RF-203, RF-209, RNF-04 |
 | Calidad de datos | CA-301 a CA-309 | RF-201, RF-202, RF-204 a RF-208 |
 | Agregación y exportación | CA-401 a CA-409 | RF-501, RF-506, RF-507, RF-509, RF-510, RF-512, RNF-08 |
-| Interfaz | CA-501 a CA-507 | RF-113, RF-114, RNF-06, RNF-07 |
+| Interfaz | CA-501 a CA-510 | RF-113, RF-114, RNF-06, RNF-07 |
 | Extensibilidad y operación | CA-601 a CA-604 | RF-405, RF-603, RF-604, RF-606, RNF-12 |
 | Gamificación | CA-310 a CA-313 | RF-301, RF-303, RF-304 |
 

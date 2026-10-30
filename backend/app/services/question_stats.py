@@ -11,10 +11,13 @@ sólo por las que tienen respuestas nuevas. Es lo que hace verdadera la promesa 
 denormalizado se puede tirar y reconstruir, y lo que permite correrlo dos veces seguidas sin que el
 resultado cambie.
 
-Cubre los tres tipos que se sirven: el 1, el 2 y la variante 1v1 del 3. Cada uno normaliza la
-entropía a su manera (`docs/21-sampler.md` §3.2) y mide su cobertura sobre su propia celda (§3.3,
-nota del 16/09). Los tipos 4 y 5 entran en la semana 8; agregar uno es sumarlo a `REFRESHED_TYPES`
-y darle su rama en `entropy_for` y en las celdas de cobertura.
+Cubre los cinco tipos, en sus seis variantes. Cada uno normaliza la entropía a su manera
+(`docs/21-sampler.md` §3.2) y mide su cobertura sobre su propia celda (§3.3, notas del 16/09 y
+del 29/10). La cobertura va por **variante**: el 1v1 cuenta (campeón, rol) y el 2v2 (campeón,
+`bot`), y no se mezclan aunque sean el mismo tipo.
+
+En el tipo 5 `answer_counts` lleva un conteo por atributo más `_total`, la cantidad de respuestas,
+porque una respuesta marca varios atributos (`docs/11-modelo-de-datos.md` §3.8, nota del 29/10).
 
 Desde la semana 5 también **retira las honeypots** cuyo *pass rate* cayó bajo el umbral
 (`docs/22-calidad-de-datos.md` §3.4), antes de contar nada.
@@ -34,15 +37,22 @@ from typing import Any, Final
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import LaneRole, Patch, Question, QuestionType, Response
+from app.models import DuoContext, LaneRole, Patch, Question, QuestionType, Response
 from app.services import aggregable, answers, honeypots, questions
-from app.services.questions import LANE_1V1_ROLES, Space
-
-REFRESHED_TYPES: Final = (
-    QuestionType.PAIRWISE_DIMENSION,
-    QuestionType.PEAK_TIMING,
-    QuestionType.LANE_MATCHUP,
+from app.services.questions import (
+    DUO_ROLES,
+    DUO_SYNERGY_TIER,
+    LANE_1V1_ROLES,
+    SERVED_TYPES,
+    Space,
+    Variant,
 )
+
+REFRESHED_TYPES: Final = SERVED_TYPES
+
+#: La clave de `answer_counts` del tipo 5 que cuenta respuestas y no atributos. El guion bajo
+#: inicial no puede chocar con un código: `traits_code_format` exige que empiecen con letra.
+TRAITS_TOTAL: Final = "_total"
 
 #: El rango intercuartil que satura la entropía del tipo 2 (`docs/21-sampler.md` §3.2): con 12
 #: minutos entre cuartiles la comunidad está tan dividida como puede estarlo para el sampler.
@@ -154,7 +164,34 @@ def peak_median(counts: Mapping[str, int]) -> int | None:
     return math.floor(statistics.median(minutes) + 0.5)
 
 
-def entropy_for(question_type: QuestionType, counts: Mapping[str, int]) -> Decimal | None:
+def synergy_entropy(counts: Mapping[str, int]) -> Decimal | None:
+    """Entropía de Shannon sobre {pair_1, similar, pair_2}, dividida por `log₂ 3` (§3.2)."""
+    values = [counts.get(key, 0) for key in ("pair_1", "similar", "pair_2")]
+    total = sum(values)
+    if total == 0:
+        return None
+    shannon = -sum((n / total) * math.log2(n / total) for n in values if n)
+    return _as_unit(shannon / math.log2(3))
+
+
+def traits_entropy(counts: Mapping[str, int], codes: Sequence[str]) -> Decimal | None:
+    """El promedio de las entropías binarias de los atributos activos (§3.2, nota del 29/10).
+
+    Cada atributo es un sí o no sobre `_total` respuestas: `p_T = conteo_T / _total`.
+    """
+    total = counts.get(TRAITS_TOTAL, 0)
+    if total == 0 or not codes:
+        return None
+    entropies: list[float] = []
+    for code in codes:
+        p = counts.get(code, 0) / total
+        entropies.append(0.0 if p in (0.0, 1.0) else -p * math.log2(p) - (1 - p) * math.log2(1 - p))
+    return _as_unit(sum(entropies) / len(entropies))
+
+
+def entropy_for(
+    question_type: QuestionType, counts: Mapping[str, int], trait_codes: Sequence[str] = ()
+) -> Decimal | None:
     match question_type:
         case QuestionType.PAIRWISE_DIMENSION:
             return binary_entropy(counts.get("a", 0), counts.get("b", 0))
@@ -162,49 +199,102 @@ def entropy_for(question_type: QuestionType, counts: Mapping[str, int]) -> Decim
             return peak_entropy(counts)
         case QuestionType.LANE_MATCHUP:
             return lane_entropy(counts)
-        case _:
-            return None
+        case QuestionType.DUO_SYNERGY:
+            return synergy_entropy(counts)
+        case QuestionType.TRAIT_MULTISELECT:
+            return traits_entropy(counts, trait_codes)
+
+
+def exposure(question_type: QuestionType, counts: Mapping[str, int]) -> int:
+    """Cuántas respuestas tiene la pregunta. En el tipo 5 no es la suma de los conteos: una
+    respuesta marca varios atributos."""
+    if question_type is QuestionType.TRAIT_MULTISELECT:
+        return counts.get(TRAITS_TOTAL, 0)
+    return sum(counts.values())
 
 
 # ------------------------------------------------------------------------------------ cobertura
 
 
-def question_cells(
-    question_type: QuestionType,
-    champion_a: int,
-    champion_b: int | None,
-    dimension_id: int | None,
-    role: LaneRole | str | None,
-) -> list[Cell]:
+@dataclass(frozen=True, slots=True)
+class Row:
+    """Lo que la cobertura necesita de una pregunta."""
+
+    question_type: QuestionType
+    champion_a: int
+    champion_b: int | None = None
+    champion_c: int | None = None
+    champion_d: int | None = None
+    dimension_id: int | None = None
+    role: LaneRole | str | None = None
+    duo_ctx: DuoContext | str | None = None
+
+    @property
+    def variant(self) -> Variant:
+        if self.question_type is QuestionType.LANE_MATCHUP:
+            return Variant.LANE_2V2 if self.champion_c is not None else Variant.LANE_1V1
+        return next(v for v in Variant if v.question_type is self.question_type)
+
+    @property
+    def members(self) -> list[int]:
+        return [
+            c
+            for c in (self.champion_a, self.champion_b, self.champion_c, self.champion_d)
+            if c is not None
+        ]
+
+
+def question_cells(row: Row) -> list[Cell]:
     """Las celdas de cobertura que toca una pregunta (`docs/21-sampler.md` §3.3)."""
-    match question_type:
-        case QuestionType.PAIRWISE_DIMENSION:
-            return [(c, dimension_id) for c in (champion_a, champion_b) if c is not None]
-        case QuestionType.PEAK_TIMING:
-            return [(champion_a,)]
-        case QuestionType.LANE_MATCHUP if role is not None:
-            lane = LaneRole(str(role))
-            return [(c, lane) for c in (champion_a, champion_b) if c is not None]
-        case _:
-            return []
+    match row.variant:
+        case Variant.PAIRWISE:
+            return [(c, row.dimension_id) for c in row.members]
+        case Variant.PEAK | Variant.TRAITS:
+            return [(row.champion_a,)]
+        case Variant.LANE_1V1:
+            if row.role is None:
+                return []
+            lane = LaneRole(str(row.role))
+            return [(c, lane) for c in row.members]
+        case Variant.LANE_2V2 | Variant.DUO_SYNERGY:
+            if row.duo_ctx is None:
+                return []
+            context = DuoContext(str(row.duo_ctx))
+            return [(c, context) for c in row.members]
 
 
-def pool_cells(question_type: QuestionType, space: Space) -> list[Cell]:
+def pool_cells(variant: Variant, space: Space) -> list[Cell]:
     """Las celdas del pool habilitado sobre las que se toma la mediana, ceros incluidos."""
-    match question_type:
-        case QuestionType.PAIRWISE_DIMENSION:
+
+    def has(champion_roles: Sequence[object], role: LaneRole) -> bool:
+        return role.value in {str(r) for r in champion_roles}
+
+    match variant:
+        case Variant.PAIRWISE:
             return [(c, d) for c in space.champion_ids for d in space.dimension_ids]
-        case QuestionType.PEAK_TIMING:
+        case Variant.PEAK | Variant.TRAITS:
             return [(c,) for c in space.champion_ids]
-        case QuestionType.LANE_MATCHUP:
+        case Variant.LANE_1V1:
             return [
                 (champion.champion_id, role)
                 for champion in space.champions
                 for role in LANE_1V1_ROLES
-                if role.value in {str(r) for r in champion.roles}
+                if has(champion.roles, role)
             ]
-        case _:
-            return []
+        case Variant.LANE_2V2:
+            return [
+                (champion.champion_id, DuoContext.BOT)
+                for champion in space.champions
+                if any(has(champion.roles, role) for role in DUO_ROLES[DuoContext.BOT])
+            ]
+        case Variant.DUO_SYNERGY:
+            return [
+                (champion.champion_id, context)
+                for champion in space.champions
+                if champion.pool_tier == DUO_SYNERGY_TIER
+                for context, roles in DUO_ROLES.items()
+                if any(has(champion.roles, role) for role in roles)
+            ]
 
 
 def coverage_deficit(
@@ -221,13 +311,24 @@ def coverage_deficit(
     return _as_unit(worst)
 
 
-async def _coverage_counts(
-    session: AsyncSession, patch_id: int
-) -> dict[QuestionType, Counter[Cell]]:
+#: Las columnas de `questions` que forman un `Row`, en su orden.
+_ROW_COLUMNS: Final = (
+    Question.type,
+    Question.champion_a,
+    Question.champion_b,
+    Question.champion_c,
+    Question.champion_d,
+    Question.dimension_id,
+    Question.role,
+    Question.duo_ctx,
+)
+
+
+async def _coverage_counts(session: AsyncSession, patch_id: int) -> dict[Variant, Counter[Cell]]:
     """Cuántas respuestas que entrarían a la agregación tiene cada celda.
 
     Son los `_n` crudos de `docs/25-agregacion.md` §5: en el tipo 1 sólo las decisivas, en los
-    otros dos todas. Los filtros son los de 25 §1 (módulo `aggregable`).
+    demás todas. Los filtros son los de 25 §1 (módulo `aggregable`).
     """
     threshold = await aggregable.min_trust(session)
     decisive = sa.or_(
@@ -235,57 +336,38 @@ async def _coverage_counts(
         Response.answer["choice"].astext.in_(("a", "b")),
     )
     rows = await session.execute(
-        sa.select(
-            Question.type,
-            Question.champion_a,
-            Question.champion_b,
-            Question.dimension_id,
-            Question.role,
-            sa.func.count(),
-        )
+        sa.select(*_ROW_COLUMNS, sa.func.count())
         .select_from(aggregable.source())
         .where(
             Question.patch_id == patch_id,
             Question.type.in_(REFRESHED_TYPES),
-            Question.champion_c.is_(None),
             decisive,
             *aggregable.conditions(threshold),
         )
-        .group_by(
-            Question.type,
-            Question.champion_a,
-            Question.champion_b,
-            Question.dimension_id,
-            Question.role,
-        )
+        .group_by(*_ROW_COLUMNS)
     )
-    counts: dict[QuestionType, Counter[Cell]] = {t: Counter() for t in REFRESHED_TYPES}
-    for question_type, a, b, dimension_id, role, total in rows.tuples():
-        for cell in question_cells(question_type, a, b, dimension_id, role):
-            counts[question_type][cell] += total
+    counts: dict[Variant, Counter[Cell]] = {v: Counter() for v in Variant}
+    for question_type, a, b, c, d, dimension_id, role, duo_ctx, total in rows.tuples():
+        row = Row(question_type, a, b, c, d, dimension_id, role, duo_ctx)
+        for cell in question_cells(row):
+            counts[row.variant][cell] += total
     return counts
 
 
 # ----------------------------------------------------------------------------------------- job
 
 
-async def _questions(
-    session: AsyncSession, patch_id: int
-) -> list[tuple[int, QuestionType, int, int | None, int | None, LaneRole | None]]:
+async def _questions(session: AsyncSession, patch_id: int) -> list[tuple[int, Row]]:
     rows = await session.execute(
-        sa.select(
-            Question.question_id,
-            Question.type,
-            Question.champion_a,
-            Question.champion_b,
-            Question.dimension_id,
-            Question.role,
-        ).where(
+        sa.select(Question.question_id, *_ROW_COLUMNS).where(
             Question.patch_id == patch_id,
             Question.type.in_(REFRESHED_TYPES),
         )
     )
-    return list(rows.tuples())
+    return [
+        (question_id, Row(question_type, a, b, c, d, dimension_id, role, duo_ctx))
+        for question_id, question_type, a, b, c, d, dimension_id, role, duo_ctx in rows.tuples()
+    ]
 
 
 async def _counts_by_answer(session: AsyncSession, patch_id: int) -> dict[int, dict[str, int]]:
@@ -297,19 +379,20 @@ async def _counts_by_answer(session: AsyncSession, patch_id: int) -> dict[int, d
     Las filas de retest no cuentan: son la misma persona contestando otra vez, y sumarlas
     inflaría el consenso y la exposición con una opinión repetida (`docs/25-agregacion.md` §1.3).
     """
+    single = [t for t in REFRESHED_TYPES if t is not QuestionType.TRAIT_MULTISELECT]
     key = sa.case(
         (Question.type == QuestionType.PEAK_TIMING, Response.answer["minute"].astext),
         else_=Response.answer["choice"].astext,
     )
+    base = (
+        sa.select(Response.question_id)
+        .join(Question, Question.question_id == Response.question_id)
+        .where(Question.patch_id == patch_id, Response.is_retest_of.is_(None))
+    )
     rows = (
         await session.execute(
-            sa.select(Response.question_id, key, sa.func.count())
-            .join(Question, Question.question_id == Response.question_id)
-            .where(
-                Question.patch_id == patch_id,
-                Question.type.in_(REFRESHED_TYPES),
-                Response.is_retest_of.is_(None),
-            )
+            base.add_columns(key, sa.func.count())
+            .where(Question.type.in_(single))
             .group_by(Response.question_id, key)
         )
     ).all()
@@ -317,6 +400,37 @@ async def _counts_by_answer(session: AsyncSession, patch_id: int) -> dict[int, d
     counts: dict[int, dict[str, int]] = {}
     for question_id, value, total in rows:
         counts.setdefault(question_id, {})[value] = total
+
+    # Tipo 5: un conteo por atributo marcado, más `_total` con la cantidad de respuestas. Los
+    # códigos salen de expandir el arreglo con un LATERAL, una fila por atributo marcado.
+    traits_only = Question.type == QuestionType.TRAIT_MULTISELECT
+    elements = (
+        sa.func.jsonb_array_elements_text(Response.answer["traits"])
+        .table_valued("code")
+        .render_derived(name="marked")
+        .lateral()
+    )
+    marked = (
+        await session.execute(
+            sa.select(Response.question_id, elements.c.code, sa.func.count())
+            .select_from(Response)
+            .join(Question, Question.question_id == Response.question_id)
+            .join(elements, sa.true())
+            .where(
+                Question.patch_id == patch_id, Response.is_retest_of.is_(None), traits_only
+            )
+            .group_by(Response.question_id, elements.c.code)
+        )
+    ).all()
+    for question_id, value, total in marked:
+        counts.setdefault(question_id, {})[value] = total
+    totals = (
+        await session.execute(
+            base.add_columns(sa.func.count()).where(traits_only).group_by(Response.question_id)
+        )
+    ).all()
+    for question_id, total in totals:
+        counts.setdefault(question_id, {})[TRAITS_TOTAL] = total
     return counts
 
 
@@ -338,27 +452,27 @@ async def refresh(session: AsyncSession, now: dt.datetime | None = None) -> Refr
 
     space = await questions.load_space(session)
     coverage = await _coverage_counts(session, patch.patch_id)
-    medians: dict[QuestionType, float | None] = {}
-    for question_type in REFRESHED_TYPES:
-        cells = pool_cells(question_type, space)
-        values = [coverage[question_type].get(cell, 0) for cell in cells]
-        medians[question_type] = float(statistics.median(values)) if values else None
+    medians: dict[Variant, float | None] = {}
+    for variant in Variant:
+        cells = pool_cells(variant, space)
+        values = [coverage[variant].get(cell, 0) for cell in cells]
+        medians[variant] = float(statistics.median(values)) if values else None
 
     rows = await _questions(session, patch.patch_id)
     counts = await _counts_by_answer(session, patch.patch_id)
+    trait_codes = [trait.code for trait in space.traits]
 
     payload: list[dict[str, Any]] = []
-    for question_id, question_type, a, b, dimension_id, role in rows:
+    for question_id, row in rows:
         answered = counts.get(question_id, {})
-        cells = question_cells(question_type, a, b, dimension_id, role)
         payload.append(
             {
                 "question_id": question_id,
                 "answer_counts": answered,
-                "exposure_count": sum(answered.values()),
-                "entropy": entropy_for(question_type, answered),
+                "exposure_count": exposure(row.question_type, answered),
+                "entropy": entropy_for(row.question_type, answered, trait_codes),
                 "coverage_deficit": coverage_deficit(
-                    cells, coverage[question_type], medians[question_type]
+                    question_cells(row), coverage[row.variant], medians[row.variant]
                 ),
                 "stats_refreshed_at": moment,
             }
@@ -371,7 +485,7 @@ async def refresh(session: AsyncSession, now: dt.datetime | None = None) -> Refr
     return RefreshResult(
         patch=patch.version,
         questions=len(payload),
-        responses=sum(sum(row.values()) for row in counts.values()),
+        responses=sum(exposure(row.question_type, counts.get(qid, {})) for qid, row in rows),
         retired_honeypots=retired.retired,
-        coverage_medians={t.value: m for t, m in medians.items()},
+        coverage_medians={v.value: m for v, m in medians.items()},
     )

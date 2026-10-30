@@ -10,6 +10,7 @@ from app.dependencies import CurrentSessionDep, SessionDep
 from app.errors import ApiError
 from app.schemas.questions import QuestionBatch
 from app.services import sampler
+from app.services.question_texts import LANGS
 
 router = APIRouter(prefix="/questions", tags=["questions"])
 
@@ -38,6 +39,7 @@ async def next_questions(
     current: CurrentSessionDep,
     count: Annotated[int, Query()] = DEFAULT_COUNT,
     queued: Annotated[str | None, Query()] = None,
+    lang: Annotated[str, Query()] = "en",
 ) -> QuestionBatch:
     """El próximo lote. Se piden de a lotes para que la interfaz no espere entre tarjeta y tarjeta.
 
@@ -47,6 +49,9 @@ async def next_questions(
     `queued` son las preguntas que el cliente tiene en cola sin contestar. Sin ellas el servidor no
     sabe en qué posición cae cada pregunta nueva —y las cadencias de calidad se corren— ni cuáles
     no volver a mandar (ADR-020).
+
+    `lang` es el idioma de los textos, `en` o `es` (ADR-028). Se valida a mano y no con un
+    `Literal` en la firma para que el error salga por `ApiError` con `field`, como el resto.
     """
     if not MIN_COUNT <= count <= MAX_COUNT:
         raise ApiError(
@@ -64,5 +69,15 @@ async def next_questions(
             status.HTTP_400_BAD_REQUEST,
             "queued",
         ) from exc
-    batch = await sampler.next_batch(session, current.respondent, count, queued=queued_ids)
+    language = next((code for code in LANGS if code == lang), None)
+    if language is None:
+        raise ApiError(
+            "invalid_parameter",
+            "lang must be one of: " + ", ".join(LANGS),
+            status.HTTP_400_BAD_REQUEST,
+            "lang",
+        )
+    batch = await sampler.next_batch(
+        session, current.respondent, count, queued=queued_ids, lang=language
+    )
     return QuestionBatch(questions=batch)

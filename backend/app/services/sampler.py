@@ -4,8 +4,9 @@ Para cada posición del lote decide, en este orden (§6 y §10):
 
 1. **Honeypot**, si su cadencia está vencida (`docs/22-calidad-de-datos.md` §3.6).
 2. **Retest**, si el suyo está vencido y la posición quedó libre (22 §4).
-3. **El tipo**: las tres primeras son de tipo 1, nunca más de tres seguidas del mismo tipo, y el
-   resto por la mezcla 50/20/15 renormalizada sobre los tipos que se sirven.
+3. **La variante**: las tres primeras son de tipo 1, nunca más de tres seguidas del mismo tipo, y
+   el resto por la mezcla 50/20/15/5/5/5 entre las seis variantes, renormalizada sobre las que
+   tienen candidatas.
 4. **La pregunta dentro del tipo**: el mejor puente sin responder (tipo 1, ADR-021); si no hay,
    exploración con probabilidad `ε` o explotación por prioridad, y cada rama cae en la otra si se
    queda sin candidatas (§5, nota del 16/09).
@@ -37,7 +38,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Question, QuestionType, Ranking, Respondent, Response
 from app.schemas.questions import QuestionOut
 from app.services import app_settings, honeypots, questions, rankings, retests, submissions
-from app.services.questions import SERVED_TYPES, Space
+from app.services.question_texts import DEFAULT_LANG, Lang
+from app.services.questions import SERVED_TYPES, Space, Variant
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +47,16 @@ logger = logging.getLogger(__name__)
 #: entender sin instrucciones (`docs/20-tipos-de-pregunta.md` §7, CA-102).
 WARMUP_PAIRWISE: Final = 3
 
-#: La mezcla de `docs/20-tipos-de-pregunta.md` §7, restringida a los tipos que se sirven.
-#: `random.choices` renormaliza sola sobre los disponibles: 50/20/15 da ≈59/24/18 %.
-#: En la semana 8 hay que separar por **variante** y no por tipo, porque el 1v1 (15 %) y el
-#: 2v2 (5 %) comparten `QuestionType.LANE_MATCHUP`.
-TYPE_WEIGHTS: dict[QuestionType, int] = {
-    QuestionType.PAIRWISE_DIMENSION: 50,
-    QuestionType.PEAK_TIMING: 20,
-    QuestionType.LANE_MATCHUP: 15,
+#: La mezcla de `docs/20-tipos-de-pregunta.md` §7, por **variante**: el 1v1 (15 %) y el 2v2
+#: (5 %) comparten `QuestionType.LANE_MATCHUP` y no su peso. `random.choices` renormaliza sola
+#: sobre las variantes que tienen candidatas.
+TYPE_WEIGHTS: dict[Variant, int] = {
+    Variant.PAIRWISE: 50,
+    Variant.PEAK: 20,
+    Variant.LANE_1V1: 15,
+    Variant.LANE_2V2: 5,
+    Variant.DUO_SYNERGY: 5,
+    Variant.TRAITS: 5,
 }
 
 #: La regla de variedad: nunca más de tres seguidas del mismo tipo (20 §7).
@@ -95,25 +99,26 @@ class SamplerConfig:
 
 def choose_type(
     position: int,
-    available: Collection[QuestionType],
+    available: Collection[Variant],
     rng: random.Random,
     recent: Sequence[QuestionType] = (),
-) -> QuestionType | None:
-    """El tipo de la posición `position` del respondedor, contando desde cero.
+) -> Variant | None:
+    """La variante de la posición `position` del respondedor, contando desde cero.
 
-    `recent` son los tipos de las posiciones inmediatamente anteriores, del más viejo al más
-    nuevo. Si los últimos tres son del mismo tipo, ese tipo sale del sorteo —salvo que sea el
-    único con candidatas: un lote corto es peor que una cuarta seguida—.
+    `recent` son los **tipos** de las posiciones inmediatamente anteriores, del más viejo al más
+    nuevo. Si los últimos tres son del mismo tipo, sus variantes salen del sorteo —el 1v1 y el
+    2v2 juntos, porque son el tipo 3 (21 §6, nota del 29/10)—, salvo que sean las únicas con
+    candidatas: un lote corto es peor que una cuarta seguida.
 
-    Lee `TYPE_WEIGHTS` en cada llamada, no al importar: es lo que permite a los tests forzar un
-    tipo sin tocar el sorteo.
+    Lee `TYPE_WEIGHTS` en cada llamada, no al importar: es lo que permite a los tests forzar una
+    variante sin tocar el sorteo.
     """
-    if position < WARMUP_PAIRWISE and QuestionType.PAIRWISE_DIMENSION in available:
-        return QuestionType.PAIRWISE_DIMENSION
-    candidates = [t for t in TYPE_WEIGHTS if t in available]
+    if position < WARMUP_PAIRWISE and Variant.PAIRWISE in available:
+        return Variant.PAIRWISE
+    candidates = [v for v in TYPE_WEIGHTS if v in available]
     tail = list(recent[-VARIETY_MAX_RUN:])
     if len(tail) == VARIETY_MAX_RUN and len(set(tail)) == 1:
-        varied = [t for t in candidates if t != tail[-1]]
+        varied = [v for v in candidates if v.question_type != tail[-1]]
         if varied:
             candidates = varied
     if not candidates:
@@ -187,8 +192,8 @@ class _Batch:
     #: (ADR-022). Ninguno puede ser ancla: al contestar el primer ranking, ese par queda
     #: respondido y el ancla del segundo sería un 409.
     taken: set[rankings.PairKey] = field(default_factory=set)
-    exhausted: set[QuestionType] = field(default_factory=set)
-    hot: dict[QuestionType, list[Question]] = field(default_factory=dict)
+    exhausted: set[Variant] = field(default_factory=set)
+    hot: dict[Variant, list[Question]] = field(default_factory=dict)
     bridges: list[Question] | None = None
     honeypot_tried: bool = False
     retest_tried: bool = False
@@ -234,39 +239,48 @@ class _Batch:
             )
         return self._first_available(self.bridges)
 
-    async def best_hot(self, question_type: QuestionType) -> Question | None:
+    async def best_hot(self, variant: Variant) -> Question | None:
         """Explotación (§3, §5): las mejores `candidate_limit`, descartando en memoria."""
-        if question_type not in self.hot:
+        if variant not in self.hot:
             enabled = sorted(self.space.champion_ids)
-            self.hot[question_type] = list(
+            members = [
+                sa.or_(column.is_(None), column.in_(enabled))
+                for column in (Question.champion_b, Question.champion_c, Question.champion_d)
+            ]
+            # Las dos variantes del tipo 3 se distinguen por el tercer campeón.
+            shape: list[sa.ColumnElement[bool]] = []
+            if variant is Variant.LANE_1V1:
+                shape.append(Question.champion_c.is_(None))
+            elif variant is Variant.LANE_2V2:
+                shape.append(Question.champion_c.is_not(None))
+            self.hot[variant] = list(
                 (
                     await self.session.execute(
                         sa.select(Question)
                         .where(
-                            Question.type == question_type,
+                            Question.type == variant.question_type,
                             Question.patch_id == self.patch_id,
                             ~Question.is_honeypot,
                             Question.exposure_count >= self.config.cold_threshold,
                             Question.champion_a.in_(enabled),
-                            sa.or_(
-                                Question.champion_b.is_(None), Question.champion_b.in_(enabled)
-                            ),
+                            *members,
+                            *shape,
                         )
                         .order_by(priority(self.config.weights).desc(), Question.question_id)
                         .limit(self.config.candidate_limit)
                     )
                 ).scalars()
             )
-        return self._first_available(self.hot[question_type])
+        return self._first_available(self.hot[variant])
 
-    async def explore(self, question_type: QuestionType) -> Question | None:
+    async def explore(self, variant: Variant) -> Question | None:
         """Exploración (§4.2): un sorteo uniforme con rechazo y reintento (§5).
 
         Se rechaza lo ya respondido, lo que el cliente tiene en cola, lo ya elegido en el lote y
         las honeypots: éstas sólo salen de su catálogo y con su cadencia (nota del 16/09 en §5).
         """
         for _ in range(self.config.max_retries):
-            combination = questions.draw_combination(question_type, self.space, self.rng)
+            combination = questions.draw_combination(variant, self.space, self.rng)
             question = await questions.materialize(self.session, self.patch_id, combination)
             if (
                 question.is_honeypot
@@ -277,14 +291,14 @@ class _Batch:
             return question
         return None
 
-    async def in_type(self, question_type: QuestionType) -> Question | None:
-        if question_type is QuestionType.PAIRWISE_DIMENSION:
+    async def in_type(self, variant: Variant) -> Question | None:
+        if variant is Variant.PAIRWISE:
             bridge = await self.best_bridge()
             if bridge is not None:
                 return bridge
         if self.rng.random() < self.config.epsilon:
-            return await self.explore(question_type) or await self.best_hot(question_type)
-        return await self.best_hot(question_type) or await self.explore(question_type)
+            return await self.explore(variant) or await self.best_hot(variant)
+        return await self.best_hot(variant) or await self.explore(variant)
 
     def _servable_again(self, question: Question | None) -> bool:
         return (
@@ -378,15 +392,15 @@ class _Batch:
                 return question
 
         while True:
-            question_type = choose_type(
-                position, self.space.available_types() - self.exhausted, self.rng, self.recent
+            variant = choose_type(
+                position, self.space.available_variants() - self.exhausted, self.rng, self.recent
             )
-            if question_type is None:
+            if variant is None:
                 break
-            question = await self.in_type(question_type)
+            question = await self.in_type(variant)
             if question is not None:
                 return question
-            self.exhausted.add(question_type)
+            self.exhausted.add(variant)
 
         # §8: el respondedor agotó todo lo disponible.
         if not self.retest_tried:
@@ -400,12 +414,13 @@ async def next_batch(
     count: int,
     rng: random.Random | None = None,
     queued: Collection[int] = (),
+    lang: Lang = DEFAULT_LANG,
 ) -> list[QuestionOut]:
     """Elige hasta `count` preguntas distintas y las devuelve ya renderizadas.
 
     `queued` son las preguntas que el cliente tiene en cola sin contestar: ninguna se vuelve a
     servir, y la primera pregunta del lote ocupa la posición `answers_count + len(queued)`
-    (ADR-020).
+    (ADR-020). `lang` es el idioma de los textos (ADR-028).
 
     Si todos los tipos se agotan, el lote sale más corto y, si queda vacío, la interfaz muestra el
     estado de cola vacía. Hace commit: la exploración materializa filas y las cadencias se abren
@@ -416,7 +431,7 @@ async def next_batch(
     if patch is None:
         return []
     space = await questions.load_space(session)
-    if not space.available_types():
+    if not space.available_variants():
         return []
     missing = space.roles_without_pair()
     if missing:
@@ -470,5 +485,6 @@ async def next_batch(
     champions = {c.champion_id: c for c in space.champions}
     dimensions = {d.dimension_id: d for d in space.dimensions}
     return [
-        questions.render(q, champions, dimensions, served.get(q.question_id)) for q in chosen
+        questions.render(q, champions, dimensions, served.get(q.question_id), space.traits, lang)
+        for q in chosen
     ]

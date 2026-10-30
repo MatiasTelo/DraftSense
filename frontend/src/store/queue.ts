@@ -14,6 +14,7 @@ import { create } from 'zustand';
 
 import type { Question } from '../api';
 import { ApiError, NetworkError, fetchQuestions } from '../lib/client';
+import { useLang } from './lang';
 
 /** Con cuántas preguntas restantes se pide el próximo lote. */
 export const PREFETCH_AT = 2;
@@ -41,6 +42,12 @@ interface QueueState {
  */
 let inFlight: Promise<void> | null = null;
 
+/**
+ * Cuántas veces se vació la cola. Un lote pedido antes de un `reset()` —por ejemplo, en el idioma
+ * anterior (ADR-028)— llega tarde y no tiene que entrar a la cola nueva.
+ */
+let generation = 0;
+
 export const useQueue = create<QueueState>((set, get) => ({
   questions: [],
   status: 'idle',
@@ -48,12 +55,14 @@ export const useQueue = create<QueueState>((set, get) => ({
 
   fetchMore() {
     inFlight ??= (async () => {
+      const started = generation;
       set((state) => ({ status: state.questions.length === 0 ? 'loading' : state.status }));
       try {
         // Lo que queda en la cola todavía no se contestó: las preguntas nuevas van después, y el
         // servidor no las repite.
         const queued = get().questions.map((q) => q.question_id);
-        const batch = await fetchQuestions(BATCH_SIZE, queued);
+        const batch = await fetchQuestions(BATCH_SIZE, queued, useLang.getState().lang);
+        if (started !== generation) return;
         set((state) => {
           // El servidor no repite dentro de un lote, pero sí puede devolver algo que ya está en
           // la cola local si dos precargas se cruzaron. Deduplicar acá es barato y evita que el
@@ -68,6 +77,7 @@ export const useQueue = create<QueueState>((set, get) => ({
           };
         });
       } catch (error) {
+        if (started !== generation) return;
         set((state) => ({
           // Un fallo de precarga con la cola todavía llena no es un error para el usuario: sigue
           // respondiendo y el próximo intento lo resuelve. Sólo se muestra si no queda nada.
@@ -75,7 +85,7 @@ export const useQueue = create<QueueState>((set, get) => ({
           error: error instanceof ApiError || error instanceof NetworkError ? error : null,
         }));
       } finally {
-        inFlight = null;
+        if (started === generation) inFlight = null;
       }
     })();
     return inFlight;
@@ -88,6 +98,7 @@ export const useQueue = create<QueueState>((set, get) => ({
   },
 
   reset() {
+    generation += 1;
     inFlight = null;
     set({ questions: [], status: 'idle', error: null });
   },

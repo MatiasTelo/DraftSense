@@ -36,6 +36,10 @@ async def seed_dimensions(session: AsyncSession, entries: list[dict[str, Any]]) 
             "label_en": statement.excluded.label_en,
             "description_en": statement.excluded.description_en,
             "prompt_en": statement.excluded.prompt_en,
+            # El español de la semana 8 (ADR-028): sin esto, recargar el seed no lo actualizaría.
+            "label_es": statement.excluded.label_es,
+            "description_es": statement.excluded.description_es,
+            "prompt_es": statement.excluded.prompt_es,
             "display_order": statement.excluded.display_order,
         },
     )
@@ -52,6 +56,8 @@ async def seed_traits(session: AsyncSession, entries: list[dict[str, Any]]) -> i
         set_={
             "label_en": statement.excluded.label_en,
             "description_en": statement.excluded.description_en,
+            "label_es": statement.excluded.label_es,
+            "description_es": statement.excluded.description_es,
             "legacy_tag": statement.excluded.legacy_tag,
             "display_order": statement.excluded.display_order,
         },

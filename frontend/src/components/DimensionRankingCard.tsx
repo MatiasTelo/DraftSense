@@ -40,6 +40,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useState } from 'react';
 
 import type { ChampionRef, PairwiseDimensionQuestion } from '../api';
+import { useT } from '../store/lang';
 import { PrimaryButton } from './Button';
 import { ChampionPortrait } from './ChampionPortrait';
 import { QuestionPrompt } from './QuestionPrompt';
@@ -61,6 +62,7 @@ export function DimensionRankingCard({
   onAnswer,
   disabled,
 }: Props) {
+  const t = useT();
   const [order, setOrder] = useState<ChampionRef[]>(question.champions);
 
   const sensors = useSensors(
@@ -131,7 +133,7 @@ export function DimensionRankingCard({
           onClick={() => onAnswer({ order: order.map((c) => c.id) })}
           disabled={disabled}
         >
-          Confirm
+          {t.play.confirm}
         </PrimaryButton>
       </div>
     </div>

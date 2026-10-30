@@ -31,6 +31,7 @@ from app.models import (
     Ranking,
     Respondent,
     Response,
+    Trait,
 )
 from app.services import questions
 from app.services import responses as responses_service
@@ -68,7 +69,22 @@ LANE = QuestionType.LANE_MATCHUP
         (PEAK, {"minute": 20}, {"minute": 25}, True),
         (PEAK, {"minute": 20}, {"minute": 15}, True),
         (PEAK, {"minute": 20}, {"minute": 26}, False),
-        (QuestionType.DUO_SYNERGY, {"choice": "pair_1"}, {"choice": "pair_1"}, None),
+        (QuestionType.DUO_SYNERGY, {"choice": "similar"}, {"choice": "similar"}, True),
+        (QuestionType.DUO_SYNERGY, {"choice": "pair_1"}, {"choice": "similar"}, False),
+        # Tipo 5, Jaccard ≥ 0.60: {engage, dive} contra {engage, dive, peel} es 2/3.
+        (
+            QuestionType.TRAIT_MULTISELECT,
+            {"traits": ["engage", "dive"]},
+            {"traits": ["engage", "dive", "peel"]},
+            True,
+        ),
+        # {engage, dive} contra {engage, poke}: 1/3.
+        (
+            QuestionType.TRAIT_MULTISELECT,
+            {"traits": ["engage", "dive"]},
+            {"traits": ["engage", "poke"]},
+            False,
+        ),
     ],
 )
 def test_que_cuenta_como_consistente(
@@ -305,6 +321,9 @@ async def test_agotado_todo_se_sirve_un_retest(
     champions = await make_champions(db, patch, 4, prefix="Ag")
     dimensions = await make_dimensions(db, ["agdima", "agdimb"])
     await restrict_pool(db, champions, dimensions)
+    # Sin atributos activos no hay tipo 5; con top y mid tampoco hay duplas. Así el respondedor
+    # agota todo lo que el pool puede servir.
+    await db.execute(sa.update(Trait).values(is_active=False))
     every: list[Combination] = []
     for a, b in combinations(sorted(c.champion_id for c in champions), 2):
         every += [

@@ -27,6 +27,15 @@ const CURRENT = {
   ],
 };
 
+const EXPORT_DEFAULTS = {
+  patch_window: '16.17',
+  min_trust: 0.3,
+  decay_halflife_days: 21,
+  bootstrap_samples: 2000,
+};
+
+const EMPTY_EXPORTS = { enabled: true, defaults: EXPORT_DEFAULTS, exports: [], last_run: null };
+
 const volumeDay = (date: string, n: number) => ({
   date,
   counts: {
@@ -53,13 +62,13 @@ const overview = (days: number) => ({
 
 describe('Layout', () => {
   it('avisa en la franja cuando no hay parche vigente', async () => {
-    mockApi({ 'GET /patches': NO_PATCHES, 'GET /exports': { enabled: false, defaults: {}, exports: [] } });
+    mockApi({ 'GET /patches': NO_PATCHES, 'GET /exports': EMPTY_EXPORTS });
     renderInLayout(<Exports />);
     expect(await screen.findByText('Sin parche vigente')).toBeInTheDocument();
   });
 
   it('muestra el parche vigente', async () => {
-    mockApi({ 'GET /patches': CURRENT, 'GET /exports': { enabled: false, defaults: {}, exports: [] } });
+    mockApi({ 'GET /patches': CURRENT, 'GET /exports': EMPTY_EXPORTS });
     renderInLayout(<Exports />);
     expect(await screen.findByText('16.17')).toBeInTheDocument();
   });
@@ -121,19 +130,62 @@ describe('Connectivity', () => {
 });
 
 describe('Exports', () => {
-  it('el botón de generar espera al pipeline de la semana 9 (CA-612)', async () => {
-    mockApi({
+  it('CA-612 — genera con los valores del formulario y consulta la corrida hasta que termina', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const calls = mockApi({
       'GET /patches': CURRENT,
-      'GET /exports': {
-        enabled: false,
-        defaults: { patch_window: '16.17', min_trust: 0.3, decay_halflife_days: 21, bootstrap_samples: 2000 },
-        exports: [],
+      'GET /exports': EMPTY_EXPORTS,
+      'POST /exports': { run_id: 'r1', status: 'running' },
+      'GET /exports/runs/r1': {
+        run_id: 'r1',
+        params: {},
+        status: 'succeeded',
+        started_at: '2026-10-29T12:00:00Z',
+        finished_at: '2026-10-29T12:02:30Z',
+        result: { files: [], responses: 120, respondents: 4, warnings: [] },
+        error: null,
       },
     });
     renderInLayout(<Exports />);
-    expect(await screen.findByRole('button', { name: 'Generar CSV' })).toBeDisabled();
-    expect(screen.getByText(/Disponible cuando esté el pipeline de agregación/)).toBeInTheDocument();
-    expect(screen.getByDisplayValue('2000')).toBeInTheDocument();
+    const button = await screen.findByRole('button', { name: 'Generar CSV' });
+    expect(button).toBeEnabled();
+    fireEvent.change(screen.getByDisplayValue('2000'), { target: { value: '500' } });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+    const post = calls.find((c) => c.method === 'POST');
+    expect(post?.body).toEqual({ patch_window: '16.17', min_trust: 0.3, halflife: 21, bootstrap: 500 });
+    expect(await screen.findByText('corriendo')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(await screen.findByText(/terminó bien/)).toBeInTheDocument();
+  });
+
+  it('cada archivo de una corrida se descarga por su export_id', async () => {
+    mockApi({
+      'GET /patches': CURRENT,
+      'GET /exports': {
+        ...EMPTY_EXPORTS,
+        exports: [
+          {
+            export_id: 41,
+            file_name: 'peak_timing_v16.17.csv',
+            file_kind: 'peak_timing',
+            sha256: 'a'.repeat(64),
+            row_count: 58,
+            patch_window: '16.17..16.17',
+            min_trust_applied: 0.3,
+            created_at: '2026-10-29T12:00:00Z',
+            run: '16.17..16.17_2026-10-29_1',
+          },
+        ],
+      },
+    });
+    renderInLayout(<Exports />);
+    const link = await screen.findByRole('link', { name: 'CSV' });
+    expect(link).toHaveAttribute('href', '/api/exports/41/file');
   });
 });
 

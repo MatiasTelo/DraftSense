@@ -22,8 +22,10 @@ import { AppFrame } from '../components/AppFrame';
 import { BottomNav, TopBar } from '../components/Chrome';
 import { FeedbackOverlay } from '../components/FeedbackOverlay';
 import { QuestionCard } from '../components/QuestionCard';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { CardSkeleton, Countdown, RetryButton, StateCard } from '../components/States';
 import { ApiError, NetworkError, postResponse } from '../lib/client';
+import { useT } from '../store/lang';
 import { useQueue } from '../store/queue';
 import { useSession } from '../store/session';
 
@@ -34,6 +36,8 @@ interface Shown {
   feedback: Feedback | null;
   labels: { key: string; label: string }[];
   yourKey: string;
+  /** Tipo 5: los atributos que marcó. */
+  yourKeys: string[];
   streak: number;
   unit?: string;
   layout: 'inline' | 'stacked';
@@ -42,27 +46,28 @@ interface Shown {
 /**
  * Las etiquetas de las barras del feedback.
  *
- * El servidor manda el consenso por clave (los cinco niveles del tipo 3); los textos están en la
- * pregunta que el cliente ya tiene. No se compone ningún enunciado acá: se lee el que vino. Los
- * tipos 1 y 2 no tienen barras: el 1 informa en cuántos pares coincide (ADR-022) y el 2, una
- * mediana.
+ * El servidor manda el consenso por clave (los niveles del tipo 3, las opciones del 4, los códigos
+ * del 5); los textos están en la pregunta que el cliente ya tiene. No se compone ningún enunciado
+ * acá: se lee el que vino. Los tipos 1 y 2 no tienen barras: el 1 informa en cuántos pares
+ * coincide (ADR-022) y el 2, una mediana.
  */
 function optionLabels(question: Question): { key: string; label: string }[] {
   switch (question.type) {
     case 'lane_matchup':
+    case 'duo_synergy':
       return question.options.map(({ key, label }) => ({ key, label }));
+    case 'trait_multiselect':
+      return question.traits.map(({ code, label }) => ({ key: code, label }));
     case 'pairwise_dimension':
     case 'peak_timing':
-    case 'duo_synergy':
-    case 'trait_multiselect':
       return [];
   }
 }
 
 /**
- * Las teclas `1`–`5` eligen la opción en el orden de la tarjeta (§9), en los tipos que registran
- * al primer toque. Los tipos 1 y 2 confirman con `Enter`, y eso lo resuelve su propia tarjeta, que
- * es la que conoce el orden o el valor del slider.
+ * Las teclas eligen la opción en el orden de la tarjeta (§9), en los tipos que registran al primer
+ * toque: `1`–`5` en el tipo 3 y `1`–`3` en el 4. Los tipos 1, 2 y 5 confirman con `Enter`, y eso lo
+ * resuelve su propia tarjeta, que es la que conoce el orden, el valor del slider o la selección.
  */
 function answerForDigit(question: Question, key: string): Answer | undefined {
   const index = Number.parseInt(key, 10) - 1;
@@ -72,9 +77,12 @@ function answerForDigit(question: Question, key: string): Answer | undefined {
       const option = question.options[index];
       return option === undefined ? undefined : { choice: option.key };
     }
+    case 'duo_synergy': {
+      const option = question.options[index];
+      return option === undefined ? undefined : { choice: option.key };
+    }
     case 'pairwise_dimension':
     case 'peak_timing':
-    case 'duo_synergy':
     case 'trait_multiselect':
       return undefined;
   }
@@ -82,6 +90,10 @@ function answerForDigit(question: Question, key: string): Answer | undefined {
 
 function chosenKey(answer: Answer): string {
   return 'choice' in answer ? answer.choice : '';
+}
+
+function chosenKeys(answer: Answer): string[] {
+  return 'traits' in answer ? answer.traits : [];
 }
 
 export function Play() {
@@ -96,6 +108,7 @@ export function Play() {
   const bootstrap = useSession((state) => state.bootstrap);
   const ready = useSession((state) => state.ready);
 
+  const t = useT();
   const [helpOpen, setHelpOpen] = useState(false);
   const [shown, setShown] = useState<Shown | null>(null);
   const [sending, setSending] = useState(false);
@@ -163,9 +176,10 @@ export function Play() {
           feedback: result.feedback,
           labels: optionLabels(question),
           yourKey: chosenKey(answer),
+          yourKeys: chosenKeys(answer),
           streak: result.progress.current_streak,
           unit: question.type === 'peak_timing' ? question.slider.unit : undefined,
-          layout: question.type === 'lane_matchup' ? 'stacked' : 'inline',
+          layout: question.type === 'pairwise_dimension' ? 'inline' : 'stacked',
         });
         recorded = true;
       } catch (error) {
@@ -217,7 +231,11 @@ export function Play() {
 
   return (
     <AppFrame>
-      <TopBar streak={counters.current_streak} answers={counters.answers_count} />
+      <TopBar
+        streak={counters.current_streak}
+        answers={counters.answers_count}
+        middle={<LanguageToggle />}
+      />
 
       <main className="relative flex flex-1 flex-col">
         {question !== undefined ? (
@@ -233,12 +251,9 @@ export function Play() {
           />
         ) : status === 'empty' ? (
           <div className="p-[22px]">
-            <StateCard
-              kind="Nothing to ask"
-              title="Nothing left to ask right now. Come back after the next patch."
-            >
+            <StateCard kind={t.play.emptyKind} title={t.play.emptyTitle}>
               <Link to="/me" className="font-mono text-[13px] font-medium text-gold">
-                See your profile →
+                {t.play.seeProfile}
               </Link>
             </StateCard>
           </div>
@@ -260,10 +275,7 @@ export function Play() {
 
         {cooldown !== null && (
           <div className="px-[22px] pb-[22px]">
-            <StateCard
-              kind="Rate limit"
-              title={`Slow down a little — try again in ${cooldown.left} seconds.`}
-            >
+            <StateCard kind={t.play.rateKind} title={t.play.rateTitle(cooldown.left)}>
               <Countdown seconds={cooldown.left} total={cooldown.total} />
             </StateCard>
           </div>
@@ -274,6 +286,7 @@ export function Play() {
             feedback={shown.feedback}
             labels={shown.labels}
             yourKey={shown.yourKey}
+            yourKeys={shown.yourKeys}
             streak={shown.streak}
             unit={shown.unit}
             layout={shown.layout}
@@ -299,13 +312,14 @@ function QueueProblem({
   error: ApiError | NetworkError | null;
   onRetry: () => void;
 }) {
+  const t = useT();
   const offline = error instanceof NetworkError || !navigator.onLine;
   return offline ? (
-    <StateCard kind="Offline" title="You're offline. Your last answer wasn't saved.">
+    <StateCard kind={t.play.offlineKind} title={t.play.offlineTitle}>
       <RetryButton onClick={onRetry} />
     </StateCard>
   ) : (
-    <StateCard kind="Server" title="Something broke on our end. Try again in a minute.">
+    <StateCard kind={t.play.serverKind} title={t.play.serverTitle}>
       <RetryButton onClick={onRetry} />
     </StateCard>
   );

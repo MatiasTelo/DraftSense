@@ -5,6 +5,8 @@
 > **08/10/2026:** cómo funcionan la honeypot (§3.7), el retest (§4.1) y los patrones degenerados
 > (§5) desde que el tipo 1 es un ranking de cinco campeones
 > ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
+>
+> **29/10/2026:** retest (§4) y *straightlining* (§5.2) de la variante 2v2 y de los tipos 4 y 5.
 
 Cómo el sistema distingue una respuesta pensada de una apurada, de una al azar o de una fabricada, y
 qué hace con esa distinción. Es el módulo que hace que un etiquetado abierto y anónimo pueda
@@ -288,6 +290,14 @@ Cada retest actualiza `retest_pairs` y, si corresponde, `retest_consistent`.
 >   retesteó.
 > - **La cadencia** se guarda en `respondents.next_retest_at`: el primer retest toca en la
 >   posición 29 y cada uno abre el siguiente 30 posiciones después.
+
+> **Agregado el 29/10/2026.** Los tipos de la semana 8 usan la tabla de arriba tal cual:
+>
+> - **El 2v2** sigue la regla del tipo 3: mismo lado o ambos `even`.
+> - **El tipo 4**: la opción idéntica, `similar` incluida.
+> - **El tipo 5**: Jaccard ≥ 0.60 entre los dos conjuntos. Como ninguna respuesta puede estar vacía
+>   ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)), el índice siempre está definido y
+>   toda respuesta de tipo 5 es elegible.
 > - **Un retest contestado `unknown` en el tipo 1 no forma par**: no suma a `retest_pairs`, igual
 >   que dice la tabla de arriba.
 
@@ -374,6 +384,14 @@ comparaciones donde el campeón A resulta ser siempre el de más control es perf
 >   *straightlining* castigaría la respuesta honesta de quien no conoce a esos campeones y empujaría
 >   a adivinar, que es lo que §3.5 evita.
 > - **Cada tramo de 8 o más suma 1**, sin importar su largo: un tramo de 16 es una racha, no dos.
+
+> **Agregado el 29/10/2026.** Los tipos de la semana 8:
+>
+> - **El 2v2 comparte subsecuencia con el 1v1.** Son el mismo tipo, con las mismas cinco opciones
+>   en la misma posición.
+> - **El tipo 4 tiene su propia subsecuencia**, contada por la clave de la opción (`pair_1`,
+>   `similar`, `pair_2`), que el servidor manda siempre en ese orden.
+> - **El tipo 5 queda afuera.** Una multi-selección no tiene una «posición» que se toque siempre.
 
 ### 5.3 Qué NO se detecta
 

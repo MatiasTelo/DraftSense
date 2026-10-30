@@ -21,6 +21,7 @@ from draftsense_admin.config import get_admin_settings
 from draftsense_admin.db import get_engine, get_sessionmaker
 from draftsense_admin.errors import register_admin_error_handlers
 from draftsense_admin.routers import jobs, monitoring, operations
+from draftsense_admin.services.exporting import ExportRunner
 from draftsense_admin.services.jobs import JobRunner
 
 API_PREFIX = "/api"
@@ -50,6 +51,9 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.job_runner = JobRunner(lambda: get_sessionmaker()())
+    app.state.export_runner = ExportRunner(
+        lambda: get_sessionmaker()(), get_admin_settings().exports_dir
+    )
 
     @app.middleware("http")
     async def only_this_machine(

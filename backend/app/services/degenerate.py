@@ -24,10 +24,12 @@ from app.models import QuestionType, Respondent, Response
 from app.services import app_settings, submissions, trust
 from app.services.answers import UNKNOWN_CHOICE
 
-#: Los tipos con posición en pantalla. El tipo 2 es un slider; los 4 y 5 entran en la semana 8.
-#: El tipo 1 salió el 08/10: es un ranking de cinco en orden aleatorio que se ordena arrastrando,
-#: y «tocar siempre la misma posición» deja de estar definido (ADR-022, 22 §5.2).
-STRAIGHTLINE_TYPES: Final = (QuestionType.LANE_MATCHUP,)
+#: Los tipos con posición en pantalla, cada uno con su subsecuencia. El 1v1 y el 2v2 comparten la
+#: del tipo 3: son el mismo tipo, con las mismas cinco opciones en el mismo lugar. El tipo 2 es un
+#: slider y el 5 una multi-selección, sin una posición que se toque siempre (22 §5.2, nota del
+#: 29/10). El tipo 1 salió el 08/10: es un ranking de cinco en orden aleatorio que se ordena
+#: arrastrando, y «tocar siempre la misma posición» deja de estar definido (ADR-022).
+STRAIGHTLINE_TYPES: Final = (QuestionType.LANE_MATCHUP, QuestionType.DUO_SYNERGY)
 
 
 @dataclass(frozen=True, slots=True)

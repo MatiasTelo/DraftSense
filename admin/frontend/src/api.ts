@@ -209,7 +209,26 @@ export interface Exports {
     patch_window: string;
     min_trust_applied: number;
     created_at: string;
+    /** La carpeta de la corrida: la vista agrupa por esto. */
+    run: string | null;
   }[];
+  last_run: ExportRun | null;
+}
+
+/** Una corrida de *Generar CSV* (24 §3.9, nota del 29/10). */
+export interface ExportRun {
+  run_id: string;
+  params: Record<string, unknown>;
+  status: JobStatus;
+  started_at: string;
+  finished_at: string | null;
+  result: {
+    files: { export_id: number; file_name: string; sha256: string; row_count: number }[];
+    responses: number;
+    respondents: number;
+    warnings: string[];
+  } | null;
+  error: string | null;
 }
 
 export type JobStatus = 'running' | 'succeeded' | 'failed';
@@ -293,4 +312,13 @@ export const api = {
   jobRun: (job: string, runId: string) => request<JobRun>('GET', `/jobs/${job}/runs/${runId}`),
 
   exports: () => request<Exports>('GET', '/exports'),
+  startExport: (body: {
+    patch_window: string | null;
+    min_trust: number | null;
+    halflife: number | null;
+    bootstrap: number | null;
+  }) => request<{ run_id: string; status: JobStatus }>('POST', '/exports', body),
+  exportRun: (runId: string) => request<ExportRun>('GET', `/exports/runs/${runId}`),
+  /** La descarga la hace el navegador con un enlace: el archivo no pasa por `request`. */
+  exportFileUrl: (exportId: number) => `/api/exports/${exportId}/file`,
 };

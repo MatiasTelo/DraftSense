@@ -251,6 +251,10 @@ def _body_for(question: dict[str, Any]) -> dict[str, Any]:
             body["answer"] = {"minute": 20}
         case "lane_matchup":
             body["answer"] = {"choice": "even"}
+        case "duo_synergy":
+            body["answer"] = {"choice": "similar"}
+        case "trait_multiselect":
+            body["answer"] = {"traits": [question["traits"][0]["code"]]}
         case _:
             body["ranking_id"] = question["ranking_id"]
             body["answer"] = {"order": [c["id"] for c in question["champions"]]}

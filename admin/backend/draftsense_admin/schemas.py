@@ -41,6 +41,15 @@ class JobIn(_Body):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExportIn(_Body):
+    """Los cuatro campos del formulario de CU-08; los omitidos salen de `app_settings`."""
+
+    patch_window: str | None = None
+    min_trust: float | None = None
+    halflife: float | None = None
+    bootstrap: int | None = None
+
+
 class ChampionsSeedIn(_Body):
     version: str = Field(min_length=1)
     ddragon_version: str | None = None

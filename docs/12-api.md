@@ -153,6 +153,12 @@ tarjeta y tarjeta.
 > `400 invalid_parameter` con `field: "queued"`. Omitirlo es válido: el servidor supone la cola
 > vacía.
 
+> **Agregado el 29/10/2026.** `lang`: `en` o `es`, por defecto `en`. El servidor arma enunciado,
+> opciones, ayudas, subtítulo y etiquetas de contexto en ese idioma, y cae al inglés si a una
+> dimensión o un atributo le falta el texto en español. Cualquier otro valor devuelve
+> `400 invalid_parameter` con `field: "lang"`. Es el único endpoint que lo acepta: los demás no
+> devuelven textos para mostrar ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)).
+
 **`200 OK`** — un arreglo `questions` cuyos elementos siguen una de estas cinco formas.
 
 #### Envoltura común
@@ -322,6 +328,22 @@ Misma forma; `sides` lleva dos campeones por lado y las etiquetas hablan de pare
 }
 ```
 
+> **Agregado el 29/10/2026.** Precisiones de la implementación de la semana 8:
+>
+> - **Las etiquetas de la 2v2 son las de este documento**, no las del wireframe de
+>   [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md) §4.2, que abreviaba algunas.
+> - **`context.label` de las duplas** es `BOT`, `TOP + JUNGLE` o `MID + JUNGLE` (`TOP + JUNGLA` y
+>   `MID + JUNGLA` con `lang=es`).
+> - **Cada lado de una dupla lista sus campeones en el orden de roles del contexto**: primero el
+>   `adc`, el `top` o el `mid`, después el `support` o el `jungle`
+>   ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)). Los lados no llevan el rol: la
+>   posición lo dice.
+> - **El tipo 4 manda sus opciones en el orden `pair_1`, `similar`, `pair_2`**, el de arriba. El
+>   *straightlining* se cuenta por la clave de la opción, así que el cliente las dibuja en el orden en
+>   que llegan.
+> - En `trait_multiselect` los `traits` llegan en `display_order`, sólo los activos, y `help` de la
+>   pregunta es `null` porque cada atributo trae el suyo.
+
 ---
 
 ### 2.4 `POST /responses`
@@ -419,6 +441,32 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 > `sample_size` la suma de respuestas de esos pares. El cliente muestra *"You agree with the
 > community on 7 of 9 pairs"*. Si ningún par llega al umbral, o si la respuesta fue *Not sure*,
 > `feedback` es `null`.
+
+> **Agregado el 29/10/2026.** Los tipos de la semana 8:
+>
+> - **`lane_matchup` 2v2** usa la misma forma que el 1v1: las cinco claves y el acuerdo contra el
+>   nivel exacto.
+> - **`duo_synergy`** usa la forma de elección general: `consensus` con `pair_1`, `similar` y
+>   `pair_2`, `agreed_with_majority` y `sample_size`.
+> - **`trait_multiselect`** informa la fracción de la comunidad que marcó cada atributo y en cuántos
+>   coincide la persona con la mayoría:
+>
+>   ```jsonc
+>   "feedback": {
+>     "trait_shares": { "engage": 0.78, "poke": 0.04, "pick": 0.22, "peel": 0.09,
+>                       "front_to_back": 0.61, "dive": 0.43, "split_push": 0.13 },
+>     "traits_agreed": 5, "traits_compared": 7, "sample_size": 23
+>   }
+>   ```
+>
+>   `trait_shares` es `conteo / _total` de `answer_counts` (`11-modelo-de-datos.md` §3.8), sin
+>   ponderar, para los atributos activos. Un atributo **coincide** si la persona lo marcó y más de la
+>   mitad de la comunidad también, o si no lo marcó y la mitad o menos lo marcó. `traits_compared`
+>   es la cantidad de atributos activos y `sample_size` es `_total`. El cliente muestra *"You agree
+>   with the community on 5 of 7 traits"* y una barra por atributo. Con `_total` por debajo de
+>   `sampler.consensus_threshold`, `feedback` es `null`, como en los demás tipos.
+> - **El acuerdo del tipo 5 no suma a `agreement_rate`**
+>   ([`23-gamificacion.md`](23-gamificacion.md)): es informativo, igual que hasta ahora.
 
 ---
 
@@ -607,7 +655,7 @@ Formato uniforme, compatible con el manejador de excepciones de FastAPI:
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
-| `400` | `answer_shape_mismatch` | El `answer` no corresponde al tipo de la pregunta |
+| `400` | `answer_shape_mismatch` | El `answer` no corresponde al tipo de la pregunta. Desde el 29/10 incluye `{"traits": []}` ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)) |
 | `400` | `unknown_trait_code` | Un código de `traits` no existe o está inactivo |
 | `400` | `invalid_parameter` | Parámetro de query fuera de rango |
 | `401` | `admin_key_required` | Falta o es inválido `X-Admin-Key` |

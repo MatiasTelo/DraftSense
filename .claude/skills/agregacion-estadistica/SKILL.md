@@ -21,9 +21,29 @@ silencio: un error acá no tira una excepción, produce un número plausible y e
 
 ## Estado
 
-**`aggregation/` está vacía.** El paquete se implementa en la **semana 9** (27/10 – 02/11) según
-`docs/25-agregacion.md` §8. `docs/27-validacion-confiabilidad.md` está **pendiente** y desbloquea la
-semana 10: hay que escribirlo antes de implementar la validación de confiabilidad.
+**El pipeline existe desde la semana 9** (29/10). `aggregation/` **es** el paquete —la carpeta tiene
+el `pyproject.toml` y los módulos—, para que `python -m aggregation.run` funcione desde la raíz:
+
+| Módulo | Qué hace |
+|---|---|
+| `params.py` | CLI → `app_settings` → default, y la semilla de §4.2 |
+| `load.py` | La consulta de §1.1 y el peso de §2.1. Sin filas, `NoDataError` |
+| `graph.py` | Componentes y la regla de descarte del bootstrap |
+| `estimators/bt.py` | El MM de Hunter con `ε`, tal cual el pseudocódigo. `choix` sólo en el test, con `ε = 0` |
+| `estimators/ordinal.py` | Rao-Kupper de 2 y de 1 umbral, L-BFGS con gradiente analítico; `ε` en el 1v1, L2 en las duplas |
+| `estimators/simple.py` | Mediana ponderada, curva gaussiana, Wilson con `n_eff` |
+| `fits.py` | Los 15 ajustes con su bootstrap |
+| `writers.py`, `record.py` | Los seis CSV con el formato de §4.6, y las filas de `exports` con `params` |
+| `pipeline.py` | Los ocho pasos de §8.2; lo usan la CLI y el panel |
+| `compare_truth.py` | Compara una corrida contra la verdad de `draftsense seed-synthetic-responses` |
+
+Las precisiones que tomó el alumno el 29/10 —pool del export, filas de bot, MM propio, descarte con
+el grafo partido— están en la nota de `docs/25-agregacion.md` §8.2. **El Informe de Calidad de
+Datos, el bootstrap por respondedor de §4.7 y los segmentos de §3.4–§3.8 son de la semana 10**:
+`docs/27-validacion-confiabilidad.md` sigue **pendiente** y hay que escribirlo antes.
+
+Con la seed sintética (seed 42, unas 145 000 respuestas) la corrida completa con B = 2000 tarda unos
+2,5 minutos, da el mismo SHA-256 dos veces seguidas y recupera la verdad con ρ de 0,91 a 0,98.
 
 La especificación en cambio está completa y en `v1`: `25-agregacion.md` (52 KB, el documento más
 grande del repo) y `26-esquema-de-salida.md`, más el ejemplo ejecutable de `docs/examples/`.

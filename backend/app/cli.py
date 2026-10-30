@@ -14,6 +14,7 @@
     draftsense detect-degenerate-patterns      respuestas apuradas y straightlining
     draftsense flag-duplicate-fingerprints     marca las huellas que fabrican identidades
     draftsense verify-trust-scores             recalcula el trust desde cero y compara
+    draftsense seed-synthetic-responses        respuestas sintéticas, sólo en una base local
 """
 
 from __future__ import annotations
@@ -62,6 +63,7 @@ from app.services import (
     patches,
     question_stats,
     seeding,
+    synthetic,
     trust_check,
 )
 
@@ -390,6 +392,33 @@ QUALITY_COUNTERS = (
 )
 
 
+async def cmd_seed_synthetic_responses(args: argparse.Namespace) -> int:
+    """Respuestas sintéticas para probar el consenso y la agregación (decisión del 29/10/2026).
+
+    Se niega a correr si la base no es local: escribe miles de respondedores que no son de nadie.
+    """
+    print(f"base: {get_settings().masked_database_url}")
+    try:
+        synthetic.guard()
+    except synthetic.UnsafeDatabaseError as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return 1
+    good, noisy, random_share = (float(part) for part in args.mix.split(","))
+    plan = synthetic.SeedPlan(respondents=args.respondents, mix=(good, noisy, random_share))
+    async with get_sessionmaker()() as session:
+        try:
+            result = await synthetic.seed(session, args.seed, args.truth_out, plan)
+        except ValueError as exc:
+            print(f"ERROR {exc}", file=sys.stderr)
+            return 1
+    print(
+        f"OK  {result.respondents} respondedores {result.profiles}, "
+        f"{result.responses} respuestas ({result.rankings} rankings del tipo 1)"
+    )
+    print(f"    verdad oculta en {result.truth_path}")
+    return 0
+
+
 async def cmd_verify_trust_scores(_: argparse.Namespace) -> int:
     """Recalcula el trust de todos desde cero y compara (22 §7.2). No escribe nada.
 
@@ -523,6 +552,25 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-trust-scores", help="recalcula el trust desde cero y compara, sin escribir"
     )
     verify.set_defaults(handler=cmd_verify_trust_scores)
+
+    synthetic_parser = sub.add_parser(
+        "seed-synthetic-responses",
+        help="siembra respuestas de una verdad oculta conocida; sólo contra una base local",
+    )
+    synthetic_parser.add_argument("--seed", type=int, required=True, help="semilla de la verdad")
+    synthetic_parser.add_argument(
+        "--truth-out",
+        type=Path,
+        required=True,
+        help="dónde escribir el JSON de la verdad oculta (fuera del repo o en exports/)",
+    )
+    synthetic_parser.add_argument("--respondents", type=int, default=400)
+    synthetic_parser.add_argument(
+        "--mix",
+        default="0.70,0.20,0.10",
+        help="proporción de perfiles buenos, ruidosos y al azar",
+    )
+    synthetic_parser.set_defaults(handler=cmd_seed_synthetic_responses)
 
     return parser
 

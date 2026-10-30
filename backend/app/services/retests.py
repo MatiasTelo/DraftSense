@@ -28,6 +28,16 @@ UNKNOWN: Final = UNKNOWN_CHOICE
 #: Tipo 2: dos minutos que difieren en esto o menos son la misma respuesta (§4).
 PEAK_TOLERANCE_MINUTES: Final = 5
 
+#: Tipo 5: dos conjuntos de atributos con este índice de Jaccard o más son la misma respuesta.
+TRAITS_MIN_JACCARD: Final = 0.60
+
+
+def jaccard(first: Collection[str], second: Collection[str]) -> float:
+    """Intersección sobre unión. Ninguna respuesta de tipo 5 está vacía (ADR-027), así que la unión
+    nunca lo está."""
+    union = set(first) | set(second)
+    return len(set(first) & set(second)) / len(union)
+
 
 def is_consistent(
     question_type: QuestionType, original: dict[str, Any], repeat: dict[str, Any]
@@ -38,9 +48,10 @@ def is_consistent(
     - Tipo 3: del mismo lado, o las dos `even`. *Wins hard* contra *wins slightly* del mismo
       campeón es consistente.
     - Tipo 2: minutos a 5 o menos de distancia.
+    - Tipo 4: la opción idéntica, `similar` incluida.
+    - Tipo 5: Jaccard ≥ 0.60 entre los dos conjuntos.
 
-    Los tipos 4 y 5 se sirven desde la semana 8 y entran con ellos: el 5 necesita decidir qué
-    Jaccard tienen dos listas vacías, que §4 no dice.
+    El 2v2 es `LANE_MATCHUP` y sigue la regla del tipo 3 (§4, nota del 29/10).
     """
     match question_type:
         case QuestionType.PAIRWISE_DIMENSION:
@@ -53,8 +64,10 @@ def is_consistent(
         case QuestionType.PEAK_TIMING:
             gap = abs(int(original["minute"]) - int(repeat["minute"]))
             return gap <= PEAK_TOLERANCE_MINUTES
-        case _:
-            return None
+        case QuestionType.DUO_SYNERGY:
+            return bool(original["choice"] == repeat["choice"])
+        case QuestionType.TRAIT_MULTISELECT:
+            return jaccard(original["traits"], repeat["traits"]) >= TRAITS_MIN_JACCARD
 
 
 async def pick_eligible(

@@ -8,6 +8,8 @@
 >
 > **11/10/2026:** qué pasa al activar un parche nuevo, en §8
 > ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)).
+>
+> **29/10/2026:** la variante 2v2 y los tipos 4 y 5 en §3.2, §3.3, §6 y §11.
 
 Cómo el sistema decide **qué pregunta mostrar a continuación**. Es el componente que convierte un
 presupuesto chico de respuestas —1 000 comprometidas, unos miles como meta de trabajo— en un
@@ -178,6 +180,10 @@ define su propia normalización a ese rango. La calcula `refresh_question_stats`
 >   numpy (tipo 7 de Hyndman y Fan). Con menos de 2 respuestas la entropía queda en `NULL`.
 > - **Tipo 3.** El colapso es `{a_strong, a_slight} → gana A`, `even → parejo`,
 >   `{b_slight, b_strong} → gana B`. Sin respuestas, `NULL`.
+> - **Agregado el 29/10/2026. Tipos 4 y 5.** El 2v2 usa el mismo colapso que el 1v1. En el tipo 4
+>   la entropía es la de Shannon sobre los tres conteos dividida por `log₂ 3`. En el tipo 5 cada
+>   atributo activo `T` tiene `p_T = conteo_T / _total` (`11-modelo-de-datos.md` §3.8) y la entropía
+>   es el promedio de `H(p_T)` sobre los atributos activos. Sin respuestas, `NULL`.
 > - Como en el tipo 1, `NULL` significa «todavía no se sabe» y se distingue de una entropía cero.
 
 **`unknown` se excluye del cálculo, no se cuenta como una tercera opción.** Una pregunta con 40 %
@@ -219,6 +225,19 @@ decisión que se pueda equivocar.
 > - **Con mediana 0, `coverage_deficit` queda en `NULL`** y el término vale 0 en la prioridad: con
 >   más de la mitad de las celdas vacías no hay referencia contra la cual medir el déficit, y el
 >   estrato caliente todavía casi no existe.
+
+> **Agregado el 29/10/2026.** Las celdas de los tipos de la semana 8, con la misma fórmula:
+>
+> | Tipo | Celda | Pool de celdas para la mediana |
+> |---|---|---|
+> | 3 — 2v2 | (campeón, `bot`) | Campeones habilitados con `adc` o `support` |
+> | 4 — sinergia | (campeón, `duo_ctx`) | Campeones del tier 1 con alguno de los dos roles del contexto |
+> | 5 — atributos | campeón | Campeones habilitados |
+>
+> La pregunta toma el déficit del peor cubierto de sus cuatro campeones (uno en el tipo 5). En el
+> tipo 4 la celda va por contexto porque la sinergia de bot y la de mid-jungla son magnitudes
+> distintas: cubrir a un campeón en una no lo cubre en la otra. `n` cuenta respuestas agregables,
+> como en los otros tipos.
 
 ### 3.4 Los puentes
 
@@ -428,6 +447,17 @@ retests **no pasan por la función de prioridad**: se eligen de su propio catál
 >   esa posición; si no queda otro tipo con candidatas, se permite. La honeypot y el retest no se
 >   corren por esta regla —están arriba—, pero cuentan para la racha.
 
+> **Agregado el 29/10/2026.** Con la variante 2v2 hay seis «tipos» en la mezcla y cinco en la
+> variedad:
+>
+> - **La mezcla se sortea por variante**: 50 / 20 / 15 / 5 / 5 / 5 para tipo 1, tipo 2, 1v1, 2v2,
+>   tipo 4 y tipo 5. Si una variante no tiene candidatas, su peso se reparte entre las demás, igual
+>   que antes.
+> - **La variedad cuenta por tipo**: el 1v1 y el 2v2 son el tipo 3 ([`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md)
+>   §4), así que tres seguidas entre los dos ya cierran la racha.
+> - **El tipo 4 usa siempre el tier 1** y sortea el contexto en proporción a sus pares de duplas
+>   válidas (20 §5, nota del 29/10). El 2v2 usa los tiers habilitados.
+
 ---
 
 ## 7. Promoción de tier
@@ -574,7 +604,7 @@ def siguiente_pregunta(respondent, posicion, ya_respondidas, cfg):
 | El puente domina | Una pregunta con `bridge_priority` y `exposure_count` alto le gana a una sin puente y `exposure_count = 0` |
 | El régimen frío es uniforme | Con `ε = 1` y 10 000 sorteos, la distribución de campeones es uniforme dentro del error de muestreo |
 | Nadie repite pregunta | Un respondedor que pide 200 preguntas no recibe dos veces el mismo `question_id`, salvo retests |
-| La mezcla se respeta | Sobre 100 preguntas, las proporciones por tipo están dentro de ±5 puntos de 50/20/15/5/5/5 |
+| La mezcla se respeta | Sobre 100 preguntas, las proporciones por tipo están dentro de ±5 puntos de 50/20/15/5/5/5. **Desde el 29/10** se mide con las seis variantes servidas, como estaba previsto desde la semana 5 |
 
 Los criterios formales están en [`03-criterios-aceptacion.md`](03-criterios-aceptacion.md) §2.
 
