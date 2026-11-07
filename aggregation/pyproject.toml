@@ -64,3 +64,8 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Los tests importan helpers con `from tests.conftest import ...`. `pytest` a secas (lo que corre
+# CI) no pone el cwd en sys.path —`python -m pytest` sí—, y sin esto la colección falla con
+# `No module named 'tests'`. No sirve un `tests/__init__.py`: como esta carpeta es el paquete
+# `aggregation`, pytest lo nombraría `aggregation.tests` y `tests` seguiría sin existir.
+pythonpath = ["."]
