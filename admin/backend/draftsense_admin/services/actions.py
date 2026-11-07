@@ -20,7 +20,7 @@ from app.models import AppSetting, Champion, Export, Patch, PickRateEntry, Respo
 from app.seeds.pick_rate import latest_snapshot_id
 from app.seeds.settings import load_settings
 from app.services import aggregable, app_settings, honeypots, patches, questions
-from draftsense_admin.services import audit
+from draftsense_admin.services import audit, exporting
 
 #: La única clave con acción propia en el `CHECK` de `admin_audit` (`11-modelo-de-datos.md`
 #: §3.13): es la que habilita el tier siguiente, y conviene poder encontrarla sin leer payloads.
@@ -223,15 +223,15 @@ async def activate_patch(session: AsyncSession, version: str, force: bool) -> di
 async def list_exports(session: AsyncSession) -> dict[str, Any]:
     """Las corridas anteriores y los valores por defecto del formulario de CU-08 (24 §3.9).
 
-    El botón de generar está deshabilitado hasta la semana 9: no hay nada acá que dispare una
-    corrida.
+    Desde la semana 9 el botón está habilitado (nota del 29/10). Cada fila lleva la carpeta de su
+    corrida, que es por lo que la vista las agrupa.
     """
     patch = await questions.current_patch(session)
     rows = (
         await session.execute(sa.select(Export).order_by(Export.created_at.desc()).limit(200))
     ).scalars()
     return {
-        "enabled": False,
+        "enabled": True,
         "defaults": {
             "patch_window": patch.version if patch is not None else None,
             "min_trust": float(await aggregable.min_trust(session)),
@@ -252,6 +252,7 @@ async def list_exports(session: AsyncSession) -> dict[str, Any]:
                 "patch_window": e.patch_window,
                 "min_trust_applied": e.min_trust_applied,
                 "created_at": e.created_at,
+                "run": exporting.folder_name(e.params or {}),
             }
             for e in rows
         ],

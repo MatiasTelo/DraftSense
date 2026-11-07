@@ -91,7 +91,7 @@ describe('useQueue', () => {
 
     await useQueue.getState().fetchMore();
 
-    expect(mocked).toHaveBeenCalledWith(BATCH_SIZE, []);
+    expect(mocked).toHaveBeenCalledWith(BATCH_SIZE, [], 'en');
   });
 
   it('al precargar manda las preguntas que le quedan sin contestar', async () => {
@@ -108,7 +108,7 @@ describe('useQueue', () => {
     useQueue.getState().advance();
     useQueue.getState().advance();
 
-    expect(mocked).toHaveBeenCalledExactlyOnceWith(BATCH_SIZE, [3, 4]);
+    expect(mocked).toHaveBeenCalledExactlyOnceWith(BATCH_SIZE, [3, 4], 'en');
     expect(useQueue.getState().questions).toHaveLength(PREFETCH_AT);
   });
 });

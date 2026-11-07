@@ -509,7 +509,7 @@ async def test_el_1v1_se_cubre_por_campeon_y_rol(
     await db.refresh(lane)
     await db.refresh(other)
 
-    assert result.coverage_medians["lane_matchup"] == 1.0
+    assert result.coverage_medians["lane_1v1"] == 1.0
     assert lane.coverage_deficit == Decimal("0.0000")
     assert other.coverage_deficit == Decimal("1.0000")
 

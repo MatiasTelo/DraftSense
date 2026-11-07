@@ -19,6 +19,7 @@ import uuid
 from collections import Counter
 from decimal import Decimal
 from itertools import groupby
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -39,7 +40,7 @@ from app.models import (
 from app.schemas.questions import PairwiseDimensionQuestion
 from app.services import responses as responses_service
 from app.services import sampler, sessions
-from app.services.questions import Space, draw_combination
+from app.services.questions import Space, Variant, draw_combination
 from app.services.sampler import (
     DEFAULT_WEIGHTS,
     SamplerConfig,
@@ -62,7 +63,16 @@ from tests.conftest import (
 PAIRWISE = QuestionType.PAIRWISE_DIMENSION
 PEAK = QuestionType.PEAK_TIMING
 LANE = QuestionType.LANE_MATCHUP
-SERVED = frozenset({PAIRWISE, PEAK, LANE})
+#: Una respuesta válida para cada tipo que no es un ranking.
+ANSWER_FOR: dict[QuestionType, dict[str, Any]] = {
+    QuestionType.PEAK_TIMING: {"minute": 20},
+    QuestionType.LANE_MATCHUP: {"choice": "even"},
+    QuestionType.DUO_SYNERGY: {"choice": "similar"},
+    QuestionType.TRAIT_MULTISELECT: {"traits": ["engage"]},
+}
+
+#: Las variantes del sorteo de esos tres tipos.
+SERVED = frozenset({Variant.PAIRWISE, Variant.PEAK, Variant.LANE_1V1})
 
 
 def _champion(champion_id: int, roles: list[LaneRole]) -> Champion:
@@ -98,7 +108,7 @@ def test_nunca_cuatro_seguidas_del_mismo_tipo() -> None:
     for position in range(5_000):
         chosen = choose_type(position, SERVED, rng, sequence)
         assert chosen is not None
-        sequence.append(chosen)
+        sequence.append(chosen.question_type)
     runs = [len(list(group)) for _, group in groupby(sequence)]
     assert max(runs) <= 3
 
@@ -106,19 +116,38 @@ def test_nunca_cuatro_seguidas_del_mismo_tipo() -> None:
 def test_tras_tres_iguales_ese_tipo_sale_del_sorteo() -> None:
     rng = random.Random(7)
     draws = {choose_type(10, SERVED, rng, [PAIRWISE] * 3) for _ in range(2_000)}
-    assert PAIRWISE not in draws
-    assert draws == {PEAK, LANE}
+    assert Variant.PAIRWISE not in draws
+    assert draws == {Variant.PEAK, Variant.LANE_1V1}
+
+
+def test_el_1v1_y_el_2v2_son_el_mismo_tipo_para_la_variedad() -> None:
+    """§6, nota del 29/10 — tres del tipo 3, sean 1v1 o 2v2, sacan a las dos variantes."""
+    rng = random.Random(9)
+    draws = {choose_type(10, frozenset(Variant), rng, [LANE] * 3) for _ in range(2_000)}
+    assert Variant.LANE_1V1 not in draws
+    assert Variant.LANE_2V2 not in draws
+    assert Variant.DUO_SYNERGY in draws
+
+
+def test_nunca_cuatro_seguidas_del_mismo_tipo_con_las_seis_variantes() -> None:
+    rng = random.Random(43)
+    sequence: list[QuestionType] = []
+    for position in range(5_000):
+        chosen = choose_type(position, frozenset(Variant), rng, sequence)
+        assert chosen is not None
+        sequence.append(chosen.question_type)
+    assert max(len(list(group)) for _, group in groupby(sequence)) <= 3
 
 
 def test_si_no_hay_otro_tipo_se_permite_la_cuarta() -> None:
     """Un lote corto es peor que una cuarta seguida."""
-    assert choose_type(10, {PEAK}, random.Random(1), [PEAK] * 3) is PEAK
+    assert choose_type(10, {Variant.PEAK}, random.Random(1), [PEAK] * 3) is Variant.PEAK
 
 
 def test_el_arranque_esta_por_encima_de_la_variedad() -> None:
     """§6 — la regla de arriba gana: las tres primeras son de tipo 1 igual."""
     rng = random.Random(3)
-    assert choose_type(2, SERVED, rng, [PAIRWISE] * 3) is PAIRWISE
+    assert choose_type(2, SERVED, rng, [PAIRWISE] * 3) is Variant.PAIRWISE
 
 
 def test_el_rol_del_1v1_se_pesa_por_su_cantidad_de_pares() -> None:
@@ -128,7 +157,9 @@ def test_el_rol_del_1v1_se_pesa_por_su_cantidad_de_pares() -> None:
     ]
     space = Space.of(champions, [])
     rng = random.Random(11)
-    roles = Counter(draw_combination(LANE, space, rng).role for _ in range(20_000))
+    roles = Counter(
+        draw_combination(Variant.LANE_1V1, space, rng).role for _ in range(20_000)
+    )
     assert roles[LaneRole.TOP] / 20_000 == pytest.approx(1 / 7, abs=0.02)
 
 
@@ -139,7 +170,7 @@ def test_la_exploracion_es_uniforme_sobre_los_campeones() -> None:
     appearances: Counter[int] = Counter()
     draws = 20_000
     for _ in range(draws):
-        combination = draw_combination(PAIRWISE, space, rng)
+        combination = draw_combination(Variant.PAIRWISE, space, rng)
         assert combination.champion_b is not None
         appearances.update((combination.champion_a, combination.champion_b))
     for champion_id in range(1, 11):
@@ -205,7 +236,7 @@ async def _ready(
     """
     await restrict_pool(db, await pad_pool(db, champions), dimensions)
     await set_setting(db, "sampler.epsilon", epsilon)
-    monkeypatch.setattr(sampler, "TYPE_WEIGHTS", {PAIRWISE: 1})
+    monkeypatch.setattr(sampler, "TYPE_WEIGHTS", {Variant.PAIRWISE: 1})
     respondent.answers_count = 3
     respondent.next_honeypot_at = FAR
     respondent.next_retest_at = FAR
@@ -447,7 +478,7 @@ async def test_doscientas_preguntas_sin_repetir_ni_precomputar(
                     db, respondent, ranking, question, list(ranking.champions), 2500, now, rng
                 )
             else:
-                answer = {"minute": 20} if question.type is PEAK else {"choice": "even"}
+                answer = ANSWER_FOR[QuestionType(question.type)]
                 await responses_service.record(db, respondent, question, answer, 2500, now, rng)
             served.append(item.question_id)
 

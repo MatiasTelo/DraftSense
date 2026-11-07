@@ -8,27 +8,44 @@
  * a cualquier parte de la aplicación.
  */
 
+import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 
-const TABS = [
-  { to: '/play', label: 'Play' },
-  { to: '/me', label: 'Profile' },
-  { to: '/leaderboard', label: 'Ranks' },
-] as const;
+import { useT } from '../store/lang';
 
-export function TopBar({ streak, answers }: { streak: number; answers: number }) {
+/**
+ * `middle` es la excepción a «nada más»: el selector de idioma de `/play` (ADR-028), que va entre
+ * la racha y el contador (`docs/30-ux-flujos.md` §5, nota del 29/10).
+ */
+export function TopBar({
+  streak,
+  answers,
+  middle,
+}: {
+  streak: number;
+  answers: number;
+  middle?: ReactNode;
+}) {
+  const t = useT();
   return (
     <header className="flex items-center justify-between border-b border-white/7 px-5 py-4 font-mono text-[13px] font-medium text-mute">
       <span className="text-gold">🔥 {streak}</span>
-      <span>{answers} answered</span>
+      {middle}
+      <span>{t.chrome.answered(answers)}</span>
     </header>
   );
 }
 
 export function BottomNav() {
+  const t = useT();
+  const tabs = [
+    { to: '/play', label: t.chrome.play },
+    { to: '/me', label: t.chrome.profile },
+    { to: '/leaderboard', label: t.chrome.ranks },
+  ];
   return (
     <nav className="grid grid-cols-3 border-t border-white/7 bg-nav">
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <NavLink
           key={tab.to}
           to={tab.to}

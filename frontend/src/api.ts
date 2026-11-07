@@ -76,13 +76,21 @@ export interface LaneMatchupQuestion extends QuestionBase {
   options: { key: LaneChoice; label: string }[];
 }
 
+/** Las tres opciones del tipo 4, en el orden en que se muestran: `pair_1`, `similar`, `pair_2`. */
+export type DuoChoice = 'pair_1' | 'pair_2' | 'similar';
+
+/**
+ * Tipo 4. `context.label` es `BOT`, `TOP + JUNGLE` o `MID + JUNGLE`, y cada lado trae sus dos
+ * campeones en el orden de roles del contexto (ADR-026).
+ */
 export interface DuoSynergyQuestion extends QuestionBase {
   type: 'duo_synergy';
   context: { duo_context: string; label: string };
   sides: Side[];
-  options: { key: string; label: string }[];
+  options: { key: DuoChoice; label: string }[];
 }
 
+/** Tipo 5. `help` es `null`: cada atributo trae su definición. */
 export interface TraitMultiselectQuestion extends QuestionBase {
   type: 'trait_multiselect';
   subtitle: string;
@@ -103,7 +111,8 @@ export type Answer =
   | { choice: 'unknown' }
   | { minute: number }
   | { choice: LaneChoice }
-  | { choice: 'pair_1' | 'pair_2' | 'similar' }
+  | { choice: DuoChoice }
+  /** Tipo 5: al menos un código (ADR-027). */
   | { traits: string[] };
 
 export interface Progress {
@@ -118,7 +127,8 @@ export interface Progress {
 
 /**
  * Cada tipo trae sólo sus claves: los de elección, `consensus` y `agreed_with_majority`; el tipo 2,
- * `consensus_median` y `your_answer` (`docs/12-api.md` §2.4). Las que no aplican no vienen.
+ * `consensus_median` y `your_answer`; el 1, los pares; el 5, los atributos (`docs/12-api.md`
+ * §2.4). Las que no aplican no vienen.
  */
 export interface Feedback {
   consensus?: Record<string, number>;
@@ -129,6 +139,11 @@ export interface Feedback {
   pairs_agreed?: number;
   /** Tipo 1: cuántos pares del ranking tienen soporte suficiente. */
   pairs_compared?: number;
+  /** Tipo 5: la fracción de la comunidad que marcó cada atributo (12 §2.4, nota del 29/10). */
+  trait_shares?: Record<string, number>;
+  /** Tipo 5: en cuántos atributos coincide con la mayoría, y sobre cuántos. */
+  traits_agreed?: number;
+  traits_compared?: number;
   sample_size: number;
 }
 

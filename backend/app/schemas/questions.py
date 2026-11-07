@@ -6,8 +6,8 @@ duplas y campeones sueltos con el mismo componente (§1.2). No lo "optimices" ma
 suelto cuando hay un solo campeón.
 
 Desde la semana 4 existen el tipo 1, el tipo 2 y la variante 1v1 del tipo 3. Desde el 08/10 el
-tipo 1 es un ranking de cinco campeones (ADR-022). La variante 2v2, el
-tipo 4 y el tipo 5 entran en la semana 8 (`docs/20-tipos-de-pregunta.md` §8).
+tipo 1 es un ranking de cinco campeones (ADR-022). Desde la semana 8, la variante 2v2, el tipo 4 y
+el tipo 5 (`docs/20-tipos-de-pregunta.md` §8).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from app.models import LaneRole
+from app.models import DuoContext, LaneRole
 from app.schemas.common import is_absent
 
 
@@ -87,9 +87,20 @@ class PeakTimingQuestion(BaseModel):
 
 
 class LaneContext(BaseModel):
-    """Dónde ocurre el enfrentamiento. La variante 2v2 de la semana 8 suma `duo_context`."""
+    """Dónde ocurre el enfrentamiento: `role` en el 1v1, `duo_context` en el 2v2 de bot.
 
-    role: LaneRole
+    Cada variante lleva sólo su clave (`docs/12-api.md` §2.3).
+    """
+
+    role: LaneRole | None = Field(default=None, exclude_if=is_absent)
+    duo_context: DuoContext | None = Field(default=None, exclude_if=is_absent)
+    label: str
+
+
+class DuoContextOut(BaseModel):
+    """El contexto de una pregunta de tipo 4."""
+
+    duo_context: DuoContext
     label: str
 
 
@@ -108,9 +119,44 @@ class LaneMatchupQuestion(BaseModel):
     options: list[Option]
 
 
+class DuoSynergyQuestion(BaseModel):
+    """Tipo 4. Los lados son `pair_1` (arriba) y `pair_2` (abajo), cada uno con sus dos campeones
+    en el orden de roles del contexto (ADR-026)."""
+
+    question_id: int
+    type: Literal["duo_synergy"] = "duo_synergy"
+    prompt: str
+    help: Help | None
+    context: DuoContextOut
+    sides: list[Side]
+    options: list[Option]
+
+
+class TraitOption(BaseModel):
+    code: str
+    label: str
+    help: str
+
+
+class TraitMultiselectQuestion(BaseModel):
+    """Tipo 5. `help` de la pregunta es `null`: cada atributo trae su propia definición."""
+
+    question_id: int
+    type: Literal["trait_multiselect"] = "trait_multiselect"
+    prompt: str
+    subtitle: str
+    help: Help | None
+    subject: Subject
+    traits: list[TraitOption]
+
+
 #: No se llama `Question` para no chocar con el modelo ORM, que se importa en los mismos módulos.
 QuestionOut = Annotated[
-    PairwiseDimensionQuestion | PeakTimingQuestion | LaneMatchupQuestion,
+    PairwiseDimensionQuestion
+    | PeakTimingQuestion
+    | LaneMatchupQuestion
+    | DuoSynergyQuestion
+    | TraitMultiselectQuestion,
     Field(discriminator="type"),
 ]
 

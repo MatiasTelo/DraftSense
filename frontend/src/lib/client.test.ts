@@ -24,7 +24,7 @@ describe('client', () => {
     await fetchQuestions(5);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/questions/next?count=5&queued=',
+      '/api/v1/questions/next?count=5&queued=&lang=en',
       expect.objectContaining({ credentials: 'include' }),
     );
   });
@@ -35,7 +35,7 @@ describe('client', () => {
     await fetchQuestions(5, [88412, 88415]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/questions/next?count=5&queued=88412,88415',
+      '/api/v1/questions/next?count=5&queued=88412,88415&lang=en',
       expect.anything(),
     );
   });

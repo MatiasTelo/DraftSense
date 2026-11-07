@@ -175,4 +175,36 @@ describe('FeedbackOverlay', () => {
     expect(screen.getByText('35%')).toBeInTheDocument();
     expect(overlay).toHaveTextContent('42 answers');
   });
+
+  it('CA-508 — en el tipo 5 dice en cuántos atributos coincide y dibuja una barra por atributo', () => {
+    render(
+      <FeedbackOverlay
+        feedback={{
+          trait_shares: { engage: 0.78, poke: 0.04, dive: 0.43 },
+          traits_agreed: 2,
+          traits_compared: 3,
+          sample_size: 23,
+        }}
+        labels={[
+          { key: 'engage', label: 'Engage' },
+          { key: 'poke', label: 'Poke' },
+          { key: 'dive', label: 'Dive' },
+        ]}
+        yourKey=""
+        yourKeys={['engage', 'dive']}
+        streak={2}
+        layout="stacked"
+      />,
+    );
+
+    const overlay = screen.getByRole('status');
+    expect(overlay).toHaveTextContent('You agree with the community on 2 of 3 traits');
+    expect(screen.getByText('78%')).toBeInTheDocument();
+    expect(screen.getByText('4%')).toBeInTheDocument();
+    // Las marcadas por la persona van en dorado: el porcentaje lo dice además del color.
+    expect(screen.getByText('78%')).toHaveClass('text-gold');
+    expect(screen.getByText('43%')).toHaveClass('text-gold');
+    expect(screen.getByText('4%')).not.toHaveClass('text-gold');
+    expect(overlay).toHaveTextContent('23 answers');
+  });
 });

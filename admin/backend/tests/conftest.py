@@ -44,6 +44,7 @@ from app.models import (
 from app.services import app_settings, sessions
 from draftsense_admin.db import get_session
 from draftsense_admin.main import create_app
+from draftsense_admin.services.exporting import ExportRunner
 from draftsense_admin.services.jobs import JobRunner
 
 DATABASE_URL: Final = os.getenv("DS_DATABASE_URL", "")
@@ -99,6 +100,9 @@ def admin_app(db: AsyncSession, tmp_path: Path) -> FastAPI:
 
     app.dependency_overrides[get_session] = override
     app.state.job_runner = JobRunner(shared)
+    # Las exportaciones escriben en la carpeta temporal del test y corren en serie: un proceso
+    # hijo no vería la transacción del test.
+    app.state.export_runner = ExportRunner(shared, tmp_path / "exports", workers=1)
     return app
 
 

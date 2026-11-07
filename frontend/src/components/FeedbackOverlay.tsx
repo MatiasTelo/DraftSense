@@ -22,9 +22,14 @@
  * frase —*«Most players said 26 min. You said 27.»*— y sin barras. El tipo 1 es un ranking y se
  * compara por pares —*«You agree with the community on 7 of 9 pairs»*—, también sin barras
  * (ADR-022).
+ *
+ * El tipo 5 (semana 8) dice en cuántos atributos coincide con la mayoría —*«You agree with the
+ * community on 5 of 7 traits»*— y muestra una barra por atributo con la fracción que lo marcó; las
+ * de los que marcó la persona van en dorado (`docs/12-api.md` §2.4, nota del 29/10).
  */
 
 import type { Feedback } from '../api';
+import { useT } from '../store/lang';
 
 interface Props {
   /** `null` mientras la pregunta tiene menos respuestas que el umbral de consenso. */
@@ -33,6 +38,8 @@ interface Props {
   labels: { key: string; label: string }[];
   /** La opción que eligió esta persona. */
   yourKey: string;
+  /** Tipo 5: los atributos que marcó. */
+  yourKeys?: string[];
   /** Racha de respuestas seguidas, ya actualizada con esta respuesta. */
   streak: number;
   /** La unidad de la escala del tipo 2, tal como la manda el servidor. */
@@ -51,16 +58,22 @@ export function FeedbackOverlay({
   feedback,
   labels,
   yourKey,
+  yourKeys = [],
   streak,
   unit = '',
   layout = 'inline',
 }: Props) {
+  const t = useT();
   // `?? undefined` también absorbe un `null`: el contrato omite las claves que no aplican, pero
   // una clave nula no puede romper la tarjeta que sigue.
-  const consensus = feedback?.consensus ?? undefined;
+  const shares = feedback?.trait_shares ?? undefined;
+  const traitsCompared = feedback?.traits_compared ?? undefined;
+  // En el tipo 5 las barras son las fracciones por atributo, y las «tuyas» son varias.
+  const consensus = feedback?.consensus ?? shares;
   const median = feedback?.consensus_median ?? undefined;
   const pairsCompared = feedback?.pairs_compared ?? undefined;
   const yourShare = consensus?.[yourKey] ?? 0;
+  const isYours = (key: string) => (shares !== undefined ? yourKeys.includes(key) : key === yourKey);
   const milestone = streak > 0 && streak % 10 === 0;
 
   return (
@@ -72,7 +85,7 @@ export function FeedbackOverlay({
         <div className="flex flex-col items-center gap-2.5">
           {milestone && (
             <p className="font-mono text-xs font-semibold tracking-[0.2em] text-gold uppercase">
-              {streak} in a row 🔥
+              {t.feedback.inARow(streak)}
             </p>
           )}
 
@@ -80,35 +93,38 @@ export function FeedbackOverlay({
             <>
               <p className="flex items-center gap-3 text-center font-display text-[22px] leading-snug font-semibold text-ink">
                 <span className="text-[19px] text-cyan">⚡</span>
-                You&apos;re one of the first to answer this
+                {t.feedback.firstTitle}
               </p>
               <p className="max-w-[300px] text-center text-sm leading-relaxed text-ink-4">
-                There aren&apos;t enough answers yet to show how the community compares.
+                {t.feedback.firstBody}
               </p>
             </>
           ) : pairsCompared !== undefined ? (
             <p className="text-center font-display text-[22px] leading-snug font-semibold text-ink">
-              You agree with the community on {feedback.pairs_agreed ?? 0} of {pairsCompared}{' '}
-              {pairsCompared === 1 ? 'pair' : 'pairs'}
+              {t.feedback.pairs(feedback.pairs_agreed ?? 0, pairsCompared)}
+            </p>
+          ) : traitsCompared !== undefined ? (
+            <p className="text-center font-display text-[22px] leading-snug font-semibold text-ink">
+              {t.feedback.traits(feedback.traits_agreed ?? 0, traitsCompared)}
             </p>
           ) : median !== undefined ? (
             <p className="text-center font-display text-[22px] leading-snug font-semibold text-ink">
-              Most players said {median} {unit}. You said {feedback.your_answer}.
+              {t.feedback.median(median, unit, feedback.your_answer)}
             </p>
           ) : feedback.agreed_with_majority === true ? (
             <p className="flex items-center gap-2.5 font-display text-[22px] font-semibold text-ink">
               <span className="text-green">✓</span>
-              {percent(yourShare)}% agree with you
+              {t.feedback.agree(percent(yourShare))}
             </p>
           ) : (
             <p className="font-display text-[22px] font-semibold text-ink">
-              You&apos;re in the {percent(yourShare)}%
+              {t.feedback.minority(percent(yourShare))}
             </p>
           )}
 
           {(median !== undefined || pairsCompared !== undefined) && (
             <p className="font-mono text-[11px] tracking-[0.14em] text-faint uppercase">
-              {feedback?.sample_size} answers
+              {t.feedback.answers(feedback?.sample_size)}
             </p>
           )}
         </div>
@@ -119,7 +135,7 @@ export function FeedbackOverlay({
               const share = consensus[key] ?? 0;
               // La barra dorada es la del usuario, no la de la mayoría: es de la que habla el
               // mensaje, y en el caso de discrepancia es la que hay que poder encontrar.
-              const mine = key === yourKey;
+              const mine = isYours(key);
               const bar = (
                 <span className={`h-2 bg-rail ${layout === 'inline' ? 'flex-1' : 'block'}`}>
                   <span
@@ -156,7 +172,7 @@ export function FeedbackOverlay({
               );
             })}
             <p className="mt-1.5 text-center font-mono text-[11px] tracking-[0.14em] text-faint uppercase">
-              {feedback?.sample_size} answers
+              {t.feedback.answers(feedback?.sample_size)}
             </p>
           </div>
         )}

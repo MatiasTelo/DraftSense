@@ -2,9 +2,11 @@
 
 import type {
   ChampionRef,
+  DuoSynergyQuestion,
   LaneMatchupQuestion,
   PairwiseDimensionQuestion,
   PeakTimingQuestion,
+  TraitMultiselectQuestion,
 } from './api';
 
 export function champion(id: number, name: string): ChampionRef {
@@ -83,6 +85,75 @@ export function laneMatchup(
       { key: 'even', label: 'Even' },
       { key: 'b_slight', label: `${b} wins slightly` },
       { key: 'b_strong', label: `${b} wins hard` },
+    ],
+  };
+}
+
+/** Tipo 3, variante 2v2 de bot — `docs/12-api.md` §2.3. Cada lado en orden adc, support. */
+export function botLane(question_id: number): LaneMatchupQuestion {
+  return {
+    question_id,
+    type: 'lane_matchup',
+    prompt: 'Which bot lane wins at 10 minutes?',
+    help: {
+      label: 'Bot lane matchup',
+      text: "Which pair beats the other in lane. Not about how well each pair works together — that's a different question.",
+    },
+    context: { duo_context: 'bot', label: 'BOT' },
+    sides: [
+      { key: 'a', champions: [champion(51, 'Caitlyn'), champion(99, 'Lux')] },
+      { key: 'b', champions: [champion(360, 'Samira'), champion(111, 'Nautilus')] },
+    ],
+    options: [
+      { key: 'a_strong', label: 'Top pair wins hard' },
+      { key: 'a_slight', label: 'Top pair wins slightly' },
+      { key: 'even', label: 'Even' },
+      { key: 'b_slight', label: 'Bottom pair wins slightly' },
+      { key: 'b_strong', label: 'Bottom pair wins hard' },
+    ],
+  };
+}
+
+/** Tipo 4 — `docs/12-api.md` §2.3. */
+export function duoSynergy(question_id: number): DuoSynergyQuestion {
+  return {
+    question_id,
+    type: 'duo_synergy',
+    prompt: 'Which duo works better together?',
+    help: {
+      label: 'Synergy',
+      text: "Ignore who they're up against. Which two complement each other better?",
+    },
+    context: { duo_context: 'mid_jungle', label: 'MID + JUNGLE' },
+    sides: [
+      { key: 'pair_1', champions: [champion(61, 'Orianna'), champion(59, 'Jarvan IV')] },
+      { key: 'pair_2', champions: [champion(4, 'Twisted Fate'), champion(120, 'Hecarim')] },
+    ],
+    options: [
+      { key: 'pair_1', label: 'Top pair' },
+      { key: 'similar', label: 'About the same' },
+      { key: 'pair_2', label: 'Bottom pair' },
+    ],
+  };
+}
+
+/** Tipo 5 — `docs/12-api.md` §2.3, con los siete atributos de `20-tipos-de-pregunta.md` §6. */
+export function traitMultiselect(question_id: number, name = 'Sett'): TraitMultiselectQuestion {
+  return {
+    question_id,
+    type: 'trait_multiselect',
+    prompt: `What does ${name} do well?`,
+    subtitle: 'Pick all that apply.',
+    help: null,
+    subject: { champions: [champion(875, name)] },
+    traits: [
+      { code: 'engage', label: 'Engage', help: 'Starts fights on their own terms.' },
+      { code: 'poke', label: 'Poke', help: 'Wears enemies down from range.' },
+      { code: 'pick', label: 'Pick', help: 'Catches out and kills isolated targets.' },
+      { code: 'peel', label: 'Peel', help: 'Keeps divers off their carries.' },
+      { code: 'front_to_back', label: 'Front to back', help: 'Wants a straight teamfight, tanks in front.' },
+      { code: 'dive', label: 'Dive', help: 'Jumps past the front line onto the back line.' },
+      { code: 'split_push', label: 'Split push', help: 'Pressures a side lane instead of grouping.' },
     ],
   };
 }

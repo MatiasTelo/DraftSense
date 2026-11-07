@@ -7,6 +7,12 @@
 > ([ADR-023](13-adr/ADR-023-salida-en-formato-largo.md)). Las comparaciones del tipo 1 llegan de
 > a diez por ranking ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Los estimadores no
 > cambian: cambia a qué archivo y columna va cada resultado.
+>
+> **29/10/2026:** la semana 9 implementa el pipeline. Se cierra el punto 3 de §12 (`exports.params`),
+> el tipo 5 ya no admite la lista vacía ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)),
+> las duplas se identifican con el rol de cada campeón ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)),
+> y el Informe de Calidad de Datos, el bootstrap por respondedor de §4.7 y los segmentos de §3.4 a
+> §3.8 se emiten desde la semana 10 (§8.2, nota del 29/10).
 
 Qué hace exactamente el sistema con cada dato que produce una persona —los tres que declara al
 entrar y cada respuesta que da después— desde que la fila entra a `responses` hasta que sale como
@@ -136,6 +142,10 @@ se trata igual:**
 
 La única que sale del ajuste es `unknown` del tipo 1, y no se pierde: se publica como tasa porque
 dice algo del par —que la dimensión probablemente no aplica— que el score no puede decir.
+
+> **Cambiado el 29/10/2026.** La fila del tipo 5 queda sin efecto: `traits: []` ya no es una
+> respuesta válida ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)). Toda respuesta de
+> tipo 5 marca al menos un atributo.
 
 ---
 
@@ -769,6 +779,14 @@ sobre las respuestas de tipo 5 al campeón `c` **en las que el atributo `T` esta
 `{"traits": []}` suma al denominador y no al numerador: es "ninguno de estos", que es un dato
 (CA-207).
 
+> **Cambiado el 29/10/2026.** La lista vacía ya no existe
+> ([ADR-027](13-adr/ADR-027-tipo-5-al-menos-un-atributo.md)): el denominador son respuestas que
+> marcaron al menos un atributo. La fórmula no cambia.
+
+> **Agregado el 29/10/2026.** «Estaba activo» se lee de `traits.is_active` al momento de la
+> corrida: la base no guarda el historial de activaciones. Mientras los siete atributos del catálogo
+> sigan activos, `T` está activo en todas las respuestas.
+
 El intervalo es de **Wilson al 95 %**, y el tamaño que entra en la fórmula no es `n` sino el
 **tamaño muestral efectivo de Kish**, porque la proporción está ponderada:
 
@@ -883,6 +901,38 @@ exige pasar la fecha registrada.
 7. Escribir los seis CSV con el formato fijo de §4.6 y el Informe de Calidad de Datos.
 8. Insertar una fila en `exports` por archivo, con su SHA-256 y **todos** los parámetros.
 
+> **Agregado el 29/10/2026.** Cómo quedó la implementación de la semana 9 (`aggregation/`):
+>
+> - **El paso 7 escribe sólo los seis CSV.** El Informe de Calidad de Datos depende de
+>   [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md), que se escribe en la semana
+>   10, y con él llegan las dos versiones del intervalo de §4.7 y los usos de §3.4 a §3.8. Hasta
+>   entonces `exports` no recibe filas `quality_report`.
+> - **La partición de trabajo** son los 15 ajustes de §8.2, en un orden fijo: las 8 dimensiones
+>   por `display_order`, los roles `top`, `mid`, `adc`, el 2v2 de `bot` y los contextos `bot`,
+>   `top_jungle`, `mid_jungle`, más un ajuste por magnitud sin modelo (pico y atributos). Cada uno
+>   recibe un generador hijo de la semilla de §4.2 (`numpy.random.SeedSequence(seed).spawn`) en ese
+>   orden. Correr en paralelo o en serie da el mismo resultado.
+> - **Las duplas se identifican por (campeón, rol)**, leídos de `role_a … role_d` de la pregunta
+>   ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)). Así salen `role_a` y `role_b` de
+>   `duo_features`.
+>
+> Cuatro precisiones que este documento dejaba abiertas, decididas por el alumno el 29/10:
+>
+> - **El pool del export** son los campeones activos con `pool_tier ≤ sampler.enabled_pool_tiers`
+>   al momento de la corrida. Son los que tienen filas en los cuatro archivos por campeón y sobre
+>   los que se centra (§4.1). Las respuestas de un campeón que quedó afuera igual entran al ajuste.
+> - **Las filas de bot de `duo_features`** son la unión de los dos modelos, sinergia y 2v2: una
+>   dupla tiene fila si se comparó en alguno o si sus dos integrantes tienen `a_·` estimada en
+>   alguno. La magnitud del modelo que no la cubre queda vacía, con `_n = 0` e `insufficient`. Un
+>   campeón tiene `a_·` estimada en un modelo si aparece en al menos una comparación de ese modelo.
+> - **El estimador de §5.1 es el MM de Hunter con `ε`**, implementado en numpy tal como está el
+>   pseudocódigo. `choix` no admite ese `ε` —su regularización es otra—, así que se usa en el test
+>   como verificación cruzada con `ε = 0` sobre datos conectados.
+> - **Un remuestreo se descarta si parte alguna de las componentes originales** o deja a un
+>   campeón sin comparaciones. Con el grafo conexo es exactamente la regla de §4.2; con el grafo ya
+>   desconectado ([ADR-008](13-adr/ADR-008-conectividad-por-componentes.md)) evita descartarlos
+>   todos.
+
 ### 8.3 Qué hace falta para que sea reproducible
 
 CA-408 pide que dos corridas con los mismos parámetros sobre el mismo crudo den un SHA-256 idéntico.
@@ -964,7 +1014,7 @@ quedar anotadas donde corresponde.
 |---|---|---|---|
 | 1 | La dupla se sigue tomando como competidor, pero su fuerza se parametriza como `a_A + a_B + i_AB`. **Sin esto no existen las filas predichas** que 26 §5 y 20 §5 ya prometen | 20 §5, 26 §5 | Precisión, no cambio. Anotar en ambos |
 | 2 | El tipo 4 usa Rao-Kupper de un umbral, no Bradley-Terry sin empates: `similar` es un dato | 20 §5 | Precisión. Anotar |
-| 3 | `exports` no tiene dónde guardar `power_sigma` ni los umbrales de `_support`, y 26 §2.4 y §3.3 dicen que quedan registrados ahí | 11 §3.11 | **Falta una columna `params jsonb`.** Requiere migración |
+| 3 | `exports` no tiene dónde guardar `power_sigma` ni los umbrales de `_support`, y 26 §2.4 y §3.3 dicen que quedan registrados ahí | 11 §3.11 | **Resuelta el 29/10/2026:** columna `exports.params jsonb`, migración `0006` |
 | 4 | `declared_main_role` es `lane_role`, que no tiene valor `fill`, pero `/start` ofrecía el botón *Fill*. Un *fill* se habría guardado como `NULL` y habría quedado indistinguible de quien omitió | 11 §3.7, 30 §4 | **Resuelta el 15/09/2026 al implementar `/start`:** se sacó el botón. El campo es una variable de segmentación, nunca un criterio de calidad, y no justificaba cambiar el tipo de una columna del esquema. Anotado en 30 §4 |
 | 5 | El bootstrap sobre comparaciones subestima la incertidumbre; el criterio y la fecha para decidir si se cambia están en §4.7 | 26 §3.2 | Límite declarado, con disparador |
 

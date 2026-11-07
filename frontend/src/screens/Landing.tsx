@@ -17,12 +17,15 @@ import { useNavigate } from 'react-router-dom';
 
 import { AppFrame } from '../components/AppFrame';
 import { PrimaryButton } from '../components/Button';
+import { LanguageToggle } from '../components/LanguageToggle';
+import { useT } from '../store/lang';
 import { useSession } from '../store/session';
 
 export function Landing() {
   const navigate = useNavigate();
   const onboardingSeen = useSession((state) => state.onboardingSeen);
   const ready = useSession((state) => state.ready);
+  const t = useT();
 
   // La cookie es HttpOnly y no se puede consultar: `onboarding_seen` es la única señal de que ya
   // hubo una sesión antes, porque tanto `Continue` como `Skip` lo dejan en `true` y no se vuelve
@@ -41,25 +44,28 @@ export function Landing() {
           </p>
           <div className="my-[18px] mb-[26px] h-0.5 w-16 bg-gold" />
           <h1 className="font-display text-[25px] leading-tight font-semibold text-pretty text-ink">
-            Help rank every champion in League of Legends.
+            {t.landing.headline}
           </h1>
           <p className="mt-3.5 text-[15px] leading-relaxed text-mute-2">
-            Quick questions. No account. 2 minutes.
+            {t.landing.promise}
           </p>
           <div className="mt-[34px]">
             <PrimaryButton onClick={() => navigate(returning ? '/play' : '/start')}>
-              {returning ? 'Continue' : 'Start'}
+              {returning ? t.landing.continue : t.landing.start}
             </PrimaryButton>
           </div>
           <p className="mt-[26px] font-mono text-xs leading-relaxed text-faint">
-            Your answers feed public research at UTN Mendoza.
+            {t.landing.research}
           </p>
         </div>
 
-        <footer className="relative flex gap-4 border-t border-edge-soft px-7 py-[22px] font-mono text-xs font-medium tracking-[0.1em] text-label">
-          <span>About</span>
+        <footer className="relative flex items-center gap-4 border-t border-edge-soft px-7 py-[22px] font-mono text-xs font-medium tracking-[0.1em] text-label">
+          {/* Sin corte de línea: en español «Acerca de» se partía en dos a 360 px. */}
+          <span className="whitespace-nowrap">{t.landing.about}</span>
           <span className="text-[#39414d]">·</span>
-          <span>Privacy</span>
+          <span className="whitespace-nowrap">{t.landing.privacy}</span>
+          <span className="flex-1" />
+          <LanguageToggle />
         </footer>
       </div>
     </AppFrame>

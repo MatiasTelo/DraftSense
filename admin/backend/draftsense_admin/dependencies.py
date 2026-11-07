@@ -13,7 +13,7 @@ from app.services import patches, seeding
 from draftsense_admin.config import AdminSettings, get_admin_settings
 from draftsense_admin.db import get_session
 from draftsense_admin.errors import AdminError
-from draftsense_admin.services import actions, jobs, seeds
+from draftsense_admin.services import actions, exporting, jobs, seeds
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[AdminSettings, Depends(get_admin_settings)]
@@ -27,6 +27,14 @@ def get_runner(request: Request) -> jobs.JobRunner:
 
 
 RunnerDep = Annotated[jobs.JobRunner, Depends(get_runner)]
+
+
+def get_export_runner(request: Request) -> exporting.ExportRunner:
+    runner: exporting.ExportRunner = request.app.state.export_runner
+    return runner
+
+
+ExportRunnerDep = Annotated[exporting.ExportRunner, Depends(get_export_runner)]
 
 
 @contextmanager
@@ -68,6 +76,12 @@ def domain_errors() -> Iterator[None]:
         raise AdminError(
             "job_running", f"el job {exc} ya está corriendo", status.HTTP_409_CONFLICT
         ) from exc
+    except exporting.ExportRunningError as exc:
+        raise AdminError(
+            "export_running", "ya hay una exportación en curso", status.HTTP_409_CONFLICT
+        ) from exc
+    except exporting.ExportFileMissingError as exc:
+        raise AdminError("not_found", str(exc), status.HTTP_404_NOT_FOUND) from exc
     except actions.NotFoundError as exc:
         raise AdminError("not_found", str(exc), status.HTTP_404_NOT_FOUND) from exc
     except ValueError as exc:

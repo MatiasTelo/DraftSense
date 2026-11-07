@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, utcnow
@@ -152,6 +154,11 @@ class Export(Base):
     decay_halflife_days: Mapped[Decimal | None] = mapped_column(sa.Numeric(6, 2))
     bootstrap_samples: Mapped[int | None] = mapped_column(sa.Integer)
     aggregation_version: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    #: Todos los parámetros efectivamente usados, también los que no tienen columna propia
+    #: (`power_sigma`, los umbrales de `_support`, `exported_at`). Migración 0006.
+    params: Mapped[dict[str, Any]] = mapped_column(
+        pg.JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")
+    )
 
     created_at: Mapped[dt.datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=utcnow()

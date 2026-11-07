@@ -8,6 +8,8 @@
 
 import type { ReactNode } from 'react';
 
+import { useT } from '../store/lang';
+
 export function CardSkeleton() {
   return (
     <div className="flex flex-1 flex-col px-[22px] py-[30px]" aria-hidden="true">
@@ -46,13 +48,14 @@ export function StateCard({ kind, title, children }: StateCardProps) {
 }
 
 export function RetryButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex h-11 min-h-11 items-center self-start border border-gold px-5 font-mono text-xs font-semibold tracking-[0.16em] text-gold uppercase"
     >
-      Retry
+      {t.play.retry}
     </button>
   );
 }

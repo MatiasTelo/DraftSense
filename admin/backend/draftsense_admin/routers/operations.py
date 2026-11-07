@@ -5,19 +5,27 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, status
+from fastapi.responses import FileResponse
 
-from draftsense_admin.dependencies import SessionDep, SettingsDep, domain_errors
+from draftsense_admin.dependencies import (
+    ExportRunnerDep,
+    SessionDep,
+    SettingsDep,
+    domain_errors,
+)
+from draftsense_admin.errors import AdminError
 from draftsense_admin.schemas import (
     ActivateIn,
     ChampionsSeedIn,
+    ExportIn,
     FlagIn,
     HoneypotsSeedIn,
     PickRateSeedIn,
     PoolTierIn,
     SettingIn,
 )
-from draftsense_admin.services import actions, seeds
+from draftsense_admin.services import actions, exporting, seeds
 
 router = APIRouter(tags=["operación"])
 
@@ -111,5 +119,37 @@ async def seed_honeypots(
 
 
 @router.get("/exports")
-async def exports(session: SessionDep) -> dict[str, Any]:
-    return await actions.list_exports(session)
+async def exports(session: SessionDep, runner: ExportRunnerDep) -> dict[str, Any]:
+    listed = await actions.list_exports(session)
+    last = runner.last()
+    listed["last_run"] = last.as_dict() if last is not None else None
+    return listed
+
+
+@router.post("/exports", status_code=status.HTTP_202_ACCEPTED)
+async def start_export(body: ExportIn, runner: ExportRunnerDep) -> dict[str, Any]:
+    """*Generar CSV* (24 §3.9, nota del 29/10): el pipeline en segundo plano."""
+    with domain_errors():
+        run = runner.start(body.model_dump())
+    return {"run_id": run.run_id, "status": run.status}
+
+
+@router.get("/exports/runs/{run_id}")
+async def export_run(run_id: str, runner: ExportRunnerDep) -> dict[str, Any]:
+    run = runner.get(run_id)
+    if run is None:
+        raise AdminError(
+            "run_not_found", "esa corrida no existe o ya no es la última", status.HTTP_404_NOT_FOUND
+        )
+    return run.as_dict()
+
+
+@router.get("/exports/{export_id}/file")
+async def export_file(
+    export_id: int, session: SessionDep, runner: ExportRunnerDep
+) -> FileResponse:
+    """El CSV de una fila de `exports`. Se busca por id y se verifica el hash: el cliente nunca
+    manda un nombre de archivo."""
+    with domain_errors():
+        path, name = await exporting.file_for(session, runner.out_dir, export_id)
+    return FileResponse(path, media_type="text/csv", filename=name)

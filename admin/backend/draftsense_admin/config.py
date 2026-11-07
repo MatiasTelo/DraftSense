@@ -37,6 +37,9 @@ class AdminSettings(Settings):
     seeds_dir: Path = Field(default=REPO_ROOT / "infra" / "seeds")
     #: El build del frontend admin, que este proceso sirve como estáticos.
     static_dir: Path = Field(default=ADMIN_ROOT / "frontend" / "dist")
+    #: Dónde escribe *Generar CSV*, una carpeta por corrida (24 §3.9, nota del 29/10). Está en
+    #: `.gitignore`: los CSV de salida no se versionan.
+    exports_dir: Path = Field(default=REPO_ROOT / "exports")
 
 
 @lru_cache

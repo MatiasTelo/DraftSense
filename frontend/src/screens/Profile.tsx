@@ -23,15 +23,16 @@ import { AppFrame } from '../components/AppFrame';
 import { SecondaryButton } from '../components/Button';
 import { BottomNav, TopBar } from '../components/Chrome';
 import { fetchMe } from '../lib/client';
+import { useT } from '../store/lang';
 import { useSession } from '../store/session';
 
-/** Cómo se nombra cada tipo en el perfil, en el orden de `docs/30-ux-flujos.md` §6. */
-const COVERAGE: [QuestionType, string][] = [
-  ['pairwise_dimension', 'Champion rankings'],
-  ['peak_timing', 'Power spikes'],
-  ['lane_matchup', 'Lane matchups'],
-  ['duo_synergy', 'Duos'],
-  ['trait_multiselect', 'Traits'],
+/** Los tipos en el orden de `docs/30-ux-flujos.md` §6. El nombre sale del diccionario. */
+const COVERAGE: QuestionType[] = [
+  'pairwise_dimension',
+  'peak_timing',
+  'lane_matchup',
+  'duo_synergy',
+  'trait_multiselect',
 ];
 
 function Stat({ value, label }: { value: number; label: string }) {
@@ -49,6 +50,7 @@ export function Profile() {
   const navigate = useNavigate();
   const counters = useSession((state) => state.counters);
   const [me, setMe] = useState<MeResponse | null>(null);
+  const t = useT();
 
   useEffect(() => {
     void fetchMe()
@@ -70,54 +72,54 @@ export function Profile() {
         )}
 
         <div className="grid grid-cols-3 gap-2 border-y border-white/7 py-[18px]">
-          <Stat value={me?.answers_count ?? counters.answers_count} label="answers" />
-          <Stat value={me?.current_streak ?? counters.current_streak} label="streak" />
-          <Stat value={me?.best_streak ?? counters.best_streak} label="best" />
+          <Stat value={me?.answers_count ?? counters.answers_count} label={t.profile.answers} />
+          <Stat value={me?.current_streak ?? counters.current_streak} label={t.profile.streak} />
+          <Stat value={me?.best_streak ?? counters.best_streak} label={t.profile.best} />
         </div>
 
         <div className="flex items-center justify-between border border-gold/22 bg-control px-4 py-3.5">
           <span className="font-display text-base font-semibold text-gold">
-            🔥 {me?.current_day_streak ?? counters.current_day_streak} days in a row
+            {t.profile.daysInARow(me?.current_day_streak ?? counters.current_day_streak)}
           </span>
           <span className="font-mono text-[11px] text-label">
-            best: {me?.best_day_streak ?? counters.best_day_streak} days
+            {t.profile.bestDays(me?.best_day_streak ?? counters.best_day_streak)}
           </span>
         </div>
 
         {me !== null && (
           <div className="flex flex-col gap-2.5">
             <p className="text-[15px] leading-relaxed text-ink-4">
-              You agree with the community{' '}
+              {t.profile.agreementBefore}{' '}
               <span className="font-semibold text-ink">{Math.round(me.agreement_rate * 100)}%</span>{' '}
-              of the time
+              {t.profile.agreementAfter}
             </p>
             <p className="text-[15px] leading-relaxed text-ink-4">
-              Top{' '}
+              {t.profile.topBefore}{' '}
               <span className="font-semibold text-ink">
                 {Math.max(1, Math.round((1 - me.rank_percentile) * 100))}%
               </span>{' '}
-              of contributors
+              {t.profile.topAfter}
             </p>
           </div>
         )}
 
         <div className="flex flex-col">
           <p className="pb-2.5 font-mono text-[11px] font-medium tracking-[0.18em] text-label uppercase">
-            What you&apos;ve answered
+            {t.profile.answered}
           </p>
-          {COVERAGE.map(([type, label]) => (
+          {COVERAGE.map((type) => (
             <div
               key={type}
               className="flex items-center justify-between border-b border-white/5 py-3 text-sm text-ink-3"
             >
-              <span>{label}</span>
+              <span>{t.profile.coverage[type]}</span>
               <span className="font-mono text-ink">{me?.coverage[type] ?? 0}</span>
             </div>
           ))}
         </div>
 
         <div className="flex-1" />
-        <SecondaryButton onClick={() => navigate('/play')}>Keep playing</SecondaryButton>
+        <SecondaryButton onClick={() => navigate('/play')}>{t.profile.keepPlaying}</SecondaryButton>
       </main>
 
       <BottomNav />

@@ -5,47 +5,63 @@
 # el modelo nuevo contra el previo — el puente de retrocompatibilidad.
 #
 # Cuatro códigos coinciden con nombres de dimensiones, pero NO miden lo mismo: la dimensión es un
-# score relativo de comparación pareada, el atributo es una proporción absoluta. En el CSV nunca
-# colisionan porque los atributos llevan prefijo `trait_`.
+# score relativo de comparación pareada, el atributo es una proporción absoluta. En la salida viven
+# en archivos distintos, `champion_dimensions` y `champion_traits` (ADR-023).
+#
+# Los campos `_es` son el español de la semana 8 (ADR-028), aprobado por el alumno el 29/10/2026.
 
 - code: engage
   display_order: 1
   legacy_tag: true
   label_en: Engage
   description_en: Starts fights on their own terms.
+  label_es: Engage
+  description_es: Inicia peleas en sus propios términos.
 
 - code: poke
   display_order: 2
   legacy_tag: true
   label_en: Poke
   description_en: Wears enemies down from range.
+  label_es: Poke
+  description_es: Desgasta a los enemigos a distancia.
 
 - code: pick
   display_order: 3
   legacy_tag: true
   label_en: Pick
   description_en: Catches out and kills isolated targets.
+  label_es: Pick
+  description_es: Atrapa y mata objetivos aislados.
 
 - code: peel
   display_order: 4
   legacy_tag: true
   label_en: Peel
   description_en: Keeps divers off their carries.
+  label_es: Peel
+  description_es: Mantiene a los divers lejos de sus carries.
 
 - code: front_to_back
   display_order: 5
   legacy_tag: true
   label_en: Front to back
   description_en: Wants a straight teamfight, tanks in front.
+  label_es: Front to back
+  description_es: Quiere una pelea de equipo directa, con los tanques adelante.
 
 - code: dive
   display_order: 6
   legacy_tag: true
   label_en: Dive
   description_en: Jumps past the front line onto the back line.
+  label_es: Dive
+  description_es: Salta por encima de la primera línea hacia la retaguardia.
 
 - code: split_push
   display_order: 7
   legacy_tag: true
   label_en: Split push
   description_en: Pressures a side lane instead of grouping.
+  label_es: Split push
+  description_es: Presiona una línea lateral en vez de agruparse.

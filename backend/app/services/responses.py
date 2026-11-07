@@ -374,10 +374,13 @@ async def build_feedback(
     """
     threshold = await app_settings.get(session, "sampler.consensus_threshold", 20)
     counts: dict[str, int] = question.answer_counts or {}
-    sample_size = sum(counts.values())
+    sample_size = question_stats.exposure(QuestionType(question.type), counts)
     # El `== 0` cubre un umbral configurado en 0: sin él, `max()` sobre un dict vacío revienta.
     if sample_size == 0 or sample_size < threshold:
         return None
+
+    if question.type is QuestionType.TRAIT_MULTISELECT:
+        return await build_traits_feedback(session, counts, answer, sample_size)
 
     if question.type is QuestionType.PEAK_TIMING:
         return Feedback(
@@ -391,6 +394,27 @@ async def build_feedback(
     return Feedback(
         consensus=consensus,
         agreed_with_majority=answer.get("choice") == majority,
+        sample_size=sample_size,
+    )
+
+
+async def build_traits_feedback(
+    session: AsyncSession, counts: dict[str, int], answer: dict[str, Any], sample_size: int
+) -> Feedback:
+    """Tipo 5: la fracción de la comunidad que marcó cada atributo activo, y en cuántos coincide
+    la persona con la mayoría (`docs/12-api.md` §2.4, nota del 29/10).
+
+    Un atributo coincide si la persona lo marcó y más de la mitad también, o si no lo marcó y la
+    mitad o menos lo marcó. Es informativo: no suma a `agreement_rate`.
+    """
+    codes = [trait.code for trait in await questions.active_traits(session)]
+    marked = set(answer.get("traits", []))
+    shares = {code: counts.get(code, 0) / sample_size for code in codes}
+    agreed = sum(1 for code in codes if (code in marked) == (shares[code] > 0.5))
+    return Feedback(
+        trait_shares=shares,
+        traits_agreed=agreed,
+        traits_compared=len(codes),
         sample_size=sample_size,
     )
 

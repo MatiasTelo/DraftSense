@@ -13,6 +13,7 @@
  */
 
 import type { Help } from '../api';
+import { useT } from '../store/lang';
 
 interface Props {
   prompt: string;
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function QuestionPrompt({ prompt, subtitle, help, open, onToggle, size = 'text-[27px]' }: Props) {
+  const t = useT();
   return (
     <div className="flex flex-col">
       <div className="flex items-start gap-3">
@@ -44,7 +46,7 @@ export function QuestionPrompt({ prompt, subtitle, help, open, onToggle, size = 
             type="button"
             onClick={onToggle}
             aria-expanded={open}
-            aria-label={`What ${help.label.toLowerCase()} means`}
+            aria-label={t.play.whatItMeans(help.label)}
             className="-m-1 flex size-11 shrink-0 items-center justify-center"
           >
             <span

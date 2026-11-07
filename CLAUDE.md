@@ -40,6 +40,7 @@ cd backend && ruff check . && mypy app && pytest -q
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 cd admin/backend && ruff check . && mypy draftsense_admin && pytest -q
 cd admin/frontend && npm run lint && npm run typecheck && npm test && npm run build
+cd aggregation && ruff check . && mypy -p aggregation && pytest -q
 python infra/check_docs.py
 ```
 
@@ -48,7 +49,12 @@ los enlaces internos entre documentos y los conteos de columnas de `26-esquema-d
 contra las cabeceras de `docs/examples/`.
 
 Los tests del backend que necesitan base se saltean solos si no hay `DS_DATABASE_URL`. Corren los
-diez con un `backend/.env` configurado, y siempre en CI contra un Postgres 17 real.
+diez con un `backend/.env` configurado, y siempre en CI contra un Postgres 17 real. Lo mismo vale
+para los de `aggregation/`.
+
+Para probar el consenso y la agregación sin piloto está `draftsense seed-synthetic-responses`, que
+siembra respuestas de una verdad oculta y **sólo corre contra una base local**;
+`python -m aggregation.compare_truth` mide si el pipeline la recupera.
 
 ## Estructura
 
@@ -57,7 +63,7 @@ diez con un `backend/.env` configurado, y siempre en CI contra un Postgres 17 re
 | `frontend/` | SPA React 18 + TypeScript + Vite |
 | `backend/` | API REST FastAPI + SQLAlchemy 2.0 async |
 | `admin/` | App de administración local del servidor del lab: `admin/backend` (FastAPI) y `admin/frontend` (React). Sin clave, sólo `127.0.0.1` ([ADR-025](docs/13-adr/ADR-025-app-de-administracion-local.md)) |
-| `aggregation/` | Paquete Python ejecutable como CLI. **Vacío hasta la semana 9** |
+| `aggregation/` | El pipeline de agregación: `python -m aggregation.run` escribe los seis CSV ([`docs/25-agregacion.md`](docs/25-agregacion.md) §8). La carpeta es el paquete |
 | `infra/` | Seeds, `check_docs.py`, configuración de despliegue |
 | `docs/` | Documentación técnica — empezar por [`docs/README.md`](docs/README.md) |
 

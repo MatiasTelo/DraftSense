@@ -1,6 +1,8 @@
 # 24 — Panel de administración
 
-> Estado: **v1** · Ola 3 · Semana 7 · Última revisión: 21/10/2026
+> Estado: **v1** · Ola 3 · Semana 7 · Última revisión: 29/10/2026
+>
+> **29/10/2026:** la exportación de la semana 9 (§3.9, §4, §5, §6 y CA-612).
 
 La administración de DraftSense es una **aplicación aparte, que corre en local en el servidor del
 laboratorio**, sin clave ni login ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)). Este
@@ -215,6 +217,20 @@ media del decaimiento y remuestreos del bootstrap—, precargados con los valore
 agregación (semana 9)». No hay endpoint detrás todavía. Debajo, la lista de corridas anteriores
 leída de `exports` (vacía hasta la semana 9).
 
+> **Cambiado el 29/10/2026 (semana 9).** El botón está habilitado.
+>
+> - *Generar CSV* corre el pipeline de [`25-agregacion.md`](25-agregacion.md) §8 **en segundo
+>   plano**, igual que un job (§3.7): responde con un `run_id`, la vista consulta el estado cada 2
+>   segundos, y una segunda corrida mientras hay una en curso responde `409 export_running`.
+> - Los parámetros que no están en el formulario —`σ`, `ε`, las λ, los umbrales— salen de
+>   `app_settings`, y `exported_at` es la fecha del día. Todos quedan en `exports.params`.
+> - Los archivos se escriben en el directorio `DS_EXPORTS_DIR` del servidor (por defecto
+>   `exports/` en la raíz del repositorio, fuera de git), en una carpeta por corrida.
+> - La lista de corridas agrupa las filas de `exports` por corrida y ofrece **descargar** cada CSV.
+>   La descarga busca el archivo por `export_id`, nunca por un nombre que mande el cliente.
+> - Si la corrida falla —por ejemplo, ninguna respuesta pasa los filtros (25 §7)— la vista muestra
+>   el error, no se escribe ningún archivo y no se audita.
+
 ### 3.10 Auditoría
 
 Todas las filas de `admin_audit`, de la más nueva a la más vieja, **paginadas de a 50 y sin tope**:
@@ -235,7 +251,7 @@ hacen commit por su cuenta, así que la fila se escribe al terminar bien, en una
 | Marcar o desmarcar respondedor | `flag_respondent` | `{respondent_id, flagged, previous, reason}` |
 | Ejecutar un job | `run_job` | `{job, params, result}` |
 | Cargar un seed | `run_seed` | `{seed, patch, file, params, result}` |
-| Generar CSV (semana 9) | `trigger_export` | se define con el pipeline |
+| Generar CSV (semana 9) | `trigger_export` | `{params, files: [{export_id, file_name, sha256, row_count}]}`, al terminar bien (nota del 29/10/2026) |
 
 Una acción que no cambia nada —activar el vigente, mover a un tier que ya tienen, poner el mismo
 valor, marcar a un marcado— **no audita**, como ya hace ADR-024. Un job o un seed **siempre**
@@ -269,13 +285,17 @@ Este contrato **no es público** y puede cambiar con el panel; no entra en `12-a
 | `POST` | `/api/seeds/honeypots` | 3.8 | Paso 3 → resultado y avisos |
 | `POST` | `/api/patches/{version}/activate` | 3.8 | `{force}` → `{patch_id, version, previous, changed}` |
 | `GET` | `/api/exports` | 3.9 | Corridas de `exports` y los valores por defecto del formulario |
+| `POST` | `/api/exports` | 3.9 | Desde el 29/10: `{patch_window, min_trust, halflife, bootstrap}` → `202 {run_id, status: "running"}` |
+| `GET` | `/api/exports/runs/{run_id}` | 3.9 | Desde el 29/10: `{run_id, status, started_at, finished_at, result, error}` |
+| `GET` | `/api/exports/{export_id}/file` | 3.9 | Desde el 29/10: el CSV, como descarga (`text/csv`) |
 | `GET` | `/api/audit` | 3.10 | `?action=&page=` (50 por página) → `{items, page, total}` |
 
 Códigos: `400 invalid_parameter` (cuerpo inválido, JSON inválido, clave inexistente, archivo fuera
 de `infra/seeds/`), `404` (respondedor, parche, job o corrida inexistente), `409 patch_not_ready`
 (activar sin forzar con faltantes, con cada faltante en `details`), `409 job_running` (el job ya
 está corriendo), `422 seed_invalid` (el archivo no pasa la validación, con cada problema en
-`details`).
+`details`). Desde el 29/10: `409 export_running` (ya hay una exportación en curso) y `404` si el
+archivo de un `export_id` no existe en `DS_EXPORTS_DIR`.
 
 **El nombre de archivo de un seed se valida contra la lista de `/api/seeds/files`**, nunca se usa
 como ruta: un nombre con `/`, `\` o `..` es `400`.
@@ -285,7 +305,7 @@ como ruta: un nombre con `/`, `\` o `..` es `400`.
 - No borra ni modifica respuestas (ADR-002). Ninguna acción toca `responses`.
 - No muestra el trust de un respondedor individual, ni la huella, ni el hash del token.
 - No crea claves de `app_settings` ni dimensiones ni atributos.
-- No genera CSV hasta la semana 9.
+- ~~No genera CSV hasta la semana 9.~~ Desde el 29/10/2026 los genera (§3.9).
 - No programa los jobs: eso llega con el despliegue.
 
 ## 7. Criterios de aceptación
@@ -340,6 +360,12 @@ pedido del mismo job mientras corre responde `409 job_running`.
 **Cuando** se la abre
 **Entonces** el formulario muestra los valores de `app_settings` y *Generar CSV* está deshabilitado
 con su leyenda.
+
+> **Cambiado el 29/10/2026.** Desde la semana 9, CA-612 pasa a ser `I`:
+> **Dado** una base con respuestas agregables **Cuando** se pide `POST /api/exports` **Entonces**
+> responde `202`, la corrida termina en `succeeded`, hay seis filas nuevas en `exports` con su
+> `params`, una fila `trigger_export` en `admin_audit`, cada CSV se descarga por su `export_id`, y
+> un segundo pedido mientras la primera corre responde `409 export_running`.
 
 CA-604 (tres acciones, tres filas) se verifica sobre los endpoints de esta app.
 

@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 21/10/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 29/10/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -18,8 +18,8 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | **cerrada** — mergeada a `main` el 08/10 (PR #4) |
 | 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | **cerrada** el 11/10 — correcciones del 05/10 (PR #5) y versionado por parche en la rama `semana-6-versionado-y-gamificacion`; la gamificación no necesitó ajuste |
 | 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | **en curso** — panel como app local (ADR-025) en la rama `semana-7-panel-admin-local`, sin mergear; producción y worker pendientes por decisión del 21/10 |
-| 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | pendiente |
-| 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | pendiente |
+| 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | **tipos cerrados** el 29/10 en la rama `semana-8-9-tipos-4-5-y-agregacion`, sin mergear; **el piloto queda para el final**, en los servidores del laboratorio (decisión del alumno) |
+| 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | **cerrada** el 29/10 en la misma rama; el Informe de Calidad de Datos pasa a la semana 10 con el doc 27 |
 | 10 | 03/11 – 09/11 | Módulo de validación e Informe de Calidad de Datos | 12 | pendiente |
 | 11 | 10/11 – 16/11 | Segunda oleada de recolección y exportación final de los CSV | 12 | pendiente |
 | 12 | 17/11 – 19/11 | Documentación técnica integrada y transferencia · **Informe Final** | 8 | pendiente |
@@ -131,6 +131,38 @@ Informe de Avance también tiene que registrar:
 - **Pendiente de la semana 7:** el despliegue a producción y la programación periódica del worker,
   hasta que se confirme el servidor del laboratorio.
 
+**Las semanas 8 y 9, 29/10/2026**, en la rama `semana-8-9-tipos-4-5-y-agregacion` (sale de `main`
+después del PR #7). **El piloto y el lanzamiento público quedan fuera**: se hacen al terminar, en
+los servidores del laboratorio. Decisiones del alumno, todas registradas:
+
+- **ADR-026:** el rol de cada campeón de una dupla en `questions.role_a … role_d` (migración
+  `0006`, que también trae el `CHECK` del tipo 5 y `exports.params`).
+- **ADR-027:** el tipo 5 exige al menos un atributo (sustituye CA-207).
+- **ADR-028:** español en toda la interfaz con un selector EN/ES y `lang` en `GET
+  /questions/next`. Traducciones propuestas por Claude y aprobadas por el alumno (neutro, «tú»).
+- Precisiones en notas del 29/10: tipo 4 sólo tier 1 y contexto proporcional a sus pares; cobertura
+  por (campeón, contexto); variedad por tipo y mezcla por variante; *straightlining* del 2v2 con el
+  1v1, del tipo 4 propio, sin el tipo 5; feedback del tipo 5 por atributo que no suma al
+  `agreement_rate`; pool del export, filas de bot por unión, MM propio y descarte con el grafo
+  partido (25 §8.2).
+- **Pipeline** en `aggregation/` (`python -m aggregation.run`), con job de CI propio. **Sin
+  Informe de Calidad de Datos, bootstrap por respondedor ni segmentos**: son de la semana 10.
+- **Panel:** *Generar CSV* habilitado, en segundo plano, con descarga verificada por SHA-256
+  (`trigger_export`, 24 §3.9).
+- **Seed sintética** `draftsense seed-synthetic-responses` (sólo base local): seed 42 sobre el
+  16.17, 400 respondedores 70/20/10, unas 145 000 respuestas. Todas las preguntas de pico,
+  atributos, 1v1 y las 450 de duplas con ≥ 20 respuestas; 58/58 campeones `solid` en las 8
+  dimensiones; 32 respondedores bajo el umbral de trust. Corrida completa B = 2000 en ≈ 2,5 min,
+  **mismo SHA-256 en dos corridas** (CA-408) y la verdad recuperada con ρ de 0,91 a 0,98.
+- **Tests:** backend 286, aggregation 35, admin backend 55 (54 contra la base sembrada: ver la
+  skill `draftsense-backend`), frontend 92, admin frontend 13. Bundle 82 KB gzip.
+- **Prueba manual a 360 px, 29/10**, con Chrome (iframe de 360 px) contra la base de Docker
+  sembrada: la landing y el juego en español con el selector, las tarjetas de 2v2, tipo 4 y tipo
+  5, el feedback del tipo 5 («Coincides con la comunidad en 3 de 7 atributos», calculado bien) y el
+  de soporte bajo. Sin scroll horizontal y todo lo que se toca mide 44 px o más. Encontró «Acerca
+  de» partido en dos líneas en el pie y se corrigió.
+- **Pendiente:** el piloto, al final, en los servidores del laboratorio.
+
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos
 destinos muertos. La semana 6 queda entonces con el versionado por parche, el ajuste de
@@ -207,13 +239,11 @@ Al 16/09/2026:
   Contra staging, desde esta máquina, un `POST` tarda de 3 a 5 s y un lote hasta 8 s: es la red
   (en local, 23 y 54 ms). El presupuesto de latencia se mide en la semana 7, con la API y la base
   en la misma región.
-- **`aggregation/` está vacía.** El paquete se implementa en la semana 9.
+- **`aggregation/` tiene el pipeline desde el 29/10** (semana 9).
 - **Lo que NO tiene el backend todavía:** la programación del worker (con el despliegue, pendiente
-  desde el 21/10: los cuatro jobs se disparan a mano por CLI o desde el panel), y la variante 2v2 del tipo 3 y los tipos 4 y 5
-  (semana 8), que además tienen que sumarse a la cobertura, al *straightlining* y a la consistencia
-  del retest.
-- **Del motor de tarjetas faltan la variante 2v2 del tipo 3 y los tipos 4 y 5**, todos de la
-  semana 8. `QuestionCard` devuelve `null` para esos dos tipos.
+  desde el 21/10: los cuatro jobs se disparan a mano por CLI o desde el panel). La variante 2v2 y
+  los tipos 4 y 5 llegaron el 29/10.
+- **El motor de tarjetas tiene los cinco tipos desde el 29/10.**
 - **Las dos brechas que quedaban para la semana 5 se cerraron:** el rol salteado ya queda en el
   log (`logging`, 21 §8), y el sorteo del 1v1 pesa el rol por su cantidad de pares (errata de
   21 §4.4).

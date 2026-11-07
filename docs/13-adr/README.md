@@ -36,6 +36,9 @@ escribe uno nuevo. El registro es histórico.
 | [023](ADR-023-salida-en-formato-largo.md) | La salida por campeón se entrega en formato largo, en cuatro archivos | aceptada |
 | [024](ADR-024-activacion-explicita-de-parche.md) | Un parche se activa con un paso explícito, auditado y con precondiciones | aceptada |
 | [025](ADR-025-app-de-administracion-local.md) | La administración es una aplicación local del servidor del laboratorio, sin clave | aceptada |
+| [026](ADR-026-rol-explicito-en-las-duplas.md) | Cada pregunta de duplas guarda qué rol juega cada campeón | aceptada |
+| [027](ADR-027-tipo-5-al-menos-un-atributo.md) | El tipo 5 exige marcar al menos un atributo | aceptada |
+| [028](ADR-028-idioma-por-parametro.md) | El idioma lo elige la persona con un selector, y viaja como parámetro `lang` | aceptada |
 
 ## Cuál merece un ADR
 

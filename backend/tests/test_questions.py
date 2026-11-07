@@ -36,6 +36,7 @@ from app.services import sampler as sampler_service
 from app.services.questions import (
     Combination,
     Space,
+    Variant,
     draw_combination,
     lane_pools,
     materialize,
@@ -49,7 +50,9 @@ from tests.conftest import as_respondent, requires_db
 PAIRWISE = QuestionType.PAIRWISE_DIMENSION
 PEAK = QuestionType.PEAK_TIMING
 LANE = QuestionType.LANE_MATCHUP
-SERVED = frozenset({PAIRWISE, PEAK, LANE})
+SERVED_TYPES = frozenset({PAIRWISE, PEAK, LANE})
+#: Las variantes del sorteo (`sampler.choose_type`) que corresponden a esos tres tipos.
+SERVED = frozenset({Variant.PAIRWISE, Variant.PEAK, Variant.LANE_1V1})
 
 
 def _champion(champion_id: int, name: str, roles: list[LaneRole]) -> Champion:
@@ -71,9 +74,9 @@ def _question(question_id: int, question_type: QuestionType, **columns: Any) -> 
     return Question(question_id=question_id, type=question_type, patch_id=1, **columns)
 
 
-def _force(monkeypatch: pytest.MonkeyPatch, question_type: QuestionType) -> None:
-    """Deja un solo tipo con peso, para que el sorteo del tipo sea determinista."""
-    monkeypatch.setattr(sampler_service, "TYPE_WEIGHTS", {question_type: 1})
+def _force(monkeypatch: pytest.MonkeyPatch, variant: Variant) -> None:
+    """Deja una sola variante con peso, para que el sorteo sea determinista."""
+    monkeypatch.setattr(sampler_service, "TYPE_WEIGHTS", {variant: 1})
 
 
 async def _skip_warmup(db: AsyncSession, respondent: Respondent, answers_count: int = 3) -> None:
@@ -106,32 +109,47 @@ def test_las_tres_primeras_son_de_tipo_1() -> None:
     """CA-102 — con el tipo 1 disponible, las posiciones 0 a 2 nunca sortean."""
     for seed in range(100):
         rng = random.Random(seed)
-        assert [choose_type(position, SERVED, rng) for position in range(3)] == [PAIRWISE] * 3
+        assert [choose_type(position, SERVED, rng) for position in range(3)] == [
+            Variant.PAIRWISE
+        ] * 3
 
 
 def test_sin_tipo_1_el_arranque_cae_a_la_mezcla() -> None:
     """Si el tipo 1 no tiene candidatas, el arranque no deja la sesión vacía."""
-    assert choose_type(0, {PEAK}, random.Random(1)) is PEAK
+    assert choose_type(0, {Variant.PEAK}, random.Random(1)) is Variant.PEAK
 
 
 def test_la_mezcla_respeta_los_pesos_renormalizados() -> None:
-    """`docs/20-tipos-de-pregunta.md` §7, restringida a los tres tipos que existen."""
+    """`docs/20-tipos-de-pregunta.md` §7, con las seis variantes, y renormalizada sin una."""
     rng = random.Random(1234)
-    draws = [choose_type(3, SERVED, rng) for _ in range(20_000)]
+    draws = [choose_type(3, frozenset(Variant), rng) for _ in range(20_000)]
     total = sum(TYPE_WEIGHTS.values())
-    for question_type, weight in TYPE_WEIGHTS.items():
-        assert draws.count(question_type) / len(draws) == pytest.approx(weight / total, abs=0.02)
+    for variant, weight in TYPE_WEIGHTS.items():
+        assert draws.count(variant) / len(draws) == pytest.approx(weight / total, abs=0.02)
+
+    without_traits = frozenset(Variant) - {Variant.TRAITS}
+    draws = [choose_type(3, without_traits, rng) for _ in range(20_000)]
+    total = sum(w for v, w in TYPE_WEIGHTS.items() if v in without_traits)
+    assert draws.count(Variant.PAIRWISE) / len(draws) == pytest.approx(50 / total, abs=0.02)
 
 
 def test_un_tipo_sin_candidatas_no_se_sortea() -> None:
     rng = random.Random(7)
-    assert PAIRWISE not in {choose_type(5, {PEAK, LANE}, rng) for _ in range(1_000)}
+    available = {Variant.PEAK, Variant.LANE_1V1}
+    assert Variant.PAIRWISE not in {choose_type(5, available, rng) for _ in range(1_000)}
     assert choose_type(0, set(), rng) is None
 
 
 def test_los_pesos_son_los_de_la_composicion_documentada() -> None:
-    """50 / 20 / 15 de §7. Si cambian acá, tiene que cambiar el documento primero."""
-    assert TYPE_WEIGHTS == {PAIRWISE: 50, PEAK: 20, LANE: 15}
+    """50 / 20 / 15 / 5 / 5 / 5 de §7, por variante. Si cambian acá, cambia el documento antes."""
+    assert TYPE_WEIGHTS == {
+        Variant.PAIRWISE: 50,
+        Variant.PEAK: 20,
+        Variant.LANE_1V1: 15,
+        Variant.LANE_2V2: 5,
+        Variant.DUO_SYNERGY: 5,
+        Variant.TRAITS: 5,
+    }
 
 
 # ------------------------------------------------------------------------ el 1v1, sin base
@@ -173,7 +191,7 @@ def test_la_combinacion_del_1v1_es_canonica_y_comparte_rol() -> None:
     roles = {c.champion_id: set(c.roles) for c in champions}
     rng = random.Random(3)
     for _ in range(200):
-        combination = draw_combination(LANE, space, rng)
+        combination = draw_combination(Variant.LANE_1V1, space, rng)
         assert combination.champion_b is not None
         assert combination.role is not None
         assert combination.champion_a < combination.champion_b
@@ -457,7 +475,7 @@ async def test_ca102_las_primeras_tres_son_de_tipo_1(
 
     types = [q["type"] for q in response.json()["questions"]]
     assert types[:3] == ["pairwise_dimension"] * 3
-    assert set(types) <= {t.value for t in SERVED}
+    assert set(types) <= {t.value for t in QuestionType}
 
 
 @requires_db
@@ -474,7 +492,7 @@ async def test_el_arranque_cuenta_las_respuestas_previas(
     """La posición es la del respondedor, no la del lote: con 2 respuestas, sólo falta una."""
     row, token = respondent
     await _skip_warmup(db, row, answers_count=2)
-    _force(monkeypatch, PEAK)
+    _force(monkeypatch, Variant.PEAK)
 
     response = await as_respondent(client, token).get("/questions/next?count=3")
 
@@ -495,7 +513,7 @@ async def test_el_pico_llega_con_la_forma_del_contrato(
     row, token = respondent
     await _skip_warmup(db, row)
     await _only_in_pool(db, champions)
-    _force(monkeypatch, PEAK)
+    _force(monkeypatch, Variant.PEAK)
 
     response = await as_respondent(client, token).get("/questions/next?count=1")
 
@@ -541,7 +559,7 @@ async def test_ca104_el_matchup_llega_con_los_nombres(
     row, token = respondent
     await _skip_warmup(db, row)
     await _only_in_pool(db, pair)
-    _force(monkeypatch, LANE)
+    _force(monkeypatch, Variant.LANE_1V1)
 
     response = await as_respondent(client, token).get("/questions/next?count=1")
 
@@ -572,7 +590,7 @@ async def test_el_1v1_respeta_el_rol_de_ambos_campeones(
     """`docs/21-sampler.md` §2.3 — el rol que se muestra lo juegan los dos."""
     row, token = respondent
     await _skip_warmup(db, row)
-    _force(monkeypatch, LANE)
+    _force(monkeypatch, Variant.LANE_1V1)
 
     response = await as_respondent(client, token).get("/questions/next?count=10")
 
@@ -603,7 +621,7 @@ async def test_un_rol_sin_pareja_no_genera_matchups(
     row, token = respondent
     await _skip_warmup(db, row)
     await _only_in_pool(db, champions)
-    _force(monkeypatch, LANE)
+    _force(monkeypatch, Variant.LANE_1V1)
 
     response = await as_respondent(client, token).get("/questions/next?count=5")
 
