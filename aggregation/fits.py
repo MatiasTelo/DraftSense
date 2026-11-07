@@ -140,19 +140,31 @@ def _bootstrap(
     labels: IntArray,
     active: NDArray[np.bool_],
     refit: Callable[[FloatArray], FloatArray],
+    groups: IntArray | None = None,
 ) -> FloatArray | None:
     """B remuestreos válidos de `refit(multiplicidades)`, o `None` si se descartaron demasiados.
 
     `edges[k]` son las aristas del grafo que aporta la comparación `k`, con forma `(k, e, 2)`: una
     en el 1v1 y en el tipo 1, tres en las duplas. Es lo que hace falta para decidir si el
     remuestreo conserva las componentes.
+
+    Con `groups` —el respondedor de cada comparación— se remuestrean respondedores y no
+    comparaciones: cada comparación entra tantas veces como salió su respondedor. Es la segunda
+    versión del intervalo de 25 §4.7, que sólo va al informe (27 §6.2).
     """
     size = edges.shape[0]
+    n_groups = 0 if groups is None else int(groups.max()) + 1
     collected: list[FloatArray] = []
     limit = 3 * params.bootstrap
     while len(collected) < params.bootstrap and report.attempts < limit:
         report.attempts += 1
-        counts = np.bincount(rng.integers(0, size, size=size), minlength=size).astype(np.float64)
+        if groups is None:
+            draws = np.bincount(rng.integers(0, size, size=size), minlength=size)
+        else:
+            draws = np.bincount(rng.integers(0, n_groups, size=n_groups), minlength=n_groups)[
+                groups
+            ]
+        counts = draws.astype(np.float64)
         kept = edges[counts > 0].reshape(-1, 2)
         if not graph.preserved(labels, active, kept[:, 0], kept[:, 1]):
             report.discarded += 1
@@ -200,7 +212,10 @@ def fit_dimension(
     pool: Sequence[int],
     params: RunParams,
     rng: np.random.Generator,
+    by_respondent: bool = False,
 ) -> DimensionResult:
+    """§5.1. Con `by_respondent`, el intervalo sale del bootstrap por respondedor de §4.7, que
+    sólo usa el Informe de Calidad de Datos (27 §6.2): los CSV nunca lo llaman así."""
     report = FitReport(f"dimension:{code}")
     decisive = [r for r in rows if r.answer.get("choice") in ("a", "b")]
     report.comparisons = len(decisive)
@@ -253,8 +268,20 @@ def fit_dimension(
 
     theta = solve(weights)
     edges = np.stack([first, second], axis=1)[:, None, :]
+    groups: IntArray | None = None
+    if by_respondent:
+        people = sorted({str(r.respondent_id) for r in decisive})
+        position = {p: i for i, p in enumerate(people)}
+        groups = np.array([position[str(r.respondent_id)] for r in decisive], dtype=np.int64)
     samples = _bootstrap(
-        report, params, rng, edges, labels, active, lambda counts: solve(weights * counts)
+        report,
+        params,
+        rng,
+        edges,
+        labels,
+        active,
+        lambda counts: solve(weights * counts),
+        groups,
     )
     low, high = _interval(samples) if samples is not None else (None, None)
 
@@ -289,6 +316,18 @@ def fit_dimension(
             if e.value is not None:
                 norm[c] = (e.value - lowest) / (highest - lowest)
     return DimensionResult(code, estimates, unknown_rate, norm, report)
+
+
+def fit_dimension_by_respondent(
+    code: str,
+    rows: Sequence[Row],
+    pool: Sequence[int],
+    params: RunParams,
+    rng: np.random.Generator,
+) -> DimensionResult:
+    """`fit_dimension` con el bootstrap por respondedor. Es una función de módulo, y no una
+    `lambda`, porque el pipeline la manda a otro proceso y tiene que poder serializarse."""
+    return fit_dimension(code, rows, pool, params, rng, by_respondent=True)
 
 
 # ------------------------------------------------------------------ tipo 3 1v1, §5.3

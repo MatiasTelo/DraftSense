@@ -24,6 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aggregation import fits, record, writers
 from aggregation.load import Dataset, Row, load
 from aggregation.params import RunParams
+from aggregation.quality import data as quality_data
+from aggregation.quality import metrics, report, segments
+from aggregation.quality.data import Extra
 from app.models import QuestionType
 
 #: Los dos roles de cada contexto de dupla, en el orden en que se escriben (ADR-026).
@@ -110,6 +113,63 @@ def tasks(data: Dataset, params: RunParams) -> list[Task]:
     return result
 
 
+#: El tamaño de cada segmento: `variable → dimensión → segmento → Size`.
+Sizes = dict[str, dict[str, dict[str, segments.Size]]]
+
+
+def quality_tasks(data: Dataset, extra: Extra, params: RunParams) -> tuple[list[Task], Sizes]:
+    """Los ajustes que sólo usa el informe (27 §10). Van **después** de los de `tasks`.
+
+    Primero el bootstrap por respondedor de cada dimensión (25 §4.7); después los ajustes por
+    segmento (25 §3.5) con los mismos parámetros de la corrida: rango y horas, cada segmento con
+    sus dimensiones, sólo los que pasan el piso. `SeedSequence.spawn` da el mismo hijo en la misma
+    posición sin importar cuántos se pidan, así que sumar estos ajustes no cambia ni un número de
+    los CSV (CA-415).
+
+    Devuelve también el tamaño de cada segmento, que el informe publica aunque no se ajuste.
+    """
+    planned: list[Task] = []
+    by_dimension = {
+        dimension_id: [
+            r
+            for r in data.rows
+            if r.type is QuestionType.PAIRWISE_DIMENSION and r.dimension_id == dimension_id
+        ]
+        for dimension_id, _ in data.dimensions
+    }
+    for dimension_id, code in data.dimensions:
+        planned.append(
+            Task(
+                f"respondent:{code}",
+                fits.fit_dimension_by_respondent,
+                (code, by_dimension[dimension_id], data.pool, params),
+            )
+        )
+    settings = extra.settings
+    sizes: Sizes = {}
+    for variable in segments.VARIABLES:
+        sizes[variable] = {}
+        for dimension_id, code in data.dimensions:
+            sizes[variable][code] = {}
+            for segment in segments.names(variable):
+                subset = segments.subset(
+                    by_dimension[dimension_id], dimension_id, variable, segment, extra.people
+                )
+                size = segments.size(
+                    subset, settings.segment_min_respondents, settings.segment_min_comparisons
+                )
+                sizes[variable][code][segment] = size
+                if size.calculable:
+                    planned.append(
+                        Task(
+                            f"segment:{variable}:{segment}:{code}",
+                            fits.fit_dimension,
+                            (code, subset, data.pool, params),
+                        )
+                    )
+    return planned, sizes
+
+
 def _execute(task: Task, seed: np.random.SeedSequence) -> Any:
     if task.random:
         return task.function(*task.args, np.random.default_rng(seed))
@@ -126,6 +186,24 @@ def execute(planned: Sequence[Task], seed: int, workers: int | None = None) -> l
         return list(pool.map(_execute, planned, children))
 
 
+def _segment_fits(
+    data: Dataset, sizes: Sizes, fitted: dict[str, Any]
+) -> dict[str, dict[str, report.SegmentFits]]:
+    """Los ajustes por segmento que corrieron, junto al tamaño de todos, para el informe."""
+    out: dict[str, dict[str, report.SegmentFits]] = {}
+    for variable in segments.VARIABLES:
+        out[variable] = {}
+        for _, code in data.dimensions:
+            names = [f"segment:{variable}:{s}:{code}" for s in segments.names(variable)]
+            fits_ = {
+                segment: fitted[name]
+                for segment, name in zip(segments.names(variable), names, strict=True)
+                if name in fitted
+            }
+            out[variable][code] = report.SegmentFits(sizes[variable][code], fits_)
+    return out
+
+
 def _counts(rows: Sequence[Row]) -> tuple[int, int]:
     return len(rows), len({r.respondent_id for r in rows})
 
@@ -136,12 +214,24 @@ async def run(
     out: Path,
     *,
     workers: int | None = None,
+    quality: bool = True,
 ) -> RunResult:
-    """§8.2 completo. Si ninguna respuesta pasa los filtros, `load` falla antes de escribir nada."""
+    """§8.2 completo. Si ninguna respuesta pasa los filtros, `load` falla antes de escribir nada.
+
+    `quality=False` corre sin el Informe de Calidad de Datos. Existe para el test de CA-415, que
+    verifica que el informe no cambia ni un byte de los CSV; el CLI y el panel lo emiten siempre.
+    """
     data = await load(session, params)
     planned = tasks(data, params)
+    extra: Extra | None = None
+    sizes: Sizes = {}
+    extra_tasks: list[Task] = []
+    if quality:
+        extra = await quality_data.load_extra(session, params)
+        extra_tasks, sizes = quality_tasks(data, extra, params)
     # El cómputo es CPU puro: corre fuera del event loop para no bloquear al panel.
-    results = await asyncio.to_thread(execute, planned, params.seed, workers)
+    everything = await asyncio.to_thread(execute, [*planned, *extra_tasks], params.seed, workers)
+    results = everything[: len(planned)]
     by_name = {task.name: result for task, result in zip(planned, results, strict=True)}
 
     dimensions = [by_name[f"dimension:{code}"] for _, code in data.dimensions]
@@ -164,6 +254,20 @@ async def run(
     written = [
         writers.write(kind, content[kind], data.patch_version, out) for kind in writers.KINDS
     ]
+    if extra is not None:
+        fitted = {t.name: r for t, r in zip(extra_tasks, everything[len(planned) :], strict=True)}
+        text = report.build(
+            report.Inputs(
+                data=data,
+                params=params,
+                results=metrics.Results(dimensions, lanes, bot_lane, synergy, peak, traits),
+                by_respondent=[fitted[f"respondent:{code}"] for _, code in data.dimensions],
+                segments=_segment_fits(data, sizes, fitted),
+                extra=extra,
+                csvs=list(written),
+            )
+        )
+        written.append(report.write(text, data.patch_version, out))
 
     # Qué respuestas sostienen cada archivo, para `responses_included` y `respondents_included`.
     sources = {
@@ -183,6 +287,8 @@ async def run(
         elif kind == "duo_features":
             rows = [r for r in rows if r.champion_c is not None]
         included[kind] = _counts(rows)
+    # El informe describe la corrida entera (27 §9.1).
+    included[report.KIND] = _counts(data.rows)
 
     export_ids = await record.insert(session, data, params, written, included)
 

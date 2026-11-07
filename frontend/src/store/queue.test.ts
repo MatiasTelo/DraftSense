@@ -8,14 +8,17 @@ import { BATCH_SIZE, PREFETCH_AT, useQueue } from './queue';
 vi.mock('../lib/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/client')>()),
   fetchQuestions: vi.fn(),
+  fetchQueuedQuestions: vi.fn(),
 }));
 
-const { fetchQuestions } = await import('../lib/client');
+const { fetchQuestions, fetchQueuedQuestions } = await import('../lib/client');
 const mocked = vi.mocked(fetchQuestions);
+const queued = vi.mocked(fetchQueuedQuestions);
 
 beforeEach(() => {
   useQueue.getState().reset();
   mocked.mockReset();
+  queued.mockReset();
 });
 
 afterEach(() => {
@@ -110,5 +113,71 @@ describe('useQueue', () => {
 
     expect(mocked).toHaveBeenCalledExactlyOnceWith(BATCH_SIZE, [3, 4], 'en');
     expect(useQueue.getState().questions).toHaveLength(PREFETCH_AT);
+  });
+});
+
+/** Una pregunta como la mandaría el servidor en español. */
+function spanish(question_id: number) {
+  return { ...pairwise(question_id), prompt: '¿Quién tiene más engage?' };
+}
+
+describe('retranslate (ADR-029)', () => {
+  it('reemplaza cada pregunta por su versión traducida, en el mismo orden', async () => {
+    useQueue.setState({ questions: [pairwise(1), pairwise(2), pairwise(3)], status: 'ready' });
+    queued.mockResolvedValue({ questions: [spanish(1), spanish(2), spanish(3)] });
+    mocked.mockResolvedValue({ questions: [] });
+
+    await useQueue.getState().retranslate('es');
+
+    expect(queued).toHaveBeenCalledExactlyOnceWith([1, 2, 3], 'es');
+    const { questions, status } = useQueue.getState();
+    expect(questions.map((q) => q.question_id)).toEqual([1, 2, 3]);
+    expect(questions.map((q) => q.prompt)).toEqual(Array(3).fill('¿Quién tiene más engage?'));
+    expect(status).toBe('ready');
+  });
+
+  it('saca de la cola las que el servidor ya no puede armar', async () => {
+    useQueue.setState({ questions: [pairwise(1), pairwise(2), pairwise(3)], status: 'ready' });
+    queued.mockResolvedValue({ questions: [spanish(1), spanish(3)] });
+    mocked.mockResolvedValue({ questions: [] });
+
+    await useQueue.getState().retranslate('es');
+
+    expect(useQueue.getState().questions.map((q) => q.question_id)).toEqual([1, 3]);
+  });
+
+  it('si el pedido falla, la cola queda como estaba', async () => {
+    const before = [pairwise(1), pairwise(2), pairwise(3)];
+    useQueue.setState({ questions: before, status: 'ready' });
+    queued.mockRejectedValue(new Error('caída'));
+
+    await useQueue.getState().retranslate('es');
+
+    expect(useQueue.getState().questions).toEqual(before);
+    expect(useQueue.getState().status).toBe('ready');
+  });
+
+  it('descarta el lote que venía en el idioma anterior y lo vuelve a pedir', async () => {
+    // Un lote en inglés en vuelo que llega después del cambio no puede entrar a la cola.
+    let late: (value: { questions: ReturnType<typeof pairwise>[] }) => void = () => {};
+    mocked.mockReturnValueOnce(new Promise((resolve) => (late = resolve)));
+    useQueue.setState({ questions: [pairwise(1)], status: 'ready' });
+    const english = useQueue.getState().fetchMore();
+    queued.mockResolvedValue({ questions: [spanish(1)] });
+    mocked.mockResolvedValue({ questions: [spanish(7)] });
+
+    await useQueue.getState().retranslate('es');
+    late({ questions: [pairwise(9)] });
+    await english;
+    await Promise.resolve();
+
+    expect(useQueue.getState().questions.map((q) => q.question_id)).toEqual([1, 7]);
+  });
+
+  it('con la cola vacía no pide nada y deja que se cargue en el idioma nuevo', async () => {
+    await useQueue.getState().retranslate('es');
+
+    expect(queued).not.toHaveBeenCalled();
+    expect(useQueue.getState().status).toBe('idle');
   });
 });

@@ -35,7 +35,7 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 | [`25-agregacion.md`](25-agregacion.md) | Del respondedor al CSV: qué se hace con los datos declarados, ponderación, los 5 estimadores y los casos límite | **v1** |
 | [`26-esquema-de-salida.md`](26-esquema-de-salida.md) | Los seis CSV columna por columna: fórmula, rango, origen, soporte | **v2** |
 | [`examples/`](examples/) | Ejemplo ejecutable de los seis CSV, con el diccionario de cada columna | **v2** |
-| [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md) | Krippendorff, test-retest, cobertura, estabilidad por segmento | pendiente |
+| [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md) | Krippendorff, test-retest, honeypots, cobertura, las dos versiones del IC, estabilidad por segmento y el formato del Informe de Calidad de Datos | **v1** |
 
 ### Producto y operación
 | Doc | Contenido | Estado |

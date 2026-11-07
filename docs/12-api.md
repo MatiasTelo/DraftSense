@@ -1,6 +1,9 @@
 # 12 — Contrato de la API REST
 
-> Estado: **v1** · Última revisión: 11/10/2026
+> Estado: **v1** · Última revisión: 07/11/2026
+>
+> **07/11/2026:** endpoint nuevo `GET /questions/queued`, que re-arma la cola en otro idioma sin
+> pasar por el sampler (§2.8, [ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)).
 >
 > **08/10/2026:** el tipo 1 es un ranking de cinco campeones
 > ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)): cambian su ítem en §2.3, su envío y su
@@ -70,6 +73,7 @@ Los endpoints `/admin/*` requieren el header `X-Admin-Key`.
 | `POST` | `/sessions` | Crear o revalidar la sesión anónima |
 | `POST` | `/sessions/onboarding` | Guardar rango, rol y horas declaradas |
 | `GET` | `/questions/next` | Pedir el próximo lote de preguntas |
+| `GET` | `/questions/queued` | Re-armar en otro idioma las preguntas de la cola (§2.8, agregado el 07/11/2026) |
 | `POST` | `/responses` | Registrar una respuesta |
 | `GET` | `/me` | Perfil y progreso del respondedor |
 | `GET` | `/leaderboard` | Tabla de posiciones |
@@ -636,6 +640,34 @@ dos corridas del pipeline sobre el mismo crudo dieron distinto.
 ```jsonc
 { "status": "ok", "current_patch": "16.20", "db": "ok" }
 ```
+
+### 2.8 `GET /questions/queued?ids=88412,88415&lang=es`
+
+> **Agregado el 07/11/2026** ([ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)).
+
+Devuelve **las mismas preguntas** que el cliente tiene en cola, armadas en otro idioma. Es lo que
+usa el selector de idioma para que la tarjeta que se está mirando no cambie.
+
+**Parámetros:**
+
+- `ids`: los `question_id` de la cola, en orden, separados por coma; de 1 a 10, enteros positivos.
+  Los repetidos se toman una vez. Falta, vacío o inválido: `400 invalid_parameter` con
+  `field: "ids"`.
+- `lang`: `en` o `es`, por defecto `en`, con la misma validación que §2.3.
+
+**`200 OK`** — `{ "questions": [...] }`, con exactamente las formas de §2.3 y en el orden de
+`ids`. Se omiten, sin error:
+
+- los ids que no existen;
+- los que ese respondedor ya contestó, salvo el de su retest pendiente;
+- en `pairwise_dimension`, el ancla sin un ranking pendiente de ese respondedor.
+
+Un `pairwise_dimension` vuelve con **su ranking ya servido**: el pendiente más reciente de ese
+respondedor con esa ancla, mismo `ranking_id`, mismos cinco campeones en el mismo orden.
+
+**No pasa por el sampler.** No elige, no materializa, no abre ni consume cadencias de honeypots
+o de retests y no escribe nada: el resultado de `GET /questions/next` siguiente es el mismo que si
+este pedido no hubiera existido. Como §2.3, crea la sesión al vuelo si no hay cookie (§1.3).
 
 ---
 

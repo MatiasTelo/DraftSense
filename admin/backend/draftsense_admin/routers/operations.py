@@ -148,8 +148,10 @@ async def export_run(run_id: str, runner: ExportRunnerDep) -> dict[str, Any]:
 async def export_file(
     export_id: int, session: SessionDep, runner: ExportRunnerDep
 ) -> FileResponse:
-    """El CSV de una fila de `exports`. Se busca por id y se verifica el hash: el cliente nunca
-    manda un nombre de archivo."""
+    """El archivo de una fila de `exports`: uno de los seis CSV o el Informe de Calidad de Datos
+    (`docs/27-validacion-confiabilidad.md` §9). Se busca por id y se verifica el hash: el cliente
+    nunca manda un nombre de archivo."""
     with domain_errors():
         path, name = await exporting.file_for(session, runner.out_dir, export_id)
-    return FileResponse(path, media_type="text/csv", filename=name)
+    media_type = "text/markdown" if path.suffix == ".md" else "text/csv"
+    return FileResponse(path, media_type=media_type, filename=name)

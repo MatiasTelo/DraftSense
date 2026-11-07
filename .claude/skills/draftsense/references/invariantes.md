@@ -3,7 +3,7 @@
 Todo lo de acá está cerrado. No se replantea como si fuera una opción abierta; si hay que cambiarlo,
 se escribe un ADR nuevo que reemplace al viejo. Las rutas son relativas a `draftsense/docs/`.
 
-## Las 28 decisiones de arquitectura
+## Las 30 decisiones de arquitectura
 
 Cada línea es la decisión, no el razonamiento. El *por qué* y las alternativas descartadas están en
 el ADR; leerlo entero antes de contradecirlo.
@@ -37,7 +37,9 @@ el ADR; leerlo entero antes de contradecirlo.
 | **025** app de administración local | La administración es una **app aparte en `admin/`** (FastAPI + React) que corre en el servidor del laboratorio, **escucha sólo en `127.0.0.1`** (puerto 5000) y **no pide clave**: quien llega está en la máquina. Se conecta directo a la base con `admin/.env` y reutiliza los services del backend. **La API pública no tiene `/admin/*` ni `X-Admin-Key`.** Interfaz en español. Todo se audita, también jobs y seeds (`run_job`, `run_seed`, migración `0005`). Desde la semana 9 *Generar CSV* corre el pipeline en segundo plano y descarga cada archivo (`trigger_export`, 24 §3.9) |
 | **026** rol en las duplas | Las preguntas de duplas (2v2 y tipo 4) guardan el rol de cada campeón en `questions.role_a … role_d` (migración `0006`), con el `CHECK questions_duo_roles`. El orden canónico por id no cambia: el rol viaja con su campeón, y entra en la identidad. Cada lado se sirve en el orden de roles del contexto (adc/top/mid primero) |
 | **027** tipo 5 no vacío | Una respuesta de tipo 5 marca **al menos un atributo**: `{"traits": []}` es `400 answer_shape_mismatch` y lo rechaza `responses_answer_shape`. *Confirm* deshabilitado sin marcas. Sustituye CA-207 y la fila de `[]` de 20 §6 y 25 §1.4 |
-| **028** idioma por parámetro | La persona elige `EN \| ES` con un selector (landing y barra de `/play`, `localStorage`); `GET /questions/next?lang=en\|es` arma los textos en ese idioma y cae al inglés si falta uno. El microcopy vive en `frontend/src/i18n/`. Cambiar de idioma vacía la cola. El idioma no se guarda en la base |
+| **028** idioma por parámetro | La persona elige `EN \| ES` con un selector (landing y barra de `/play`, `localStorage`); `GET /questions/next?lang=en\|es` arma los textos en ese idioma y cae al inglés si falta uno. El microcopy vive en `frontend/src/i18n/`. ~~Cambiar de idioma vacía la cola~~ (sustituido por ADR-029). El idioma no se guarda en la base |
+| **029** la cola se traduce | Cambiar de idioma **traduce** la cola: `GET /questions/queued?ids=…&lang=…` re-arma con `render()` las mismas preguntas, el tipo 1 con su ranking ya servido, y **no pasa por el sampler ni escribe nada**. La tarjeta conserva su estado porque la `key` sigue siendo el `question_id`. Si falla, la cola queda en el idioma anterior. Sustituye ADR-028 §5 |
+| **030** feedback de 4 s | El feedback dura **4 s** y un toque en el cartel, `Enter` o `Espacio` lo saltean (no la tecla mantenida ni la que cae sobre un botón). Vale para todas las variantes. Sin texto de aviso. Sustituye la fila «1,2 s» de 30 §10 |
 
 ## Los cinco tipos de pregunta
 

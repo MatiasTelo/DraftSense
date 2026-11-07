@@ -31,7 +31,10 @@ from app.services import questions
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m aggregation.run",
-        description="Corre el pipeline de agregación y escribe los seis CSV (docs/25 §8).",
+        description=(
+            "Corre el pipeline de agregación y escribe los seis CSV y el Informe de Calidad de "
+            "Datos (docs/25 §8, docs/27 §9)."
+        ),
     )
     parser.add_argument("--patch-window", help="16.18..16.20; por defecto, el parche vigente")
     parser.add_argument("--min-trust", type=float, help="por defecto, export.min_trust")
@@ -41,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--exported-at", type=dt.date.fromisoformat, help="AAAA-MM-DD; hoy")
     parser.add_argument("--out", type=Path, default=Path("exports"), help="carpeta de salida")
     parser.add_argument(
-        "--workers", type=int, help="procesos para los 15 ajustes; 1 los corre en serie"
+        "--workers", type=int, help="procesos para los ajustes; 1 los corre en serie"
     )
     return parser
 

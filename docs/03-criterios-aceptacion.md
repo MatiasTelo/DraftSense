@@ -1,6 +1,11 @@
 # 03 — Criterios de aceptación
 
-> Estado: **v1** · Última revisión: 08/10/2026
+> Estado: **v1** · Última revisión: 07/11/2026
+>
+> **07/11/2026:** semana 10. Criterios del Informe de Calidad de Datos (CA-410 a CA-415,
+> [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md)), de la cola traducida (CA-109,
+> y CA-510 cambia por [ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)) y del
+> feedback que se saltea (CA-511, [ADR-030](13-adr/ADR-030-feedback-de-cuatro-segundos.md)).
 >
 > **08/10/2026:** criterios nuevos del ranking del tipo 1 (CA-210 a CA-213, CA-507) y cambios en
 > CA-201, CA-305 y CA-503 ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)).
@@ -99,6 +104,13 @@ con `lang=en` o sin el parámetro, en inglés; y con `lang=fr`, `400 invalid_par
 **Dado** una pregunta de tipo 4 del contexto `mid_jungle` cuyo `champion_a` es el jungla
 **Cuando** se recibe del servidor
 **Entonces** cada lado lista primero al campeón que juega `mid` y después al que juega `jungle`.
+
+### CA-109 · La cola se re-arma en otro idioma sin tocar el sampler — ADR-029 · `I`
+**Dado** un respondedor con un ranking de tipo 1 y una pregunta de tipo 3 en cola, servidos en inglés
+**Cuando** pide `GET /questions/queued` con esos dos ids y `lang=es`
+**Entonces** recibe las dos en ese orden y en español; el ranking con el mismo `ranking_id` y los
+cinco campeones en el mismo orden; una pregunta ya contestada por él no vuelve; y ninguna columna
+de cadencia del respondedor ni `exposure_count` cambia.
 
 ---
 
@@ -325,6 +337,43 @@ de confianza, la vida media del decaimiento y la versión del paquete de agregac
 **Entonces** las respuestas de 16.18 quedan excluidas, y las de 16.19 pesan menos que las de 16.20
 según el decaimiento configurado.
 
+### CA-410 · El acuerdo inter-anotador es el alfa de Krippendorff — RF-511 · `U`
+**Dado** la matriz de confiabilidad del ejemplo resuelto de Krippendorff (2011)
+**Cuando** se calcula alfa
+**Entonces** da 0.743 nominal, 0.815 ordinal y 0.849 de intervalo; una magnitud sin unidades con
+dos valores es *no calculable*; y dos respuestas iguales sobre preguntas armadas al revés cuentan
+como acuerdo (`27-validacion-confiabilidad.md` §2).
+
+### CA-411 · El test-retest usa las reglas del trust — RF-511 · `I`
+**Dado** retests consistentes e inconsistentes de cada tipo en la ventana
+**Cuando** se arma el informe
+**Entonces** la tasa por tipo es la que dan las reglas de `22-calidad-de-datos.md` §4, y un par con
+`unknown` en el tipo 1 no cuenta.
+
+### CA-412 · La honeypot sospechosa se señala — RF-511 · `I`
+**Dado** una honeypot con 40 intentos cuyos falladores son más consistentes en el retest que quienes
+la aprueban
+**Cuando** se arma el informe
+**Entonces** aparece como sospechosa en los hallazgos; y un respondedor bajo `min_trust` cuenta en su
+*pass rate* aunque no entre a la corrida.
+
+### CA-413 · La concentración decide sobre el bootstrap — RF-511 · `U`
+**Dado** una dimensión donde el decil más activo aporta el 50 % de las comparaciones
+**Cuando** se arma el informe
+**Entonces** el índice sale sobre 0.40 y figura como hallazgo, y el ancho medio del intervalo por
+respondedor es mayor que el de comparaciones.
+
+### CA-414 · Un segmento chico no da números frágiles — RF-511 · `I`
+**Dado** un segmento de rango con 14 respondedores
+**Cuando** se calcula la estabilidad por segmento
+**Entonces** el segmento sale *no calculable* con su `n`, sin ρ.
+
+### CA-415 · El informe es reproducible y no toca los CSV — RF-511, RF-512 · `I`
+**Dado** una corrida con su informe
+**Cuando** se repite con los mismos parámetros sobre el mismo crudo
+**Entonces** los siete archivos dan el mismo SHA-256, hay una fila `quality_report` en `exports`, y los
+seis CSV son idénticos a los de una corrida sin informe.
+
 ---
 
 ## 6. Interfaz
@@ -388,6 +437,17 @@ con la fracción de la comunidad que lo marcó.
 **Cuando** se elige `ES` en el selector
 **Entonces** las pantallas pasan al español, la cola de preguntas se descarta y el lote siguiente se
 pide con `lang=es`; al recargar, el idioma sigue siendo español.
+
+> **Cambiado el 07/11/2026** ([ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)). La
+> cola **no** se descarta: se pide `GET /questions/queued` con sus ids y `lang=es`, y la tarjeta que
+> se estaba mirando sigue siendo la misma, en español y con lo que ya se había movido (el orden del
+> ranking, el slider, los atributos marcados). Si el pedido falla, la cola queda en inglés.
+
+### CA-511 · El feedback dura 4 s y se saltea — ADR-030 · `C`
+**Dado** una respuesta registrada y su feedback en pantalla
+**Cuando** no se toca nada durante 4 s, o se toca el cartel, o se aprieta `Enter` o `Espacio`
+**Entonces** entra la tarjeta siguiente, una sola vez; antes de los 4 s y sin tocar, el cartel
+sigue; y `Enter` mantenido no saltea dos tarjetas.
 
 ---
 
@@ -453,11 +513,11 @@ score de nadie.
 | Grupo | Criterios | Requerimientos cubiertos |
 |---|---|---|
 | Sesión e identidad | CA-001 a CA-005 | RF-001 a RF-006, RNF-05 |
-| Entrega de preguntas | CA-101 a CA-108 | RF-101, RF-105, RF-106, RF-112, RF-202, RNF-01 |
+| Entrega de preguntas | CA-101 a CA-109 | RF-101, RF-105, RF-106, RF-112, RF-202, RNF-01 |
 | Registro de respuestas | CA-201 a CA-214 | RF-108 a RF-110, RF-203, RF-209, RNF-04 |
 | Calidad de datos | CA-301 a CA-309 | RF-201, RF-202, RF-204 a RF-208 |
-| Agregación y exportación | CA-401 a CA-409 | RF-501, RF-506, RF-507, RF-509, RF-510, RF-512, RNF-08 |
-| Interfaz | CA-501 a CA-510 | RF-113, RF-114, RNF-06, RNF-07 |
+| Agregación y exportación | CA-401 a CA-415 | RF-501, RF-506, RF-507, RF-509 a RF-512, RNF-08 |
+| Interfaz | CA-501 a CA-511 | RF-113, RF-114, RNF-06, RNF-07 |
 | Extensibilidad y operación | CA-601 a CA-604 | RF-405, RF-603, RF-604, RF-606, RNF-12 |
 | Gamificación | CA-310 a CA-313 | RF-301, RF-303, RF-304 |
 

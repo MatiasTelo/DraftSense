@@ -146,6 +146,18 @@ export async function fetchQuestions(
   );
 }
 
+/**
+ * Las preguntas de la cola, armadas en otro idioma (`docs/12-api.md` §2.8, ADR-029). Vuelven en el
+ * orden de `ids`, sin las que el servidor ya no puede armar. No pasa por el sampler: pedirlo no
+ * mueve ninguna cadencia.
+ */
+export async function fetchQueuedQuestions(
+  ids: readonly number[],
+  lang: 'en' | 'es',
+): Promise<QuestionBatch> {
+  return request<QuestionBatch>(`/questions/queued?ids=${ids.join(',')}&lang=${lang}`);
+}
+
 export async function postResponse(body: ResponseRequest): Promise<RecordedResponse> {
   return postJson<RecordedResponse>('/responses', body);
 }

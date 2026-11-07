@@ -38,7 +38,9 @@ escribe uno nuevo. El registro es histórico.
 | [025](ADR-025-app-de-administracion-local.md) | La administración es una aplicación local del servidor del laboratorio, sin clave | aceptada |
 | [026](ADR-026-rol-explicito-en-las-duplas.md) | Cada pregunta de duplas guarda qué rol juega cada campeón | aceptada |
 | [027](ADR-027-tipo-5-al-menos-un-atributo.md) | El tipo 5 exige marcar al menos un atributo | aceptada |
-| [028](ADR-028-idioma-por-parametro.md) | El idioma lo elige la persona con un selector, y viaja como parámetro `lang` | aceptada |
+| [028](ADR-028-idioma-por-parametro.md) | El idioma lo elige la persona con un selector, y viaja como parámetro `lang` | aceptada · punto 5 sustituido por ADR-029 |
+| [029](ADR-029-cambiar-de-idioma-traduce-la-cola.md) | Cambiar de idioma traduce la cola en vez de descartarla | aceptada |
+| [030](ADR-030-feedback-de-cuatro-segundos.md) | El feedback dura 4 segundos y se saltea con un toque | aceptada |
 
 ## Cuál merece un ADR
 

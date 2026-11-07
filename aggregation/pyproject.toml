@@ -33,7 +33,7 @@ build-backend = "setuptools.build_meta"
 # repositorio tal como lo escribe docs/25-agregacion.md §8.1.
 [tool.setuptools]
 package-dir = { "aggregation" = "." }
-packages = ["aggregation", "aggregation.estimators"]
+packages = ["aggregation", "aggregation.estimators", "aggregation.quality"]
 
 [tool.ruff]
 line-length = 100

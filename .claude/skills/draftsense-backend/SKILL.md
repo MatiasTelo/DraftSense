@@ -20,12 +20,13 @@ Decidido en [ADR-007](../../../docs/13-adr/ADR-007-fastapi-python.md).
 
 ## Estado actual
 
-Los **siete endpoints públicos** están implementados (semana 2), en cuatro capas:
+Los **siete endpoints públicos** están implementados (semana 2), más `GET /questions/queued`
+(semana 10, ADR-029), en cuatro capas:
 
 | Carpeta | Qué hay |
 |---|---|
 | `app/routers/` | `health`, `sessions`, `questions`, `responses`, `profile` — montados en `/api/v1` |
-| `app/services/` | `sessions`, `questions`, `sampler`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias`; desde la semana 5 también `trust`, `trust_check`, `honeypots`, `retests`, `degenerate`, `fingerprints`, `connectivity` y `aggregable`; desde la semana 6, `patches`; desde la semana 7, `seeding` (el camino de los seeds que comparten el CLI y la app admin) |
+| `app/services/` | `sessions`, `questions`, `sampler`, `question_texts`, `answers`, `responses`, `question_stats`, `streaks`, `profile`, `leaderboard`, `app_settings`, `alias`; desde la semana 5 también `trust`, `trust_check`, `honeypots`, `retests`, `degenerate`, `fingerprints`, `connectivity` y `aggregable`; desde la semana 6, `patches`; desde la semana 7, `seeding` (el camino de los seeds que comparten el CLI y la app admin); desde la semana 10, `queued` (la cola re-armada en otro idioma, sólo lectura) |
 | `app/schemas/` | Los modelos Pydantic, con los campos listados uno por uno; `common.is_absent` para omitir claves |
 | `app/` | `main.py`, `errors.py`, `dependencies.py`, además de `config.py`, `db.py`, `cli.py`, `models/` y `seeds/` |
 
@@ -75,6 +76,10 @@ cobertura. **Si el pipeline de la semana 9 los cambia, se cambian ahí.**
   pregunta del lote cae en `answers_count + len(queued)` y ninguna rama sirve una de esas. Sin
   esto, la precarga del frontend producía honeypots dobles y repetidos: lo encontró la prueba de
   punta a punta en staging.
+- **`GET /questions/queued?ids=…&lang=…`** (ADR-029) re-arma esas mismas preguntas en otro idioma
+  con `questions.render`. **No toca el sampler ni escribe nada**: si moviera una cadencia, cambiar
+  de idioma alteraría qué honeypot o qué retest le toca a la persona. `tests/test_queued.py` lo
+  cuida con una foto de las columnas antes y después.
 - `trust.compute` es la fórmula de `22-calidad-de-datos.md` §7.1, con redondeo explícito a tres
   decimales. `trust_check.verify` recalcula todo desde el crudo sin escribir.
 - El catálogo de honeypots se carga con `app/seeds/honeypots.py`, en modo conservador.
