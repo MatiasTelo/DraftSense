@@ -61,8 +61,10 @@ export function Profile() {
   }, []);
 
   return (
-    <AppFrame>
-      <TopBar streak={counters.current_streak} answers={counters.answers_count} />
+    <AppFrame
+      header={<TopBar streak={counters.current_streak} answers={counters.answers_count} />}
+      footer={<BottomNav />}
+    >
 
       <main className="flex flex-1 flex-col gap-[22px] px-[22px] pt-[30px] pb-[22px]">
         {me?.alias !== null && me?.alias !== undefined && (
@@ -122,7 +124,6 @@ export function Profile() {
         <SecondaryButton onClick={() => navigate('/play')}>{t.profile.keepPlaying}</SecondaryButton>
       </main>
 
-      <BottomNav />
     </AppFrame>
   );
 }

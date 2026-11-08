@@ -48,7 +48,14 @@ export function DuoStack({ sides, separator }: Props) {
   );
 }
 
-/** La lista de opciones de una tarjeta que registra al primer toque, en el orden en que llega. */
+/**
+ * La lista de opciones de una tarjeta que registra al primer toque, en el orden en que llega.
+ *
+ * Las opciones entran escalonadas (40 ms cada una, ADR-032) y se pueden tocar mientras entran. El
+ * escalonado sigue el orden de la lista y **no lo cambia**: la posición de cada opción es fija
+ * porque el *straightlining* se cuenta por su clave (`docs/22-calidad-de-datos.md` §5.2). En hover,
+ * un acento dorado crece desde el borde izquierdo.
+ */
 export function OptionList<K extends string>({
   options,
   onChoose,
@@ -60,13 +67,14 @@ export function OptionList<K extends string>({
 }) {
   return (
     <div className="flex flex-col divide-y divide-edge border border-edge">
-      {options.map((option) => (
+      {options.map((option, index) => (
         <button
           key={option.key}
           type="button"
           disabled={disabled}
           onClick={() => onChoose(option.key)}
-          className="flex min-h-[52px] w-full items-center px-4 py-2 text-left text-[15px] leading-snug font-medium text-ink-2 hover:bg-control hover:text-gold-bright disabled:opacity-60"
+          style={{ animationDelay: `${index * 40}ms` }}
+          className="relative flex min-h-[52px] w-full animate-rise cursor-pointer items-center px-4 py-2 text-left text-[15px] leading-snug font-medium text-ink-2 transition-[background-color,color,padding] duration-150 ease-out-quart before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:origin-center before:scale-y-0 before:bg-gold before:transition-transform before:duration-200 enabled:hover:bg-control enabled:hover:pl-5 enabled:hover:text-gold-bright enabled:hover:before:scale-y-100 enabled:active:bg-rail disabled:cursor-default disabled:opacity-60"
         >
           {option.label}
         </button>

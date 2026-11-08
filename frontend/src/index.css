@@ -27,4 +27,18 @@
     outline: 2px solid var(--color-cyan);
     outline-offset: 2px;
   }
+
+  /* Movimiento reducido (ADR-032): todo queda en su estado final, sin recorrido. Nada de lo que
+     se anima lleva información que no esté también quieta en pantalla. La barra de tiempo del
+     feedback, que sí sería sólo movimiento, se oculta en el componente con `motion-reduce:hidden`. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }

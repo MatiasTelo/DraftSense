@@ -41,6 +41,8 @@ escribe uno nuevo. El registro es histórico.
 | [028](ADR-028-idioma-por-parametro.md) | El idioma lo elige la persona con un selector, y viaja como parámetro `lang` | aceptada · punto 5 sustituido por ADR-029 |
 | [029](ADR-029-cambiar-de-idioma-traduce-la-cola.md) | Cambiar de idioma traduce la cola en vez de descartarla | aceptada |
 | [030](ADR-030-feedback-de-cuatro-segundos.md) | El feedback dura 4 segundos y se saltea con un toque | aceptada |
+| [031](ADR-031-escritorio-como-caso-principal.md) | El escritorio es el caso principal; el celular sigue funcionando | aceptada |
+| [032](ADR-032-movimiento-solo-con-css.md) | El movimiento de la interfaz se hace sólo con CSS | aceptada |
 
 ## Cuál merece un ADR
 

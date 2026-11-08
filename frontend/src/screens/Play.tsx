@@ -264,12 +264,16 @@ export function Play() {
   }, [question, submit]);
 
   return (
-    <AppFrame>
-      <TopBar
-        streak={counters.current_streak}
-        answers={counters.answers_count}
-        middle={<LanguageToggle />}
-      />
+    <AppFrame
+      header={
+        <TopBar
+          streak={counters.current_streak}
+          answers={counters.answers_count}
+          middle={<LanguageToggle />}
+        />
+      }
+      footer={<BottomNav />}
+    >
 
       <main className="relative flex flex-1 flex-col">
         {question !== undefined ? (
@@ -325,11 +329,11 @@ export function Play() {
             unit={shown.unit}
             layout={shown.layout}
             onDismiss={dismiss}
+            durationMs={FEEDBACK_MS}
           />
         )}
       </main>
 
-      <BottomNav />
     </AppFrame>
   );
 }

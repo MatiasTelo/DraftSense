@@ -28,6 +28,12 @@
  * El tipo 5 (semana 8) dice en cuántos atributos coincide con la mayoría —*«You agree with the
  * community on 5 of 7 traits»*— y muestra una barra por atributo con la fracción que lo marcó; las
  * de los que marcó la persona van en dorado (`docs/12-api.md` §2.4, nota del 29/10).
+ *
+ * Movimiento (ADR-032, 08/11): el fondo aparece con un fundido, el mensaje con un *pop* y las
+ * barras se llenan desde cero, escalonadas. Al pie, una línea dorada se vacía en `durationMs`:
+ * dice que la tarjeta siguiente va a entrar sola, **sin decir que se puede tocar** (ADR-030,
+ * punto 5). Su duración la pasa `Play` desde `FEEDBACK_MS`, la misma constante del temporizador,
+ * para que la línea no termine antes o después del cierre. Con movimiento reducido no se muestra.
  */
 
 import type { Feedback } from '../api';
@@ -54,6 +60,8 @@ interface Props {
   layout?: 'inline' | 'stacked';
   /** Toque o clic en cualquier parte del cartel: entra la tarjeta siguiente (ADR-030). */
   onDismiss?: () => void;
+  /** Cuánto dura el cartel; la barra de tiempo se vacía en ese lapso. Sin valor, no hay barra. */
+  durationMs?: number;
 }
 
 const percent = (share: number) => Math.round(share * 100);
@@ -67,6 +75,7 @@ export function FeedbackOverlay({
   unit = '',
   layout = 'inline',
   onDismiss,
+  durationMs,
 }: Props) {
   const t = useT();
   // `?? undefined` también absorbe un `null`: el contrato omite las claves que no aplican, pero
@@ -85,9 +94,9 @@ export function FeedbackOverlay({
     <div
       role="status"
       onClick={onDismiss}
-      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-[rgb(6_8_11/0.94)] p-[22px]"
+      className="absolute inset-0 flex animate-fade-in cursor-pointer items-center justify-center bg-[rgb(6_8_11/0.94)] p-[22px]"
     >
-      <div className="flex w-full flex-col gap-[22px]">
+      <div className="flex w-full animate-pop-in flex-col gap-[22px]">
         <div className="flex flex-col items-center gap-2.5">
           {milestone && (
             <p className="font-mono text-xs font-semibold tracking-[0.2em] text-gold uppercase">
@@ -98,7 +107,9 @@ export function FeedbackOverlay({
           {feedback === null ? (
             <>
               <p className="flex items-center gap-3 text-center font-display text-[22px] leading-snug font-semibold text-ink">
-                <span className="text-[19px] text-cyan">⚡</span>
+                <span className="inline-block animate-pop-in text-[19px] text-cyan [animation-delay:120ms]">
+                  ⚡
+                </span>
                 {t.feedback.firstTitle}
               </p>
               <p className="max-w-[300px] text-center text-sm leading-relaxed text-ink-4">
@@ -119,7 +130,7 @@ export function FeedbackOverlay({
             </p>
           ) : feedback.agreed_with_majority === true ? (
             <p className="flex items-center gap-2.5 font-display text-[22px] font-semibold text-ink">
-              <span className="text-green">✓</span>
+              <span className="inline-block animate-pop-in text-green [animation-delay:120ms]">✓</span>
               {t.feedback.agree(percent(yourShare))}
             </p>
           ) : (
@@ -137,7 +148,7 @@ export function FeedbackOverlay({
 
         {consensus !== undefined && median === undefined && (
           <div className="flex flex-col gap-3 border border-white/7 bg-panel px-[18px] py-5">
-            {labels.map(({ key, label }) => {
+            {labels.map(({ key, label }, index) => {
               const share = consensus[key] ?? 0;
               // La barra dorada es la del usuario, no la de la mayoría: es de la que habla el
               // mensaje, y en el caso de discrepancia es la que hay que poder encontrar.
@@ -145,8 +156,8 @@ export function FeedbackOverlay({
               const bar = (
                 <span className={`h-2 bg-rail ${layout === 'inline' ? 'flex-1' : 'block'}`}>
                   <span
-                    style={{ width: `${percent(share)}%` }}
-                    className={`block h-2 ${mine ? 'bg-gold' : 'bg-inert'}`}
+                    style={{ width: `${percent(share)}%`, animationDelay: `${120 + index * 60}ms` }}
+                    className={`block h-2 origin-left animate-bar-fill ${mine ? 'bg-gold' : 'bg-inert'}`}
                   />
                 </span>
               );
@@ -183,6 +194,15 @@ export function FeedbackOverlay({
           </div>
         )}
       </div>
+
+      {durationMs !== undefined && (
+        <span
+          aria-hidden="true"
+          data-testid="feedback-timer"
+          style={{ animationDuration: `${durationMs}ms` }}
+          className="absolute inset-x-0 bottom-0 h-0.5 origin-left animate-drain bg-gold/80 motion-reduce:hidden"
+        />
+      )}
     </div>
   );
 }

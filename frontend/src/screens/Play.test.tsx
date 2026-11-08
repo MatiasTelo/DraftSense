@@ -375,6 +375,15 @@ describe('Play', () => {
       expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
     });
 
+    it('ADR-032 — la barra de tiempo dura lo mismo que el cartel', async () => {
+      renderPlay();
+      await answer();
+
+      expect(screen.getByTestId('feedback-timer')).toHaveStyle({
+        animationDuration: `${FEEDBACK_MS}ms`,
+      });
+    });
+
     it('CA-511 — un toque lo saltea, y dos toques no saltean dos tarjetas', async () => {
       renderPlay();
       await answer();

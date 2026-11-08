@@ -12,7 +12,7 @@ import { useT } from '../store/lang';
 
 export function CardSkeleton() {
   return (
-    <div className="flex flex-1 flex-col px-[22px] py-[30px]" aria-hidden="true">
+    <div className="flex flex-1 animate-pulse flex-col px-[22px] py-[30px]" aria-hidden="true">
       <div className="h-[26px] w-[78%] bg-skeleton" />
       <div className="mt-3 h-[26px] w-[46%] bg-control" />
       <div className="flex flex-1 items-center gap-3.5 py-6">
@@ -53,7 +53,7 @@ export function RetryButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-11 min-h-11 items-center self-start border border-gold px-5 font-mono text-xs font-semibold tracking-[0.16em] text-gold uppercase"
+      className="flex h-11 min-h-11 cursor-pointer items-center self-start border border-gold px-5 font-mono text-xs font-semibold tracking-[0.16em] text-gold uppercase transition-[background-color,transform,scale] duration-150 hover:bg-gold/10 active:scale-[0.97]"
     >
       {t.play.retry}
     </button>

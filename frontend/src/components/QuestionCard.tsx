@@ -9,6 +9,10 @@
  * Desde la semana 8 están los cinco: el tipo 1 es un ranking de cinco (ADR-022), el 3 tiene la
  * variante 1v1 y la 2v2 de bot en la misma tarjeta, el 4 son duplas apiladas y el 5 una grilla de
  * atributos con confirmación.
+ *
+ * La tarjeta entra con `animate-card-in` (ADR-032). Como `Play` la monta con
+ * `key={question_id}`, anima con cada pregunta nueva y **no** al cambiar de idioma, que conserva
+ * la tarjeta (ADR-029). La entrada no bloquea nada: se puede responder mientras dura.
  */
 
 import type { Answer, Question } from '../api';
@@ -26,7 +30,15 @@ interface Props {
   disabled: boolean;
 }
 
-export function QuestionCard({ question, helpOpen, onToggleHelp, onAnswer, disabled }: Props) {
+export function QuestionCard(props: Props) {
+  return (
+    <div className="flex flex-1 animate-card-in flex-col">
+      <CardBody {...props} />
+    </div>
+  );
+}
+
+function CardBody({ question, helpOpen, onToggleHelp, onAnswer, disabled }: Props) {
   switch (question.type) {
     case 'pairwise_dimension':
       return (
