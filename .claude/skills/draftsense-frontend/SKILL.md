@@ -55,6 +55,12 @@ Cosas de las semanas 4 y 5 que no hay que deshacer:
   `store/queue.ts`). El servidor los usa para ubicar las preguntas nuevas —de eso dependen las
   cadencias de honeypots y retests— y para no repetirlas (`docs/12-api.md` §2.3, ADR-020). Si
   cambia la cola, tiene que seguir mandándolos.
+- **Cambiar de idioma traduce la cola, no la vacía** (ADR-029, 07/11). `LanguageToggle` llama a
+  `retranslate` (`store/queue.ts`), que pide `fetchQueuedQuestions(ids, lang)` y reemplaza cada
+  pregunta por id. La tarjeta no se desmonta —su `key` es el `question_id`— y conserva el orden del
+  ranking, el minuto y los atributos marcados. Si falla, la cola queda como estaba.
+- **El feedback se cierra una sola vez** (ADR-030). `Play` tiene el candado `dismissed`: el tiempo,
+  el toque y la tecla pueden caer antes del render siguiente, y sin él la cola avanzaría dos veces.
 - **Toda cosa que se toca mide 44 px**, también el `?` de ayuda (un botón de 44 con el círculo de
   36 adentro), `Skip` y las pestañas del leaderboard. Se corrigió al cerrar la semana 4
   (`docs/30-ux-flujos.md` §9).
@@ -136,7 +142,7 @@ De `docs/30-ux-flujos.md` §10. No se replantean:
 | Registro | No hay |
 | Onboarding | Al inicio, salteable |
 | Confirmación de respuesta | Sólo tipos 2 y 5; los demás registran al primer toque |
-| Duración del feedback | 1,2 s |
+| Duración del feedback | 4 s, y un toque, `Enter` o `Espacio` la saltean (ADR-030, 07/11) |
 | Orden del leaderboard | Cantidad de respuestas, no acuerdo |
 | Trust score visible | No, nunca |
 | Deshacer una respuesta | No existe |

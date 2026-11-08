@@ -3,8 +3,10 @@
  *
  * **Este es el gancho de retención principal.** La comparación con el consenso es lo que convierte
  * responder preguntas en algo con recompensa inmediata, y es la razón por la que alguien contesta
- * 40 en vez de 5. Dura 1,2 segundos: suficiente para leer el porcentaje, corto para no romper el
- * ritmo.
+ * 40 en vez de 5. Dura 4 segundos, y un toque en cualquier parte lo cierra antes (ADR-030): con las
+ * siete barras del tipo 5 o el mensaje de dos líneas del soporte bajo, los 1,2 s de antes no
+ * alcanzaban para leer. No dice que se puede tocar, a pedido del alumno. `Enter` y `Espacio` los
+ * maneja `Play`, que es el que sabe cuándo hay feedback en pantalla.
  *
  * Dos textos que no se tocan:
  *
@@ -50,6 +52,8 @@ interface Props {
    * slightly»— no entran en una columna de ancho fijo a 360 px.
    */
   layout?: 'inline' | 'stacked';
+  /** Toque o clic en cualquier parte del cartel: entra la tarjeta siguiente (ADR-030). */
+  onDismiss?: () => void;
 }
 
 const percent = (share: number) => Math.round(share * 100);
@@ -62,6 +66,7 @@ export function FeedbackOverlay({
   streak,
   unit = '',
   layout = 'inline',
+  onDismiss,
 }: Props) {
   const t = useT();
   // `?? undefined` también absorbe un `null`: el contrato omite las claves que no aplican, pero
@@ -79,7 +84,8 @@ export function FeedbackOverlay({
   return (
     <div
       role="status"
-      className="absolute inset-0 flex items-center justify-center bg-[rgb(6_8_11/0.94)] p-[22px]"
+      onClick={onDismiss}
+      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-[rgb(6_8_11/0.94)] p-[22px]"
     >
       <div className="flex w-full flex-col gap-[22px]">
         <div className="flex flex-col items-center gap-2.5">

@@ -89,7 +89,8 @@ def weight(trust: float, created_at: dt.datetime, params: RunParams) -> float:
     return float(trust) * float(0.5 ** (days / params.halflife))
 
 
-async def _window(session: AsyncSession, params: RunParams) -> list[Patch]:
+async def window(session: AsyncSession, params: RunParams) -> list[Patch]:
+    """Los parches de la ventana, por `released_at`. La usa también el informe (27 §1.1)."""
     bounds = []
     for version in (params.patch_from, params.patch_to):
         patch = (
@@ -114,7 +115,7 @@ async def _window(session: AsyncSession, params: RunParams) -> list[Patch]:
 
 async def load(session: AsyncSession, params: RunParams) -> Dataset:
     """§8.2, paso 2: el conjunto filtrado y el peso de cada fila."""
-    patches = await _window(session, params)
+    patches = await window(session, params)
     patch_ids = [p.patch_id for p in patches]
     last = next(p for p in patches if p.version == params.patch_to)
 

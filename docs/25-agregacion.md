@@ -13,6 +13,10 @@
 > las duplas se identifican con el rol de cada campeón ([ADR-026](13-adr/ADR-026-rol-explicito-en-las-duplas.md)),
 > y el Informe de Calidad de Datos, el bootstrap por respondedor de §4.7 y los segmentos de §3.4 a
 > §3.8 se emiten desde la semana 10 (§8.2, nota del 29/10).
+>
+> **07/11/2026:** la semana 10 agrega el Informe de Calidad de Datos, especificado en
+> [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md). Notas en §4.7 (la decisión
+> sobre el bootstrap pasa al piloto) y §8.2 (el paso 7 escribe el informe).
 
 Qué hace exactamente el sistema con cada dato que produce una persona —los tres que declara al
 entrar y cada respuesta que da después— desde que la fila entra a `responses` hasta que sale como
@@ -526,6 +530,12 @@ Cómo se resuelve, sin cambiar el contrato por cuenta propia:
 > respondedor de este punto las agrupa naturalmente, así que el mismo criterio sirve para decidir
 > también sobre esto.
 
+> **Agregado el 07/11/2026.** El piloto quedó para el final de la práctica, así que el punto 3 no
+> se puede cumplir en la semana 10. Decisión del alumno: la corrida ya calcula las dos versiones y
+> el informe aplica el criterio del 40 % ([`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md)
+> §6), pero **la decisión, y el ADR si corresponde, se toman con los datos del piloto**, no con la
+> seed sintética, cuya distribución de actividad es inventada. Hasta entonces 26 §3.2 no cambia.
+
 ---
 
 ## 5. Los estimadores, uno por tipo de pregunta
@@ -907,6 +917,11 @@ exige pasar la fecha registrada.
 >   [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md), que se escribe en la semana
 >   10, y con él llegan las dos versiones del intervalo de §4.7 y los usos de §3.4 a §3.8. Hasta
 >   entonces `exports` no recibe filas `quality_report`.
+>
+>   **Cerrado el 07/11/2026:** el paso 7 escribe además `data_quality_report_v<patch>.md`, y el
+>   paso 8 le da su fila `quality_report`. Los ajustes que necesita el informe —el bootstrap por
+>   respondedor y los de cada segmento— van **después** de los de esta lista y toman los hijos
+>   siguientes de la semilla, así que los seis CSV no cambian (27 §10).
 > - **La partición de trabajo** son los 15 ajustes de §8.2, en un orden fijo: las 8 dimensiones
 >   por `display_order`, los roles `top`, `mid`, `adc`, el 2v2 de `bot` y los contextos `bot`,
 >   `top_jungle`, `mid_jungle`, más un ajuste por magnitud sin modelo (pico y atributos). Cada uno

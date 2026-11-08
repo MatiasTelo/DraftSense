@@ -36,14 +36,23 @@ el `pyproject.toml` y los módulos—, para que `python -m aggregation.run` func
 | `writers.py`, `record.py` | Los seis CSV con el formato de §4.6, y las filas de `exports` con `params` |
 | `pipeline.py` | Los ocho pasos de §8.2; lo usan la CLI y el panel |
 | `compare_truth.py` | Compara una corrida contra la verdad de `draftsense seed-synthetic-responses` |
+| `quality/` | El Informe de Calidad de Datos (semana 10): `krippendorff.py`, `agreement.py` (alfa por magnitud, orientada), `data.py` (retests, honeypots y gente fuera de la corrida), `segments.py`, `metrics.py` y `report.py` |
 
 Las precisiones que tomó el alumno el 29/10 —pool del export, filas de bot, MM propio, descarte con
-el grafo partido— están en la nota de `docs/25-agregacion.md` §8.2. **El Informe de Calidad de
-Datos, el bootstrap por respondedor de §4.7 y los segmentos de §3.4–§3.8 son de la semana 10**:
-`docs/27-validacion-confiabilidad.md` sigue **pendiente** y hay que escribirlo antes.
+el grafo partido— están en la nota de `docs/25-agregacion.md` §8.2.
 
-Con la seed sintética (seed 42, unas 145 000 respuestas) la corrida completa con B = 2000 tarda unos
-2,5 minutos, da el mismo SHA-256 dos veces seguidas y recupera la verdad con ρ de 0,91 a 0,98.
+**Desde la semana 10 (07/11) la corrida escribe también `data_quality_report_v<patch>.md`**, con
+su fila `quality_report` en `exports`. Lo especifica `docs/27-validacion-confiabilidad.md` (v1).
+Los ajustes que sólo usa el informe —el bootstrap por respondedor de las 8 dimensiones y las
+dimensiones re-ajustadas por segmento de rango y de horas— van **después** de los 17 de la
+partición y toman los hijos siguientes de la semilla: **los seis CSV no cambian de SHA-256** por el
+informe (CA-415; `pipeline.run(..., quality=False)` existe sólo para ese test). El informe es
+determinista y entra en CA-408.
+
+Con la seed sintética (seed 42, unas 145 000 respuestas) la corrida completa con B = 2000 tardaba
+unos 2,5 minutos hasta la semana 9; **con el informe tarda unos 10 a 11 minutos**, porque los
+ajustes por segmento y el bootstrap por respondedor usan el mismo B. Da el mismo SHA-256 en los
+siete archivos dos veces seguidas y recupera la verdad con ρ de 0,91 a 0,98.
 
 La especificación en cambio está completa y en `v1`: `25-agregacion.md` (52 KB, el documento más
 grande del repo) y `26-esquema-de-salida.md`, más el ejemplo ejecutable de `docs/examples/`.
@@ -113,12 +122,13 @@ El bootstrap es **sobre las comparaciones**, no por respondedor, así que supone
 comparaciones que no es del todo cierta: los intervalos publicados son algo más angostos que los
 honestos (§4.7). La resolución ya está pautada: la corrida calcula las dos versiones, el Informe de
 Calidad de Datos reporta ambos anchos, y **si el decil más activo aporta más del 40 % de las
-comparaciones, corresponde un ADR** que reemplace lo fijado en `26-esquema-de-salida.md` §3.2. Se
-decide en la semana 10, con los datos del piloto. **No lo cambies antes ni por tu cuenta.**
+comparaciones, corresponde un ADR** que reemplace lo fijado en `26-esquema-de-salida.md` §3.2.
+Desde el 07/11 la corrida ya calcula las dos y el informe aplica el criterio, pero **la decisión se
+toma con los datos del piloto**, que quedó para el final (25 §4.7, nota del 07/11). **No lo cambies
+antes ni por tu cuenta.**
 
 ## Mantener esta skill al día
 
 Si cambian `docs/25-agregacion.md`, `docs/26-esquema-de-salida.md` o
 `docs/27-validacion-confiabilidad.md` —sobre todo su numeración de secciones—, corregir las
-referencias de acá. Cuando `27` pase de `pendiente` a `v1`, actualizar el estado y sumar sus
-secciones a `estimadores.md`.
+referencias de acá. `27` está en `v1` desde el 07/11; sus secciones están en `estimadores.md`.

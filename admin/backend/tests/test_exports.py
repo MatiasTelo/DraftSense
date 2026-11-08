@@ -82,7 +82,9 @@ async def test_ca612_generar_csv_corre_registra_audita_y_descarga(
     run = (await client.get(f"/exports/runs/{started.json()['run_id']}")).json()
     assert run["status"] == "succeeded", run["error"]
     files = run["result"]["files"]
-    assert len(files) == 6
+    # Los seis CSV y el Informe de Calidad de Datos (27 §9.1).
+    assert len(files) == 7
+    assert files[-1]["file_name"].startswith("data_quality_report_v")
 
     rows = list(
         (
@@ -109,6 +111,10 @@ async def test_ca612_generar_csv_corre_registra_audita_y_descarga(
     assert download.status_code == 200
     assert download.headers["content-type"].startswith("text/csv")
     assert hashlib.sha256(download.content).hexdigest() == first["sha256"]
+    report = await client.get(f"/exports/{files[-1]['export_id']}/file")
+    assert report.status_code == 200
+    assert report.headers["content-type"].startswith("text/markdown")
+    assert hashlib.sha256(report.content).hexdigest() == files[-1]["sha256"]
 
     listed = (await client.get("/exports")).json()
     assert {e["run"] for e in listed["exports"] if e["export_id"] == first["export_id"]} != {None}

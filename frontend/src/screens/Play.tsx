@@ -29,8 +29,11 @@ import { useT } from '../store/lang';
 import { useQueue } from '../store/queue';
 import { useSession } from '../store/session';
 
-/** Cuánto dura la superposición de feedback. Ver `docs/30-ux-flujos.md` §10. */
-const FEEDBACK_MS = 1200;
+/**
+ * Cuánto dura la superposición de feedback si no se toca nada: 4 s desde el 07/11/2026 (ADR-030,
+ * `docs/30-ux-flujos.md` §10). Un toque, `Enter` o `Espacio` la cierran antes.
+ */
+export const FEEDBACK_MS = 4000;
 
 interface Shown {
   feedback: Feedback | null;
@@ -125,6 +128,12 @@ export function Play() {
    * queda para volver a intentar.
    */
   const inFlight = useRef(false);
+  /**
+   * Si el feedback que está en pantalla ya se cerró. El cierre llega por tres caminos —el tiempo,
+   * un toque, una tecla— y dos pueden caer antes del render siguiente: sin este candado la cola
+   * avanzaría dos veces y se saltearía una tarjeta sin mostrarla.
+   */
+  const dismissed = useRef(false);
 
   useEffect(() => {
     if (!ready) void bootstrap();
@@ -172,6 +181,7 @@ export function Play() {
           response_time_ms: Math.round(performance.now() - shownAt.current),
         });
         applyProgress(result.progress);
+        dismissed.current = false;
         setShown({
           feedback: result.feedback,
           labels: optionLabels(question),
@@ -201,15 +211,39 @@ export function Play() {
     [question, sending, shown, cooldown, applyProgress, advance],
   );
 
-  // La superposición dura 1,2 s y después entra la tarjeta siguiente.
+  /** Cierra el feedback y entra la tarjeta siguiente. Una sola vez por feedback. */
+  const dismiss = useCallback(() => {
+    if (dismissed.current) return;
+    dismissed.current = true;
+    setShown(null);
+    advance();
+  }, [advance]);
+
+  // La superposición dura 4 s y después entra la tarjeta siguiente (ADR-030).
   useEffect(() => {
     if (shown === null) return;
-    const timer = setTimeout(() => {
-      setShown(null);
-      advance();
-    }, FEEDBACK_MS);
+    const timer = setTimeout(dismiss, FEEDBACK_MS);
     return () => clearTimeout(timer);
-  }, [shown, advance]);
+  }, [shown, dismiss]);
+
+  // `Enter` o `Espacio` la cierran antes (ADR-030). La tecla mantenida no cuenta: si no, un `Enter`
+  // sostenido cerraría el feedback y confirmaría la tarjeta siguiente. Sobre un botón habilitado o
+  // un enlace con foco, el navegador ya convierte la tecla en un clic de ese control y no se toca.
+  // El *Confirm* que se acaba de tocar con el mouse queda con foco pero deshabilitado mientras dura
+  // el feedback: ahí nadie hace clic, y sin el `:not(:disabled)` `Enter` no saltearía nada.
+  useEffect(() => {
+    if (shown === null) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const control = 'button:not(:disabled), a';
+      if (event.target instanceof Element && event.target.closest(control) !== null) return;
+      event.preventDefault();
+      dismiss();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [shown, dismiss]);
 
   // Teclado en escritorio: 1–5 eligen opción, `?` abre la definición (§9).
   useEffect(() => {
@@ -290,6 +324,7 @@ export function Play() {
             streak={shown.streak}
             unit={shown.unit}
             layout={shown.layout}
+            onDismiss={dismiss}
           />
         )}
       </main>

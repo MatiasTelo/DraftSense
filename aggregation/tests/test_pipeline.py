@@ -63,15 +63,19 @@ async def populate(world: World) -> None:
 
 
 async def hashes(world: World, tmp_path: Path, name: str, **kwargs: object) -> list[str]:
+    """Los SHA-256 de los seis CSV. El informe describe también lo que la corrida deja afuera
+    —honeypots, retests, rango declarado—, así que cambia donde los CSV no deben cambiar."""
     result = await pipeline.run(world.session, params(**kwargs), tmp_path / name, workers=1)  # type: ignore[arg-type]
-    return [f.sha256 for f in result.files]
+    return [f.sha256 for f in result.files if f.kind in writers.KINDS]
 
 
 async def test_ca408_la_misma_corrida_da_el_mismo_hash(world: World, tmp_path: Path) -> None:
+    """CA-408 y CA-415: los siete archivos, el informe incluido."""
     await populate(world)
-    first = await hashes(world, tmp_path, "uno")
-    second = await hashes(world, tmp_path, "dos")
-    assert first == second
+    first = await pipeline.run(world.session, params(), tmp_path / "uno", workers=1)
+    second = await pipeline.run(world.session, params(), tmp_path / "dos", workers=1)
+    assert len(first.files) == len(writers.KINDS) + 1
+    assert [f.sha256 for f in first.files] == [f.sha256 for f in second.files]
 
 
 async def test_en_paralelo_o_en_serie_da_lo_mismo(world: World, tmp_path: Path) -> None:
@@ -92,7 +96,7 @@ async def test_ca407_una_fila_de_exports_por_archivo(world: World, tmp_path: Pat
             )
         ).scalars()
     )
-    assert sorted(r.file_kind for r in rows) == sorted(writers.KINDS)
+    assert sorted(r.file_kind for r in rows) == sorted([*writers.KINDS, "quality_report"])
     for row in rows:
         assert row.patch_window == "90.20..90.20"
         assert row.min_trust_applied == Decimal("0.300")
@@ -101,7 +105,9 @@ async def test_ca407_una_fila_de_exports_por_archivo(world: World, tmp_path: Pat
         assert row.params["support_thresholds"] == DEFAULT_SUPPORT_THRESHOLDS
         assert len(row.sha256) == 64
     names = {p.name for p in (tmp_path / "x").iterdir()}
-    assert names == {f"{kind}_v90.20.csv" for kind in writers.KINDS}
+    assert names == {f"{kind}_v90.20.csv" for kind in writers.KINDS} | {
+        "data_quality_report_v90.20.md"
+    }
 
 
 async def test_el_rango_declarado_no_pondera(world: World, tmp_path: Path) -> None:

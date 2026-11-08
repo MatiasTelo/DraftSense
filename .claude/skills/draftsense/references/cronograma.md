@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 29/10/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 07/11/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -20,7 +20,7 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | **en curso** — panel como app local (ADR-025) en la rama `semana-7-panel-admin-local`, sin mergear; producción y worker pendientes por decisión del 21/10 |
 | 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | **tipos cerrados** el 29/10 en la rama `semana-8-9-tipos-4-5-y-agregacion`, sin mergear; **el piloto queda para el final**, en los servidores del laboratorio (decisión del alumno) |
 | 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | **cerrada** el 29/10 en la misma rama; el Informe de Calidad de Datos pasa a la semana 10 con el doc 27 |
-| 10 | 03/11 – 09/11 | Módulo de validación e Informe de Calidad de Datos | 12 | pendiente |
+| 10 | 03/11 – 09/11 | Módulo de validación e Informe de Calidad de Datos | 12 | **cerrada** el 07/11 en la rama `semana-10-validacion-y-calidad`, sin mergear; con dos correcciones de la prueba del alumno (idioma y feedback) |
 | 11 | 10/11 – 16/11 | Segunda oleada de recolección y exportación final de los CSV | 12 | pendiente |
 | 12 | 17/11 – 19/11 | Documentación técnica integrada y transferencia · **Informe Final** | 8 | pendiente |
 
@@ -162,6 +162,32 @@ los servidores del laboratorio. Decisiones del alumno, todas registradas:
   de soporte bajo. Sin scroll horizontal y todo lo que se toca mide 44 px o más. Encontró «Acerca
   de» partido en dos líneas en el pie y se corrigió.
 - **Pendiente:** el piloto, al final, en los servidores del laboratorio.
+
+**La semana 10, 07/11/2026**, en la rama `semana-10-validacion-y-calidad` (sale de `main` después
+del PR #8). Decisiones del alumno, todas registradas:
+
+- **`docs/27-validacion-confiabilidad.md` a v1.** Alfa de Krippendorff para **los cinco tipos**, con
+  umbrales 0,800 / 0,667 que **sólo se reportan**; test-retest, honeypots y trust por horas sobre los
+  no marcados **sin filtro de trust**; el cruce honeypot–retest por honeypot; cuartiles y ρ para el
+  trust por horas; «cobertura por par» definida; el informe en **español**.
+- **El bootstrap por respondedor se calcula, pero la decisión de 25 §4.7 queda para el piloto**
+  (nota del 07/11 en 25 §4.7).
+- **ADR-029:** cambiar de idioma **traduce** la cola (`GET /questions/queued`, 12 §2.8) en vez de
+  descartarla. Sustituye ADR-028 §5.
+- **ADR-030:** el feedback dura **4 s** y se saltea con un toque, `Enter` o `Espacio`; sin aviso.
+- **Pipeline:** `aggregation/quality/` y el paso 7 que escribe el informe. Los seis CSV no cambian
+  de hash: verificado contra el código de `main` con los mismos parámetros sobre la seed. La
+  corrida completa con B = 2000 pasó de ≈ 2,5 a ≈ 10–11 min.
+- **Panel:** la descarga sirve el informe como `text/markdown`.
+- **Tests:** backend 293 (antes 286), aggregation 46 (antes 35), admin backend 55, frontend 103
+  (antes 92), admin frontend 13, contra el Postgres 17 de Docker. Bundle 82 KB gzip.
+- **Prueba manual a 360 px, 07/11**, con Chrome contra la base de Docker: el ranking reordenado
+  sigue igual al pasar a ES; el feedback dura 4 007 ms sin tocar, se cierra con un toque y con
+  `Enter`. Encontró que `Enter` no salteaba con el foco en el *Confirm* deshabilitado, y se corrigió.
+- **Hallazgo de la seed sintética para revisar:** salvo el pico (0,769), todas las magnitudes dan
+  alfa «no confiable» (0,09 a 0,34).
+- **Los CSV de la base de Docker ya no dan los SHA-256 registrados el 29/10** con los mismos
+  parámetros, tampoco con el código de `main`: cambió algo en la base desde entonces, no el código.
 
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos

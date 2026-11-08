@@ -1,6 +1,7 @@
 # ADR-028 — El idioma lo elige la persona con un selector, y viaja como parámetro `lang`
 
-> Estado: **aceptada** · Fecha: 29/10/2026
+> Estado: **aceptada** · Fecha: 29/10/2026 · El punto 5 fue sustituido por
+> [ADR-029](ADR-029-cambiar-de-idioma-traduce-la-cola.md) el 07/11/2026
 
 ## Contexto
 

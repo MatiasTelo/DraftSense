@@ -1,6 +1,11 @@
 # 30 — Flujos e interfaz
 
-> Estado: **v1** · Última revisión: 08/10/2026
+> Estado: **v1** · Última revisión: 07/11/2026
+>
+> **07/11/2026:** dos correcciones de la prueba de la semana 9. El feedback dura 4 s y se saltea con
+> un toque, `Enter` o `Espacio` (§5.1, §10, [ADR-030](13-adr/ADR-030-feedback-de-cuatro-segundos.md)),
+> y cambiar de idioma traduce la tarjeta en vez de reemplazarla (§10,
+> [ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)).
 >
 > **08/10/2026:** mensaje nuevo para el soporte bajo, feedback por pares del tipo 1 y confirmación
 > en el tipo 1 (§5.1, §6, §9, §10), por las correcciones de la reunión del 05/10 con el tutor de la
@@ -207,6 +212,11 @@ nivel. Todo lo que se agregue ahí compite con la tarjeta.
 Al responder, la tarjeta no salta de inmediato: se superpone el resultado durante **1,2 segundos** y
 luego entra la siguiente.
 
+> **Cambiado el 07/11/2026** ([ADR-030](13-adr/ADR-030-feedback-de-cuatro-segundos.md)). El
+> resultado se superpone **4 segundos**. Un toque o un clic en cualquier parte del cartel, o `Enter`
+> o `Espacio` en escritorio, hace entrar la siguiente en ese momento. Vale para todas las variantes,
+> también la de soporte bajo. El cartel no dice que se puede tocar.
+
 ```
 ┌─────────────────────────────┐
 │      ✓  74% agree with you  │
@@ -403,8 +413,8 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
 | Registro | No hay | Máxima conversión ([ADR-001](13-adr/ADR-001-sin-autenticacion.md)) |
 | Onboarding | Al inicio, salteable | Segmentación completa desde la primera respuesta, con salida visible |
 | Confirmación de respuesta | Tipos 1, 2 y 5 | Los demás registran al primer toque; un ranking, un slider y una multi-selección no tienen "primer toque" que valga. El tipo 1 entró el 08/10/2026 (ADR-022) |
-| Duración del feedback | 1,2 s | Suficiente para leer el porcentaje, corto para no romper el ritmo |
+| Duración del feedback | ~~1,2 s~~ **4 s, y un toque lo saltea** desde el 07/11/2026 | Con el feedback por pares, las siete barras del tipo 5 y el mensaje de soporte bajo, 1,2 s no alcanzaba para leer; quien ya leyó toca ([ADR-030](13-adr/ADR-030-feedback-de-cuatro-segundos.md)) |
 | Orden del leaderboard | Cantidad de respuestas | Premiar acuerdo induciría a responder lo popular |
 | Trust score visible | No | Convertiría la calidad en una métrica a optimizar |
 | Deshacer una respuesta | No existe | `responses` es append-only y una corrección tardía es peor dato que la primera reacción |
-| Idioma, agregado el 29/10/2026 | Selector `EN \| ES` en `/` y en la barra superior de `/play`, recordado en el navegador; por defecto inglés | Lo elige la persona y no el navegador ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)). Cambiarlo descarta la cola de preguntas ya cargadas |
+| Idioma, agregado el 29/10/2026 | Selector `EN \| ES` en `/` y en la barra superior de `/play`, recordado en el navegador; por defecto inglés | Lo elige la persona y no el navegador ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)). ~~Cambiarlo descarta la cola de preguntas ya cargadas~~ Desde el 07/11/2026, cambiarlo **traduce** la cola: la tarjeta que se está mirando sigue siendo la misma, con lo que ya se movió ([ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)) |

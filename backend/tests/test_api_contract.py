@@ -69,8 +69,9 @@ async def test_todos_los_errores_usan_el_mismo_sobre(
 
 
 @requires_db
-async def test_la_openapi_expone_los_siete_endpoints(client: AsyncClient) -> None:
-    """El contrato publicado tiene que ser el de `docs/12-api.md` §2, sin los `/admin/*`."""
+async def test_la_openapi_expone_los_endpoints_publicos(client: AsyncClient) -> None:
+    """El contrato publicado tiene que ser el de `docs/12-api.md` §2, sin los `/admin/*`: los siete
+    de la semana 2 más `/questions/queued` (§2.8, ADR-029)."""
     from app.main import app
 
     paths = set(app.openapi()["paths"])
@@ -80,6 +81,7 @@ async def test_la_openapi_expone_los_siete_endpoints(client: AsyncClient) -> Non
         "/api/v1/sessions",
         "/api/v1/sessions/onboarding",
         "/api/v1/questions/next",
+        "/api/v1/questions/queued",
         "/api/v1/responses",
         "/api/v1/me",
         "/api/v1/leaderboard",

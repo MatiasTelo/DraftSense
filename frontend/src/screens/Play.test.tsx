@@ -4,10 +4,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { laneMatchup, pairwise, peakTiming } from '../test-fixtures';
+import { laneMatchup, pairwise, peakTiming, traitMultiselect } from '../test-fixtures';
 import { useQueue } from '../store/queue';
 import { useSession } from '../store/session';
-import { Play } from './Play';
+import { FEEDBACK_MS, Play } from './Play';
 
 vi.mock('../lib/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/client')>()),
@@ -240,13 +240,14 @@ describe('Play', () => {
 
       fireEvent.change(screen.getByRole('slider'), { target: { value: '35' } });
       fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+      // El feedback se saltea con un toque (ADR-030) en vez de esperar sus 4 s.
+      fireEvent.click(await screen.findByRole('status'));
+      // El avance dispara la precarga: se la deja resolver dentro de `act`.
+      await act(async () => {
+        await Promise.resolve();
+      });
 
-      await waitFor(
-        () => {
-          expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
-        },
-        { timeout: 2500 },
-      );
+      expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
       expect(screen.getByRole('slider')).toHaveValue('20');
     });
 
@@ -323,5 +324,131 @@ describe('Play', () => {
       expect(overlay).toHaveTextContent('Zed wins hard');
       expect(overlay).toHaveTextContent('25%');
     });
+  });
+
+  describe('feedback (ADR-030)', () => {
+    beforeEach(() => {
+      useQueue.setState({
+        questions: [peakTiming(1), peakTiming(2, 'Sett'), peakTiming(3, 'Lux')],
+        status: 'ready',
+      });
+      vi.mocked(postResponse).mockResolvedValue({
+        recorded: true,
+        feedback: null,
+        progress: PROGRESS,
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** Deja resolver el envío o la precarga que disparó lo último que se hizo. */
+    async function flush() {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+
+    /** Confirma la tarjeta de adelante y espera a que el feedback esté en pantalla. */
+    async function answer() {
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+      await flush();
+      expect(screen.getByRole('status')).toBeInTheDocument();
+    }
+
+    it('CA-511 — dura 4 s y después entra la tarjeta siguiente', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      renderPlay();
+      await answer();
+
+      act(() => {
+        vi.advanceTimersByTime(FEEDBACK_MS - 1);
+      });
+      expect(screen.getByRole('status')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      await flush();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
+    });
+
+    it('CA-511 — un toque lo saltea, y dos toques no saltean dos tarjetas', async () => {
+      renderPlay();
+      await answer();
+
+      const overlay = screen.getByRole('status');
+      fireEvent.click(overlay);
+      fireEvent.click(overlay);
+      await flush();
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
+    });
+
+    it('CA-511 — Enter y Espacio lo saltean; la tecla mantenida no', async () => {
+      renderPlay();
+      await answer();
+
+      fireEvent.keyDown(window, { key: 'Enter', repeat: true });
+      expect(screen.getByRole('status')).toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: ' ' });
+      await flush();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
+
+      await answer();
+      fireEvent.keyDown(window, { key: 'Enter' });
+      await flush();
+      expect(screen.getByRole('heading')).toHaveTextContent('When does Lux peak?');
+      // Saltear no registra nada: sólo se mandaron las dos respuestas.
+      expect(postResponse).toHaveBeenCalledTimes(2);
+    });
+
+    it('Enter lo saltea aunque el foco quede en el Confirm deshabilitado', async () => {
+      renderPlay();
+      const confirm = screen.getByRole('button', { name: 'Confirm' });
+      confirm.focus();
+      await answer();
+      expect(confirm).toBeDisabled();
+
+      fireEvent.keyDown(confirm, { key: 'Enter' });
+      await flush();
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading')).toHaveTextContent('When does Sett peak?');
+    });
+
+    it('una tecla cualquiera no lo saltea', async () => {
+      renderPlay();
+      await answer();
+
+      fireEvent.keyDown(window, { key: '1' });
+      fireEvent.keyDown(window, { key: 'a' });
+
+      expect(screen.getByRole('status')).toBeInTheDocument();
+    });
+  });
+
+  it('ADR-029 — la versión traducida de la tarjeta conserva lo que ya se marcó', () => {
+    useQueue.setState({ questions: [traitMultiselect(1), traitMultiselect(2)], status: 'ready' });
+    renderPlay();
+    fireEvent.click(screen.getByRole('button', { name: 'Poke' }));
+
+    // Es lo que hace `retranslate` al volver el servidor: mismo id, textos nuevos.
+    const translated = {
+      ...traitMultiselect(1),
+      prompt: '¿Qué hace bien Sett?',
+      subtitle: 'Elige todos los que correspondan.',
+    };
+    act(() => {
+      useQueue.setState({ questions: [translated, traitMultiselect(2)] });
+    });
+
+    expect(screen.getByRole('heading')).toHaveTextContent('¿Qué hace bien Sett?');
+    expect(screen.getByRole('button', { name: 'Poke' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

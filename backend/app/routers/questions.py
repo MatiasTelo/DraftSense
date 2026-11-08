@@ -1,4 +1,4 @@
-"""`GET /questions/next` (`docs/12-api.md` §2.3)."""
+"""`GET /questions/next` y `GET /questions/queued` (`docs/12-api.md` §2.3 y §2.8)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,9 @@ from fastapi import APIRouter, Query, status
 from app.dependencies import CurrentSessionDep, SessionDep
 from app.errors import ApiError
 from app.schemas.questions import QuestionBatch
+from app.services import queued as queued_service
 from app.services import sampler
-from app.services.question_texts import LANGS
+from app.services.question_texts import LANGS, Lang
 
 router = APIRouter(prefix="/questions", tags=["questions"])
 
@@ -69,6 +70,13 @@ async def next_questions(
             status.HTTP_400_BAD_REQUEST,
             "queued",
         ) from exc
+    batch = await sampler.next_batch(
+        session, current.respondent, count, queued=queued_ids, lang=_language(lang)
+    )
+    return QuestionBatch(questions=batch)
+
+
+def _language(lang: str) -> Lang:
     language = next((code for code in LANGS if code == lang), None)
     if language is None:
         raise ApiError(
@@ -77,7 +85,33 @@ async def next_questions(
             status.HTTP_400_BAD_REQUEST,
             "lang",
         )
-    batch = await sampler.next_batch(
-        session, current.respondent, count, queued=queued_ids, lang=language
+    return language
+
+
+@router.get("/queued", response_model=QuestionBatch)
+async def queued_questions(
+    session: SessionDep,
+    current: CurrentSessionDep,
+    ids: Annotated[str | None, Query()] = None,
+    lang: Annotated[str, Query()] = "en",
+) -> QuestionBatch:
+    """Las preguntas de la cola, armadas en otro idioma (`docs/12-api.md` §2.8, ADR-029).
+
+    Es lo que usa el selector de idioma para que la tarjeta que se está mirando no cambie. **No
+    pasa por el sampler ni escribe nada**: ver `app/services/queued.py`.
+    """
+    try:
+        question_ids = parse_queued(ids)
+    except ValueError:
+        question_ids = []
+    if not question_ids:
+        raise ApiError(
+            "invalid_parameter",
+            f"ids must be a comma-separated list of 1 to {MAX_QUEUED} question ids",
+            status.HTTP_400_BAD_REQUEST,
+            "ids",
+        )
+    batch = await queued_service.rerender(
+        session, current.respondent, question_ids, _language(lang)
     )
     return QuestionBatch(questions=batch)

@@ -61,7 +61,10 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Qué significa una columna del CSV, su rango y su origen | `26-esquema-de-salida.md` §3, §4, §5 |
 | Las convenciones de nombres y valores faltantes del CSV | `26-esquema-de-salida.md` §2 |
 | Cómo consume el laboratorio los archivos | `26-esquema-de-salida.md` §6 |
-| Krippendorff, test-retest, cobertura, Informe de Calidad de Datos | `27-validacion-confiabilidad.md` — **pendiente** |
+| Krippendorff, test-retest, honeypots, cobertura, las dos versiones del IC, segmentos | `27-validacion-confiabilidad.md` §2 a §8 |
+| Qué contiene el Informe de Calidad de Datos y en qué orden | `27-validacion-confiabilidad.md` §9 |
+| Re-armar la cola en otro idioma (`GET /questions/queued`) | `12-api.md` §2.8, `13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md` |
+| Cuánto dura el feedback y cómo se saltea | `30-ux-flujos.md` §5.1, `13-adr/ADR-030-feedback-de-cuatro-segundos.md` |
 | El wireframe, los estados o el microcopy de una pantalla | `30-ux-flujos.md` §3 a §7 (una por ruta) |
 | Decisiones de interfaz ya cerradas | `30-ux-flujos.md` §10 |
 | Un ejemplo ejecutable de los seis CSV, columna por columna | `examples/README.md` |
@@ -87,7 +90,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `25-agregacion.md` | v1 |
 | `26-esquema-de-salida.md` | **v2** (08/10: formato largo) |
 | `examples/` | **v2** |
-| `27-validacion-confiabilidad.md` | **pendiente** — desbloquea la semana 10 |
+| `27-validacion-confiabilidad.md` | **v1** (07/11, semana 10) |
 | `30-ux-flujos.md` | v1 |
 | `31-plan-de-pruebas.md` | **pendiente** |
 | `32-despliegue.md` | **pendiente** |

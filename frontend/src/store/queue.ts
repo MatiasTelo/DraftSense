@@ -13,8 +13,9 @@
 import { create } from 'zustand';
 
 import type { Question } from '../api';
-import { ApiError, NetworkError, fetchQuestions } from '../lib/client';
+import { ApiError, NetworkError, fetchQueuedQuestions, fetchQuestions } from '../lib/client';
 import { useLang } from './lang';
+import type { Lang } from './lang';
 
 /** Con cuántas preguntas restantes se pide el próximo lote. */
 export const PREFETCH_AT = 2;
@@ -32,6 +33,11 @@ interface QueueState {
   /** Descarta la pregunta de adelante y precarga si hace falta. */
   advance: () => void;
   reset: () => void;
+  /**
+   * Re-arma la cola en `lang` sin cambiar de pregunta (ADR-029). Se llama **después** de cambiar
+   * el idioma, para que la precarga que dispare ya pida el nuevo.
+   */
+  retranslate: (lang: Lang) => Promise<void>;
 }
 
 /**
@@ -101,5 +107,40 @@ export const useQueue = create<QueueState>((set, get) => ({
     generation += 1;
     inFlight = null;
     set({ questions: [], status: 'idle', error: null });
+  },
+
+  async retranslate(lang) {
+    // El lote que estuviera en vuelo se pidió en el idioma anterior: se descarta, y la precarga de
+    // abajo lo vuelve a pedir en el nuevo.
+    const wasLoading = inFlight !== null;
+    generation += 1;
+    inFlight = null;
+    const ids = get().questions.map((q) => q.question_id);
+    if (ids.length === 0) {
+      set({ questions: [], status: 'idle', error: null });
+      return;
+    }
+    const started = generation;
+    try {
+      const batch = await fetchQueuedQuestions(ids, lang);
+      if (started !== generation) return;
+      const translated = new Map(batch.questions.map((q) => [q.question_id, q]));
+      const asked = new Set(ids);
+      set((state) => {
+        // Se reemplaza por id sobre la cola de ahora, no la de antes del pedido: si mientras
+        // tanto se contestó la de adelante, ya no está. Las que el servidor omitió salen.
+        const questions = state.questions.flatMap((q) => {
+          const fresh = translated.get(q.question_id);
+          if (fresh !== undefined) return [fresh];
+          return asked.has(q.question_id) ? [] : [q];
+        });
+        return { questions, status: questions.length === 0 ? 'idle' : 'ready' };
+      });
+    } catch {
+      // Si falla, la cola queda como estaba, en el idioma anterior: perder la pregunta que se
+      // está mirando es justo lo que ADR-029 quiere evitar.
+      if (started !== generation) return;
+    }
+    if (wasLoading || get().questions.length <= PREFETCH_AT) void get().fetchMore();
   },
 }));

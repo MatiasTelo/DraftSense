@@ -74,13 +74,25 @@ El prefijo no es cosmético: `26-esquema-de-salida.md` §2.2 explica por qué. N
 
 ## Validación de confiabilidad
 
-Alfa de Krippendorff por dimensión, consistencia test-retest, pass-rate de honeypots, cobertura por
-par, ancho medio del intervalo y estabilidad entre segmentos de rango.
+`docs/27-validacion-confiabilidad.md`, **v1** desde el 07/11. Dónde está cada cosa:
 
-**`docs/27-validacion-confiabilidad.md` todavía no está escrito.** Es de la ola 4 y desbloquea la
-semana 10. Se redacta **antes** de implementar lo que describe. La estabilidad por segmento de rango
-sí está especificada, en §3.5, con sus pisos: `segment_min_respondents` (15) y
-`segment_min_comparisons` (300).
+| Qué | Sección | Código |
+|---|---|---|
+| Sobre qué población se mide cada parte | §1.1 | `quality/data.py` |
+| Alfa de Krippendorff: fórmula, unidad, valor y escala por magnitud, umbrales | §2 | `quality/krippendorff.py`, `quality/agreement.py` |
+| Test-retest con las reglas de 22 §4 | §3 | `quality/metrics.py` |
+| Honeypots: *pass rate*, por segmento y el cruce con el retest | §4 | `quality/metrics.py` |
+| Cobertura por par, por soporte, conectividad | §5 | `quality/metrics.py` |
+| Ancho medio, las dos versiones del bootstrap, concentración | §6 | `fits.fit_dimension_by_respondent`, `quality/metrics.py` |
+| Datos declarados: muestra, segmentos, cobertura por rol, trust por horas | §7 | `quality/segments.py`, `quality/metrics.py` |
+| El archivo, su orden y sus advertencias | §9 | `quality/report.py` |
+
+**Dos cosas que se rompen en silencio.** La orientación del par en el alfa (si la pregunta puso
+primero al de mayor id, el nivel se espeja) y, en el tipo 1, que el valor sea **el lado** y no el
+id del campeón: con el id, el desacuerdo esperado sale inflado. Los dos tienen test.
+
+Los pisos de la estabilidad por segmento siguen siendo los de 25 §3.5: `segment_min_respondents`
+(15) y `segment_min_comparisons` (300).
 
 ## Parámetros
 
