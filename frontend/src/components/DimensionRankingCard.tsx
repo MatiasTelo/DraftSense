@@ -125,7 +125,7 @@ export function DimensionRankingCard({
           type="button"
           disabled={disabled}
           onClick={() => onAnswer({ choice: 'unknown' })}
-          className="flex h-[54px] w-2/5 shrink-0 items-center justify-center border border-white/12 text-[13px] font-medium tracking-[0.04em] text-mute hover:text-ink-3 disabled:opacity-60"
+          className="flex h-[54px] w-2/5 shrink-0 cursor-pointer items-center justify-center border border-white/12 text-[13px] font-medium tracking-[0.04em] text-mute transition-[background-color,border-color,color,transform,scale] duration-150 ease-out-quart enabled:hover:border-edge-strong enabled:hover:bg-control enabled:hover:text-ink-3 enabled:active:scale-[0.98] disabled:cursor-default disabled:opacity-60"
         >
           {question.unknown_label}
         </button>
@@ -145,6 +145,10 @@ export function DimensionRankingCard({
  *
  * Toda la fila es el asa y no sólo el `≡`: a 360 px el asa sola quedaría por debajo de los 44 px de
  * área táctil. `touch-none` evita que el navegador interprete el arrastre como scroll.
+ *
+ * El `transform` del `<li>` es de `@dnd-kit`, que lo escribe en `style` en cada cuadro del
+ * arrastre. Por eso lo visual va en un `<div>` interno: la fila que se arrastra se «levanta»
+ * escalando ese `div`, y una clase de escala sobre el `<li>` quedaría pisada (ADR-032).
  */
 function RankRow({
   champion,
@@ -167,20 +171,33 @@ function RankRow({
       {...attributes}
       {...listeners}
       aria-label={`${rank}. ${champion.name}`}
-      className={`flex h-[52px] touch-none items-center gap-3 border bg-panel px-3 select-none ${
-        isDragging ? 'z-10 border-gold' : 'border-white/7'
-      } ${disabled ? 'opacity-60' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`group relative touch-none select-none ${isDragging ? 'z-10' : ''} ${
+        disabled ? 'opacity-60' : 'cursor-grab active:cursor-grabbing'
+      }`}
     >
-      <span className="w-5 shrink-0 text-center font-mono text-sm font-semibold text-gold">
-        {rank}
-      </span>
-      <ChampionPortrait champion={champion} size={40} bevel="bevel-12" />
-      <span className="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-[0.04em] text-ink">
-        {champion.name}
-      </span>
-      <span aria-hidden="true" className="shrink-0 text-lg text-mute">
-        ≡
-      </span>
+      <div
+        className={`flex h-[52px] items-center gap-3 border px-3 transition-[background-color,border-color,transform,scale] duration-150 ease-out-quart ${
+          isDragging
+            ? 'scale-[1.02] border-gold bg-control'
+            : `border-white/7 bg-panel ${disabled ? '' : 'group-hover:border-gold/40 group-hover:bg-control'}`
+        }`}
+      >
+        <span className="w-5 shrink-0 text-center font-mono text-sm font-semibold text-gold">
+          {rank}
+        </span>
+        <ChampionPortrait champion={champion} size={40} bevel="bevel-12" />
+        <span className="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-[0.04em] text-ink">
+          {champion.name}
+        </span>
+        <span
+          aria-hidden="true"
+          className={`shrink-0 text-lg transition-colors duration-150 ${
+            isDragging ? 'text-gold' : `text-mute ${disabled ? '' : 'group-hover:text-gold'}`
+          }`}
+        >
+          ≡
+        </span>
+      </div>
     </li>
   );
 }

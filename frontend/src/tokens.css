@@ -64,6 +64,80 @@
   --color-band-low: #2a5a94;
   --color-band-mid: #3f7fcf;
   --color-band-high: #7fb4f5;
+
+  /* Movimiento (ADR-032). Sólo CSS: el presupuesto de RNF-03 no paga una librería de animación.
+     Las entradas duran 250 ms o menos y nunca bloquean la respuesta; `prefers-reduced-motion` las
+     apaga desde `index.css`. La duración de `drain` no está acá: la pone `FeedbackOverlay` con
+     `FEEDBACK_MS`, para que la barra y el temporizador no puedan separarse. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-fade-in: fade-in 180ms var(--ease-out-quart) both;
+  --animate-card-in: card-in 220ms var(--ease-out-quart) both;
+  --animate-rise: rise 240ms var(--ease-out-quart) both;
+  --animate-pop-in: pop-in 220ms var(--ease-out-back) both;
+  --animate-bar-fill: bar-fill 450ms var(--ease-out-quart) both;
+  --animate-drain: drain linear both;
+  --animate-drift: drift 18s ease-in-out infinite alternate;
+  --animate-line-grow: line-grow 420ms var(--ease-out-quart) both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+  }
+
+  /* Se anima la escala y no el ancho: el ancho real lo pone el componente en `style`. */
+  @keyframes bar-fill {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes drain {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes drift {
+    from {
+      transform: translate3d(-6%, -2%, 0) scale(1);
+    }
+    to {
+      transform: translate3d(6%, 3%, 0) scale(1.08);
+    }
+  }
+
+  @keyframes line-grow {
+    from {
+      transform: scaleX(0);
+    }
+  }
 }
 
 /**

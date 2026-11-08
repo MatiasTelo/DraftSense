@@ -93,8 +93,8 @@ export function TraitMultiselectCard({ question, onConfirm, disabled }: Props) {
           return (
             <div
               key={trait.code}
-              className={`flex border ${wide ? 'col-span-2' : ''} ${
-                pressed ? 'border-gold bg-gold/12' : 'border-edge bg-control'
+              className={`flex border transition-[background-color,border-color] duration-150 ease-out-quart ${wide ? 'col-span-2' : ''} ${
+                pressed ? 'border-gold bg-gold/12' : 'border-edge bg-control hover:border-edge-strong hover:bg-rail'
               }`}
             >
               <button
@@ -102,12 +102,17 @@ export function TraitMultiselectCard({ question, onConfirm, disabled }: Props) {
                 aria-pressed={pressed}
                 disabled={disabled}
                 onClick={() => setSelected((current) => toggled(current, trait.code))}
-                className={`flex min-h-[52px] flex-1 items-center gap-2 px-3 text-left text-[14px] leading-tight disabled:opacity-60 ${
+                className={`flex min-h-[52px] flex-1 cursor-pointer items-center gap-2 px-3 text-left text-[14px] leading-tight transition-[color,transform,scale] duration-150 enabled:active:scale-[0.98] disabled:cursor-default disabled:opacity-60 ${
                   pressed ? 'font-semibold text-gold-bright' : 'font-medium text-ink-3'
                 }`}
               >
+                {/* La `key` hace que el ✓ entre con un pop cada vez que se marca. */}
                 <span aria-hidden="true" className="w-3 shrink-0 text-gold">
-                  {pressed ? '✓' : ''}
+                  {pressed && (
+                    <span key={trait.code} className="inline-block animate-pop-in">
+                      ✓
+                    </span>
+                  )}
                 </span>
                 {trait.label}
               </button>
@@ -116,8 +121,8 @@ export function TraitMultiselectCard({ question, onConfirm, disabled }: Props) {
                 onClick={() => setHelpFor((current) => (current === trait.code ? null : trait.code))}
                 aria-expanded={helpFor === trait.code}
                 aria-label={t.play.whatItMeans(trait.label)}
-                className={`flex w-11 shrink-0 items-center justify-center font-mono text-[13px] font-semibold ${
-                  helpFor === trait.code ? 'text-cyan' : 'text-mute'
+                className={`flex w-11 shrink-0 cursor-pointer items-center justify-center font-mono text-[13px] font-semibold transition-colors duration-150 ${
+                  helpFor === trait.code ? 'text-cyan' : 'text-mute hover:text-ink-3'
                 }`}
               >
                 ?

@@ -47,12 +47,12 @@ export function QuestionPrompt({ prompt, subtitle, help, open, onToggle, size = 
             onClick={onToggle}
             aria-expanded={open}
             aria-label={t.play.whatItMeans(help.label)}
-            className="-m-1 flex size-11 shrink-0 items-center justify-center"
+            className="group -m-1 flex size-11 shrink-0 cursor-pointer items-center justify-center"
           >
             <span
               aria-hidden="true"
-              className={`flex size-9 items-center justify-center rounded-full border font-mono text-[15px] font-semibold ${
-                open ? 'border-cyan text-cyan' : 'border-edge-strong text-mute'
+              className={`flex size-9 items-center justify-center rounded-full border font-mono text-[15px] font-semibold transition-[border-color,color,transform,scale] duration-150 ease-out-quart group-active:scale-90 ${
+                open ? 'border-cyan text-cyan' : 'border-edge-strong text-mute group-hover:border-cyan/60 group-hover:text-ink-3'
               }`}
             >
               ?

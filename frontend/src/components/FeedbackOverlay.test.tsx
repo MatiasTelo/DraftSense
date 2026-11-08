@@ -207,4 +207,22 @@ describe('FeedbackOverlay', () => {
     expect(screen.getByText('4%')).not.toHaveClass('text-gold');
     expect(overlay).toHaveTextContent('23 answers');
   });
+
+  it('ADR-032 — la barra de tiempo se vacía en la duración del cartel y no dice nada', () => {
+    render(
+      <FeedbackOverlay feedback={null} labels={LABELS} yourKey="a" streak={1} durationMs={4000} />,
+    );
+
+    const timer = screen.getByTestId('feedback-timer');
+    expect(timer).toHaveStyle({ animationDuration: '4000ms' });
+    // Es sólo una línea: no anuncia que se puede tocar (ADR-030, punto 5).
+    expect(timer).toHaveAttribute('aria-hidden', 'true');
+    expect(timer).toBeEmptyDOMElement();
+  });
+
+  it('sin duración no hay barra de tiempo', () => {
+    render(<FeedbackOverlay feedback={null} labels={LABELS} yourKey="a" streak={1} />);
+
+    expect(screen.queryByTestId('feedback-timer')).not.toBeInTheDocument();
+  });
 });

@@ -48,8 +48,10 @@ export function Leaderboard() {
   const phrase = t.leaderboard.phrases[range];
 
   return (
-    <AppFrame>
-      <TopBar streak={counters.current_streak} answers={counters.answers_count} />
+    <AppFrame
+      header={<TopBar streak={counters.current_streak} answers={counters.answers_count} />}
+      footer={<BottomNav />}
+    >
 
       <main className="flex flex-1 flex-col">
         <div className="flex gap-2 px-[22px] pt-6 pb-4">
@@ -59,10 +61,10 @@ export function Leaderboard() {
               type="button"
               onClick={() => setRange(value)}
               aria-pressed={range === value}
-              className={`flex min-h-11 items-center px-3.5 font-mono text-xs tracking-[0.1em] uppercase ${
+              className={`flex min-h-11 cursor-pointer items-center px-3.5 font-mono text-xs tracking-[0.1em] uppercase transition-[background-color,border-color,color,transform,scale] duration-150 ease-out-quart active:scale-[0.96] ${
                 range === value
                   ? 'bg-gold font-semibold text-surface'
-                  : 'border border-edge font-medium text-label'
+                  : 'border border-edge font-medium text-label hover:border-edge-strong hover:text-ink-3'
               }`}
             >
               {t.leaderboard.windows[value]}
@@ -112,7 +114,6 @@ export function Leaderboard() {
         </div>
       </main>
 
-      <BottomNav />
     </AppFrame>
   );
 }

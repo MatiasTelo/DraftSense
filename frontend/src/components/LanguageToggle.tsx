@@ -41,8 +41,8 @@ export function LanguageToggle() {
             type="button"
             onClick={() => choose(code)}
             aria-pressed={lang === code}
-            className={`flex min-h-11 min-w-11 items-center justify-center font-mono text-xs font-semibold tracking-[0.14em] uppercase ${
-              lang === code ? 'text-gold' : 'text-label'
+            className={`flex min-h-11 min-w-11 cursor-pointer items-center justify-center font-mono text-xs font-semibold tracking-[0.14em] uppercase transition-colors duration-150 ${
+              lang === code ? 'text-gold' : 'text-label hover:text-ink-3'
             }`}
           >
             {code}

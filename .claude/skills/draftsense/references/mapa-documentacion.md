@@ -65,6 +65,8 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Qué contiene el Informe de Calidad de Datos y en qué orden | `27-validacion-confiabilidad.md` §9 |
 | Re-armar la cola en otro idioma (`GET /questions/queued`) | `12-api.md` §2.8, `13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md` |
 | Cuánto dura el feedback y cómo se saltea | `30-ux-flujos.md` §5.1, `13-adr/ADR-030-feedback-de-cuatro-segundos.md` |
+| Layout de escritorio contra celular | `30-ux-flujos.md` §9, `13-adr/ADR-031-escritorio-como-caso-principal.md` |
+| Animaciones: qué se mueve, con qué y cómo se apaga | `30-ux-flujos.md` §9, `13-adr/ADR-032-movimiento-solo-con-css.md` |
 | El wireframe, los estados o el microcopy de una pantalla | `30-ux-flujos.md` §3 a §7 (una por ruta) |
 | Decisiones de interfaz ya cerradas | `30-ux-flujos.md` §10 |
 | Un ejemplo ejecutable de los seis CSV, columna por columna | `examples/README.md` |

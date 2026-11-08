@@ -1,6 +1,11 @@
 # 30 — Flujos e interfaz
 
-> Estado: **v1** · Última revisión: 07/11/2026
+> Estado: **v1** · Última revisión: 08/11/2026
+>
+> **08/11/2026:** el escritorio pasa a ser el caso principal, con el contenido en un panel centrado
+> y la navegación arriba (§5, §9, [ADR-031](13-adr/ADR-031-escritorio-como-caso-principal.md)), y
+> la interfaz suma movimiento hecho sólo con CSS, incluida una barra de tiempo en el feedback
+> (§5.1, §9, [ADR-032](13-adr/ADR-032-movimiento-solo-con-css.md)).
 >
 > **07/11/2026:** dos correcciones de la prueba de la semana 9. El feedback dura 4 s y se saltea con
 > un toque, `Enter` o `Espacio` (§5.1, §10, [ADR-030](13-adr/ADR-030-feedback-de-cuatro-segundos.md)),
@@ -195,6 +200,11 @@ nivel. Todo lo que se agregue ahí compite con la tarjeta.
 > ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)), por decisión del alumno: es la excepción
 > deliberada a «nada más», porque es el único lugar desde donde se cambia sin salir del juego. Va
 > entre la racha y el contador, con el idioma activo resaltado y cada opción de 44 px.
+
+> **Agregado el 08/11/2026** ([ADR-031](13-adr/ADR-031-escritorio-como-caso-principal.md)). En
+> escritorio (≥ 1024 px) la barra superior va a lo ancho de la ventana, con la marca `Draftsense` a
+> la izquierda y los tres destinos de la barra inferior a la derecha; la barra inferior no se
+> muestra. La tarjeta queda en un panel de hasta 720 px centrado en la ventana.
 >
 > Las tarjetas de la semana 8, sobre los wireframes de [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md):
 >
@@ -216,6 +226,11 @@ luego entra la siguiente.
 > resultado se superpone **4 segundos**. Un toque o un clic en cualquier parte del cartel, o `Enter`
 > o `Espacio` en escritorio, hace entrar la siguiente en ese momento. Vale para todas las variantes,
 > también la de soporte bajo. El cartel no dice que se puede tocar.
+
+> **Agregado el 08/11/2026** ([ADR-032](13-adr/ADR-032-movimiento-solo-con-css.md)). Al pie del
+> cartel, una línea dorada se vacía durante los 4 s: muestra que la tarjeta siguiente va a entrar
+> sola, sin texto y sin decir que se puede tocar. Las barras de consenso se llenan desde cero al
+> aparecer. Con movimiento reducido, la línea no se muestra.
 
 ```
 ┌─────────────────────────────┐
@@ -381,8 +396,15 @@ una pérdida ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
 
 ## 9. Accesibilidad y diseño responsivo
 
-- **Móvil primero.** El diseño base es de 360 px de ancho; el escritorio es el caso derivado, con la
-  tarjeta centrada y ancho máximo de 640 px.
+- ~~**Móvil primero.** El diseño base es de 360 px de ancho; el escritorio es el caso derivado, con
+  la tarjeta centrada y ancho máximo de 640 px.~~ **Desde el 08/11/2026, escritorio primero**
+  ([ADR-031](13-adr/ADR-031-escritorio-como-caso-principal.md)): a partir de 1024 px el contenido
+  es un panel de hasta 720 px centrado en la ventana y la navegación va arriba. Debajo de 1024 px se
+  ve como antes —columna de hasta 640 px, barra inferior— y 360 px sigue siendo requisito (RNF-06).
+- **Movimiento sólo con CSS** ([ADR-032](13-adr/ADR-032-movimiento-solo-con-css.md)), agregado el
+  08/11/2026: los controles responden al puntero y a la presión, y las pantallas, las tarjetas y el
+  feedback entran con transiciones de 250 ms o menos que nunca bloquean la respuesta. Con
+  `prefers-reduced-motion: reduce` todo queda quieto.
 - **Área táctil mínima de 44 px** en toda opción seleccionable.
 - **Contraste AA** en todo texto sobre fondo.
 - **Navegación por teclado** en escritorio: `1`–`5` seleccionan opción, `?` abre la definición,

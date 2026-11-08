@@ -58,12 +58,12 @@ function Chip({ label, selected, onClick, mono }: ChipProps) {
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`flex min-h-11 items-center border px-3.5 text-[13px] ${
+      className={`flex min-h-11 cursor-pointer items-center border px-3.5 text-[13px] transition-[background-color,border-color,color,transform,scale] duration-150 ease-out-quart active:scale-[0.96] ${
         mono === true ? 'min-w-16 justify-center font-mono' : ''
       } ${
         selected
           ? 'border-gold bg-gold/12 font-semibold text-gold-bright'
-          : 'border-edge bg-control font-medium text-ink-3'
+          : 'border-edge bg-control font-medium text-ink-3 hover:border-edge-strong hover:bg-rail hover:text-ink'
       }`}
     >
       {label}
@@ -127,7 +127,7 @@ export function Onboarding() {
             type="button"
             onClick={() => void submit(true)}
             disabled={sending}
-            className="-my-1.5 flex min-h-11 min-w-11 items-center justify-center px-1 font-mono text-xs font-semibold tracking-[0.14em] text-gold uppercase"
+            className="-my-1.5 flex min-h-11 min-w-11 cursor-pointer items-center justify-center px-1 font-mono text-xs font-semibold tracking-[0.14em] text-gold uppercase transition-colors duration-150 enabled:hover:text-gold-bright disabled:cursor-default"
           >
             {t.onboarding.skip}
           </button>

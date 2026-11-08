@@ -7,7 +7,8 @@ description: >-
   tipos del contrato con la API, tests de componente o configuración de Vite/ESLint/TypeScript.
   Activar también ante las pantallas del sistema (`/`, `/start`, `/play`, `/me`, `/leaderboard`),
   el motor de tarjetas de pregunta, la unión discriminada por `type`, el feedback post-respuesta,
-  mobile-first, accesibilidad, o el presupuesto de bundle de 200 KB gzip. Complementa a `draftsense`
+  el layout de escritorio, las animaciones, mobile, accesibilidad, o el presupuesto de bundle de
+  200 KB gzip. Complementa a `draftsense`
   (alcance y ruteo a la documentación): los wireframes y el microcopy se leen de
   `docs/30-ux-flujos.md` y el contrato de `docs/12-api.md`; esta skill dice CÓMO escribir el código
   que los implementa.
@@ -15,8 +16,12 @@ description: >-
 
 # Frontend de DraftSense
 
-SPA de una sola página, **mobile-first**: la mayoría del tráfico esperado viene de teléfonos, porque
-la difusión es por Reddit y Discord.
+SPA de una sola página, **escritorio primero desde el 08/11/2026**
+([ADR-031](../../../docs/13-adr/ADR-031-escritorio-como-caso-principal.md)): se espera que la mayoría
+responda desde una PC. A partir de `lg` (1024 px) `AppFrame` pone el contenido en un panel de hasta
+720 px centrado en la ventana y la navegación sube a `TopBar`; debajo de `lg` se ve como antes
+—columna de 640 px y `BottomNav`— y **360 px sigue siendo requisito** (RNF-06). Las tarjetas no
+cambian por dentro entre un tamaño y otro.
 
 ## Estado actual
 
@@ -64,6 +69,16 @@ Cosas de las semanas 4 y 5 que no hay que deshacer:
 - **Toda cosa que se toca mide 44 px**, también el `?` de ayuda (un botón de 44 con el círculo de
   36 adentro), `Skip` y las pestañas del leaderboard. Se corrigió al cerrar la semana 4
   (`docs/30-ux-flujos.md` §9).
+- **El movimiento es sólo CSS** ([ADR-032](../../../docs/13-adr/ADR-032-movimiento-solo-con-css.md),
+  08/11). Los `@keyframes` y `--animate-*` viven en el `@theme` de `tokens.css`; `index.css` los
+  apaga con `prefers-reduced-motion`. Ninguna animación bloquea la respuesta. Dos trampas:
+  Tailwind v4 aplica `scale-*` con la propiedad `scale`, así que una lista
+  `transition-[…]` tiene que nombrarla además de `transform`; y el `transform` de una fila del
+  ranking es de `@dnd-kit`, por eso la escala al arrastrar va en el `div` interno de `RankRow`.
+- **La barra de tiempo del feedback dura `FEEDBACK_MS`**, que `Play` le pasa como `durationMs`:
+  una sola constante para el cartel y la línea. No dice que se puede tocar (ADR-030).
+- **La entrada de la tarjeta depende de la `key={question_id}`**: `QuestionCard` anima al montar,
+  así que cambiar de idioma (ADR-029, misma key) no la re-anima.
 - **`FeedbackOverlay` tiene dos layouts.** `inline` es el del maquetado del tipo 1; `stacked` pone
   la barra debajo de la etiqueta, porque «Nunu & Willump wins slightly» no entra en 78 px. El
   tipo 2 no tiene barras: dice la mediana en una frase.

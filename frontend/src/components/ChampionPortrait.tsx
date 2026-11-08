@@ -7,6 +7,9 @@
  * sigue siendo respondible, porque debajo va el nombre.
  *
  * El `alt` lleva el nombre del campeón, no «retrato de»: es lo que la persona necesita oír (§9).
+ *
+ * Entra con un *pop* y responde al puntero con borde dorado y un acercamiento leve (ADR-032). Sin
+ * sombra: el bisel es un `clip-path` y la recortaría.
  */
 
 import { useState } from 'react';
@@ -39,7 +42,7 @@ export function ChampionPortrait({ champion, size, bevel }: Props) {
         role="img"
         aria-label={champion.name}
         style={box}
-        className={`portrait-hatch ${bevel} flex items-center justify-center border border-edge font-display text-2xl text-mute`}
+        className={`portrait-hatch ${bevel} flex animate-pop-in items-center justify-center border border-edge font-display text-2xl text-mute`}
       >
         {initials(champion.name)}
       </div>
@@ -52,7 +55,7 @@ export function ChampionPortrait({ champion, size, bevel }: Props) {
       alt={champion.name}
       style={box}
       onError={() => setFailed(true)}
-      className={`${bevel} border border-edge object-cover`}
+      className={`${bevel} animate-pop-in border border-edge object-cover transition-[transform,scale,border-color] duration-200 ease-out-quart hover:scale-105 hover:border-gold/70`}
     />
   );
 }

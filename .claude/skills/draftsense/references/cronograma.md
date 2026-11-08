@@ -189,6 +189,20 @@ del PR #8). Decisiones del alumno, todas registradas:
 - **Los CSV de la base de Docker ya no dan los SHA-256 registrados el 29/10** con los mismos
   parámetros, tampoco con el código de `main`: cambió algo en la base desde entonces, no el código.
 
+**08/11/2026, mejoras de UX/UI** pedidas por el alumno, sin cambiar el contrato ni el backend:
+
+- **ADR-031:** escritorio primero. Panel de hasta 720 px centrado y navegación arriba desde 1024 px;
+  el celular queda como estaba.
+- **ADR-032:** movimiento sólo con CSS (botones, opciones, entrada de pantallas y tarjetas,
+  feedback con barras que se llenan y una barra de tiempo de 4 s, fondo del landing), apagado con
+  `prefers-reduced-motion`. Sin texto nuevo ni dependencias: bundle 84 KB gzip.
+- **Tests:** frontend 108 (antes 103).
+- **Prueba manual en Chrome con la API simulada** (Docker no estaba levantado): tipos 1, 3, 4 y 5
+  en escritorio, con arrastre, feedback y salteo; a 1366 × 657 (el área útil de una pantalla de 768)
+  los tipos 1 y 5 entran sin scroll, después de bajar el margen vertical del panel; 360 px igual
+  que antes y sin scroll horizontal. **Pendiente:** recorrerlo contra la base de Docker, el tipo 2
+  y el movimiento reducido.
+
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos
 destinos muertos. La semana 6 queda entonces con el versionado por parche, el ajuste de
