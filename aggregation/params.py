@@ -44,6 +44,23 @@ class RunParams:
     tol: float
     support_thresholds: dict[str, dict[str, dict[str, float]]]
 
+    def __post_init__(self) -> None:
+        """Los rangos sin los que la corrida se rompe a mitad de camino (§8.1, nota del 13/11).
+
+        Vale para el CLI y para el panel, que arman los parámetros por acá. Con `halflife = 0` el
+        peso divide por cero; con `min_trust = 0` entra quien tiene trust 0, su respuesta pesa
+        cero —lo que §2.1 excluye: «ninguna respuesta admitida pesa cero»— y un campeón que sólo
+        tenga de esas divide por la suma de pesos.
+        """
+        if not 0 < self.min_trust <= 1:
+            raise ValueError("min_trust va entre 0 y 1, sin el 0")
+        if not self.halflife > 0:
+            raise ValueError("la vida media (halflife) tiene que ser mayor que 0")
+        if not self.sigma > 0:
+            raise ValueError("sigma tiene que ser mayor que 0")
+        if self.bootstrap < 1:
+            raise ValueError("bootstrap tiene que ser un entero positivo")
+
     @property
     def patch_window(self) -> str:
         return f"{self.patch_from}..{self.patch_to}"
@@ -130,7 +147,9 @@ async def resolve(
             if bootstrap is not None
             else await get(session, "aggregation.bootstrap_samples", 2000)
         ),
-        exported_at=exported_at or dt.date.today(),
+        # En UTC, como la fecha de cada respuesta en `load.weight`: con la fecha local, una
+        # corrida nocturna en UTC−3 quedaba un día atrás de las respuestas de esa noche.
+        exported_at=exported_at or dt.datetime.now(dt.UTC).date(),
         bt_prior=float(await get(session, "aggregation.bt_prior", 0.5)),
         lambda_champion=float(await get(session, "aggregation.duo_lambda_champion", 0.10)),
         lambda_interaction=float(await get(session, "aggregation.duo_lambda_interaction", 1.00)),

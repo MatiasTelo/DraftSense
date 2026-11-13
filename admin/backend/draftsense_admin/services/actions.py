@@ -166,16 +166,58 @@ async def list_settings(session: AsyncSession, seeds_dir: Path) -> dict[str, Any
     }
 
 
-async def set_setting(session: AsyncSession, key: str, value: Any) -> dict[str, Any]:
-    """Cambia una clave que ya existe. Cualquier JSON válido se acepta (24 §3.6).
+def _shape_mismatch(current: Any, new: Any, path: str) -> str | None:
+    """Por qué `new` no tiene la forma de `current`, o `None` si la tiene (24 §3.6).
 
-    No hay esquema por clave en ningún documento y la decisión del 21/10/2026 fue no inventarlo:
-    la responsabilidad del valor es de quien lo edita.
+    No es un esquema por clave —no lo hay en ningún documento—: la forma sale del valor que la
+    clave ya tiene. `bool` se mira antes que los números porque en Python es un `int`, y `true`
+    en `sampler.cold_threshold` es justo el tipo de error que esto tiene que frenar.
+    """
+
+    def kind(value: Any) -> str:
+        if isinstance(value, bool):
+            return "booleano"
+        if isinstance(value, int | float):
+            return "número"
+        if isinstance(value, str):
+            return "texto"
+        if isinstance(value, list):
+            return "lista"
+        if isinstance(value, dict):
+            return "objeto"
+        return "null"
+
+    if kind(current) != kind(new):
+        return f"{path} es {kind(current)} y el valor nuevo es {kind(new)}"
+    if isinstance(current, dict):
+        if set(current) != set(new):
+            return f"{path} tiene las claves {sorted(current)} y el valor nuevo {sorted(new)}"
+        for name in current:
+            reason = _shape_mismatch(current[name], new[name], f"{path}.{name}")
+            if reason:
+                return reason
+    if isinstance(current, list) and current:
+        for index, item in enumerate(new):
+            reason = _shape_mismatch(current[0], item, f"{path}[{index}]")
+            if reason:
+                return reason
+    return None
+
+
+async def set_setting(session: AsyncSession, key: str, value: Any) -> dict[str, Any]:
+    """Cambia una clave que ya existe, por un valor de la misma forma que el actual (24 §3.6).
+
+    Hasta el 13/11/2026 se aceptaba cualquier JSON. Un texto donde iba un entero tiró
+    `GET /questions/next` de la API pública, que convierte el valor sin mirarlo: romper esta
+    validación vuelve a dejar el juego a un error de tipeo de caerse entero.
     """
     row = await session.get(AppSetting, key)
     if row is None:
         raise NotFoundError(f"no existe la clave {key}: las claves nuevas llegan con un seed")
     previous = row.value
+    reason = _shape_mismatch(previous, value, key)
+    if reason:
+        raise ValueError(reason)
     if previous != value:
         row.value = value
         row.updated_by = "admin"

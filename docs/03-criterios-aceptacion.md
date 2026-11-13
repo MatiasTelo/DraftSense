@@ -1,6 +1,8 @@
 # 03 — Criterios de aceptación
 
-> Estado: **v1** · Última revisión: 07/11/2026
+> Estado: **v1** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. CA-002 deja de actualizar `last_seen` (rompía CA-310).
 >
 > **07/11/2026:** semana 10. Criterios del Informe de Calidad de Datos (CA-410 a CA-415,
 > [`27-validacion-confiabilidad.md`](27-validacion-confiabilidad.md)), de la cola traducida (CA-109,
@@ -33,8 +35,15 @@ vencimiento a 180 días, y crea un respondedor con trust score `0.500`.
 ### CA-002 · La creación de sesión es idempotente — RF-002 · `I`
 **Dado** un visitante con cookie válida
 **Cuando** vuelve a solicitar una sesión
-**Entonces** el sistema **no** crea un respondedor nuevo, devuelve el mismo `respondent_id` y
-actualiza `last_seen`.
+**Entonces** el sistema **no** crea un respondedor nuevo y devuelve el mismo `respondent_id`.
+
+> **Cambiado el 13/11/2026.** Decía además «y actualiza `last_seen`». Eso rompía CA-310: la SPA
+> revalida la sesión en cada carga, `last_seen` quedaba en «ahora» y la racha de respuestas no se
+> cortaba nunca al volver después de una pausa (lo encontró la revisión general del 13/11: un
+> respondedor con respuestas a lo largo de dos semanas tenía `current_streak = answers_count`).
+> Desde hoy `last_seen` lo actualiza **sólo** `POST /responses`: es la fecha de la última
+> respuesta, que es contra lo que se mide la pausa de 30 minutos
+> ([`23-gamificacion.md`](23-gamificacion.md) §2.1).
 
 ### CA-003 · El token no se almacena en claro — RF-003 · `I`
 **Dado** una sesión recién creada
@@ -176,6 +185,10 @@ fila**.
 **Cuando** se intenta `UPDATE` o `DELETE` sobre `responses`
 **Entonces** Postgres lo rechaza por permisos insuficientes.
 
+> **Estado al 13/11/2026.** Sin test: el rol de aplicación todavía no existe en ningún entorno.
+> Se crea con el despliegue ([`11-modelo-de-datos.md`](11-modelo-de-datos.md) §4, nota del
+> 13/11) y este criterio se verifica entonces. Lo mismo vale para la última cláusula de CA-604.
+
 ### CA-209 · Límite de tasa — RF-209 · `I`
 **Dado** un respondedor que envió 40 respuestas en el último minuto
 **Cuando** envía la número 41
@@ -253,6 +266,11 @@ derivada.
 
 > **Cambiado el 08/10/2026.** Sólo para el tipo 3: el ranking del tipo 1 no tiene posición de
 > opción ([`22-calidad-de-datos.md`](22-calidad-de-datos.md) §5.2).
+
+> **Nota del 13/11/2026.** Desde el 29/10 también vale para el **tipo 4**, que tiene su propia
+> subsecuencia, y el 2v2 cuenta junto con el 1v1 (22 §5.2, nota del 29/10). El tipo 5 queda
+> afuera. La nota de arriba y el punto 9 de ADR-022 («queda sólo para el tipo 3») son anteriores
+> a esos tipos.
 
 ### CA-306 · Huella duplicada marcada — RF-208 · `I`
 **Dado** una huella con seis identidades distintas en 24 horas

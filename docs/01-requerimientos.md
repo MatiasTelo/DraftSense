@@ -1,6 +1,9 @@
 # 01 — Requerimientos
 
-> Estado: **v1** · Última revisión: 08/10/2026
+> Estado: **v1** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. Notas en RF-209 (límite por hash de IP, ADR-033) y RNF-04
+> (append-only por permisos, pendiente del despliegue).
 >
 > **08/10/2026:** RF-102, RF-508 y la meta M3 se reescribieron por las correcciones de la reunión
 > del 05/10 con el tutor de la organización ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
@@ -59,6 +62,10 @@ entrega.
 | RF-207 | El sistema no debe exponer el trust score en ninguna interfaz pública | M |
 | RF-208 | El sistema debe marcar a los respondedores cuya huella acumule más de 5 identidades en 24 horas | S |
 | RF-209 | El sistema debe limitar la tasa a 40 respuestas por minuto y 1 500 por día, por respondedor y por hash de IP | M |
+
+> **13/11/2026.** RF-209 estaba implementado sólo por respondedor. El límite por hash de IP se
+> agrega con [ADR-033](13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md): un hash con sal en
+> `respondents.ip_hash`, que no contradice RNF-05 mientras la sal no se filtre.
 
 ### RF-3xx — Gamificación
 
@@ -140,6 +147,9 @@ entrega.
 | RNF-10 | Cobertura de pruebas del backend | ≥ 80 % en los módulos de validación, sampler y agregación | S |
 | RNF-11 | Verificación estática | `ruff`, `mypy` y `tsc --noEmit` sin errores en CI | M |
 | RNF-12 | Extensibilidad | Una dimensión nueva se agrega sin modificar código ni migrar el esquema | S |
+
+> **13/11/2026.** RNF-04 está garantizado hoy por el código y no por permisos: el rol de
+> aplicación se crea con el despliegue ([`11-modelo-de-datos.md`](11-modelo-de-datos.md) §4).
 
 ---
 

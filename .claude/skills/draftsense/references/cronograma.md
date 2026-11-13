@@ -1,6 +1,6 @@
 # Cronograma y estado real
 
-> **Última actualización de este archivo: 07/11/2026.** Es el archivo de la skill que más se
+> **Última actualización de este archivo: 13/11/2026.** Es el archivo de la skill que más se
 > desactualiza. Al cerrar una semana, actualizar la columna Estado y la fecha de arriba.
 
 Período 01/09/2026 – 19/11/2026, L–V 8:00–12:00. 200 hs planificadas sobre 228 hs de disponibilidad
@@ -17,11 +17,11 @@ por ese feriado y la semana 12 tiene 8 hs por comprender sólo tres días hábil
 | 4 | 22/09 – 28/09 | Tipos de pregunta 2 y 3 operativos con feedback | 20 | **cerrada** — prueba a 360 px hecha el 16/09 |
 | 5 | 29/09 – 05/10 | Módulos de sampling y calidad de datos integrados | 20 | **cerrada** — mergeada a `main` el 08/10 (PR #4) |
 | 6 | 06/10 – 12/10 | Perfil, gamificación y versionado por parche · **Informe de Avance** | 16 | **cerrada** el 11/10 — correcciones del 05/10 (PR #5) y versionado por parche en la rama `semana-6-versionado-y-gamificacion`; la gamificación no necesitó ajuste |
-| 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | **en curso** — panel como app local (ADR-025) en la rama `semana-7-panel-admin-local`, sin mergear; producción y worker pendientes por decisión del 21/10 |
-| 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | **tipos cerrados** el 29/10 en la rama `semana-8-9-tipos-4-5-y-agregacion`, sin mergear; **el piloto queda para el final**, en los servidores del laboratorio (decisión del alumno) |
-| 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | **cerrada** el 29/10 en la misma rama; el Informe de Calidad de Datos pasa a la semana 10 con el doc 27 |
-| 10 | 03/11 – 09/11 | Módulo de validación e Informe de Calidad de Datos | 12 | **cerrada** el 07/11 en la rama `semana-10-validacion-y-calidad`, sin mergear; con dos correcciones de la prueba del alumno (idioma y feedback) |
-| 11 | 10/11 – 16/11 | Segunda oleada de recolección y exportación final de los CSV | 12 | pendiente |
+| 7 | 13/10 – 19/10 | Aplicación desplegada en producción con panel de administración | 20 | **panel cerrado** — app local (ADR-025), mergeada a `main` (PR #7); **producción y worker pendientes** por decisión del 21/10 |
+| 8 | 20/10 – 26/10 | Piloto en curso y tipos de pregunta 4 y 5 operativos | 16 | **tipos cerrados** el 29/10, mergeados a `main` (PR #8); **el piloto queda para el final**, en los servidores del laboratorio (decisión del alumno) |
+| 9 | 27/10 – 02/11 | Pipeline de agregación y CSV de features v1 | 16 | **cerrada** el 29/10, mergeada a `main` (PR #8); el Informe de Calidad de Datos pasó a la semana 10 con el doc 27 |
+| 10 | 03/11 – 09/11 | Módulo de validación e Informe de Calidad de Datos | 12 | **cerrada** el 07/11, mergeada a `main` (PR #9); con dos correcciones de la prueba del alumno (idioma y feedback) |
+| 11 | 10/11 – 16/11 | Segunda oleada de recolección y exportación final de los CSV | 12 | **en curso** — revisión general del 13/11 en la rama `revision-general-correcciones` (sale de `ux-escritorio-y-animaciones`, ya mergeada a `main` con el PR #10); el piloto sigue pendiente |
 | 12 | 17/11 – 19/11 | Documentación técnica integrada y transferencia · **Informe Final** | 8 | pendiente |
 
 ## Qué cambió respecto del cronograma firmado
@@ -202,6 +202,40 @@ del PR #8). Decisiones del alumno, todas registradas:
   los tipos 1 y 5 entran sin scroll, después de bajar el margen vertical del panel; 360 px igual
   que antes y sin scroll horizontal. **Pendiente:** recorrerlo contra la base de Docker, el tipo 2
   y el movimiento reducido.
+
+**13/11/2026, revisión general** pedida por el alumno, en la rama `revision-general-correcciones`.
+Se corrió toda la verificación, se probaron en Chrome la app pública y el panel contra la base de
+Docker, y se cruzó la documentación contra el código. Decisiones del alumno, todas registradas:
+
+- **Racha:** `POST /sessions` ya no toca `last_seen` (rompía CA-310: la racha no se cortaba nunca);
+  `/me` y `/sessions` devuelven las rachas vigentes (`streaks.visible`). Notas en 03, 10 y 12.
+- **ADR-033:** límite de tasa por hash de IP con sal (`respondents.ip_hash`, migración `0007`,
+  `DS_IP_HASH_SALT`) y sesión al vuelo confirmada sólo si el pedido sale bien. `fastapi>=0.121`.
+- **Panel:** un parámetro sólo acepta un valor de la forma del actual (24 §3.6; `"x"` en
+  `sampler.cold_threshold` había tirado `GET /questions/next`). Exportación: campo no numérico
+  avisado, `halflife > 0` y `min_trust > 0`, **una carpeta por corrida** (`exports.params.folder`).
+- **Ids fuera de `bigint`:** `422` / `400` en vez de `503`.
+- **Append-only:** los roles de Postgres no existen en ningún entorno; se crean con el despliegue
+  (nota en 11 §4). CA-208 sin test hasta entonces.
+- **Docs:** notas del 13/11 en 01, 02, 03, 10, 11, 12, 21, 24, 25, 26, `examples/` y el índice de
+  ADR. **Staging no tiene las migraciones `0004` a `0007`.**
+- **Segunda tanda, mismo día**, con lo que había quedado abierto:
+  - la **regla de variedad** cuenta las tarjetas en cola (21 §6);
+  - ***Not sure*** queda fuera de la tasa de acuerdo y del feedback por pares (23 §3, 12 §2.4), y
+    no muestra cartel (30 §5.1);
+  - los **topes del límite por IP** son parámetros (`quality.ip_rate_per_minute` y
+    `quality.ip_rate_per_day`, 22 §8): **subirlos antes de difundir el piloto en un aula**;
+  - **cero sin signo** en los CSV y `aggregation_version` `1.0.1` (25 §4.6);
+  - el **peso** usa fechas UTC y la antigüedad no baja de 0 días (25 §2.1);
+  - la **reproducibilidad** se acotó a lo que el sistema garantiza (25 §8.3, 26 §7) y
+    `exports.params` guarda el pool.
+- **Tests:** backend 305 (antes 293), aggregation 47 (antes 46), admin backend 64 (antes 55),
+  frontend 109 (antes 108), admin frontend 14 (antes 13).
+- **Abierto, por decisión del alumno:** los contadores del respondedor siguen sin bloqueo (dos
+  pestañas respondiendo a la vez pueden perder una suma). `33-privacidad-y-legal.md` quedó en
+  **borrador** para que el alumno lo apruebe; `About` y `Privacy` siguen sin ruta hasta entonces.
+  No se probó el celular a 360 px ni el movimiento reducido.
+- **Falta `DS_IP_HASH_SALT` en `backend/.env`**: sin ella el límite por IP no se aplica.
 
 **La semana 3 adelantó `/me` y `/leaderboard`**, que el cronograma ponía en la semana 6: el backend
 ya las exponía desde la semana 2 y la barra inferior de `/play` las necesita para no quedar con dos

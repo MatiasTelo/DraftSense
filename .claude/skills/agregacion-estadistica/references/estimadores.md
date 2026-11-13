@@ -9,21 +9,22 @@ las trampas de cada uno. Los `§` sin prefijo son de ese documento.
 | 2 | `peak_timing` | Mediana ponderada + curva gaussiana | `peak_minute` y `power_at_*` | §5.2 |
 | 3 (1v1) | `lane_matchup` | Modelo ordinal Rao-Kupper | Fuerza de línea y `matchup_matrix` | §5.3 |
 | 3 (2v2) | `lane_matchup` | Ídem, sobre duplas | `duo_features.lane_strength` | §5.4 |
-| 4 | `duo_synergy` | BT con interacción y penalización L2 | `synergy` (sin `synergy_mean` desde ADR-023) | §5.5 |
-| 5 | `trait_multiselect` | Proporción con intervalo de Wilson | Los 7 atributos (5 columnas c/u) | §5.6 |
+| 4 | `duo_synergy` | Rao-Kupper de un umbral, con interacción y penalización L2 | `synergy` (sin `synergy_mean` desde ADR-023) | §5.5 |
+| 5 | `trait_multiselect` | Proporción con intervalo de Wilson | `champion_traits` (7 filas por campeón) | §5.6 |
 
 ## Tipo 1 — Bradley-Terry por dimensión (§5.1)
 
-Ajustado con `choix.ilsr_pairwise` sobre una matriz densa de comparaciones ponderadas
-([ADR-003](../../../../docs/13-adr/ADR-003-bradley-terry.md)). El modelo admite conteos fraccionarios de
-forma nativa vía la iteración MM de Hunter (2004), que es lo que permite que el peso de una respuesta
-sea un número real y no un conteo.
+Ajustado con la **iteración MM de Hunter (2004)** sobre una matriz densa de comparaciones
+ponderadas, en `aggregation/estimators/bt.py`. ADR-003 nombraba `choix.ilsr_pairwise`, pero `choix`
+no admite el `ε` del prior: se usa sólo en el test, con `ε = 0` (25 §8.2, nota del 29/10). El MM
+admite conteos fraccionarios, que es lo que permite que el peso de una respuesta sea un número
+real y no un conteo.
 
 - `ε = aggregation.bt_prior` (inicial 0.5) es el prior de estabilidad numérica: mantiene finito el
   score de un campeón con una sola comparación y lo encoge hacia 0.
 - Los scores salen en **log-odds** y hay que **centrarlos** (el modelo tiene indeterminación
   aditiva). Centrar también dentro de cada iteración del bootstrap.
-- Las siete columnas por dimensión están en §5.1 "Las siete columnas".
+- Las columnas de cada fila de `champion_dimensions` están en §5.1 «Las columnas».
 
 **Grafo desconectado:** se ajusta una corrida **por componente**, cada una centrada en 0 sobre su
 propia componente, y todos los campeones fuera de la componente mayor quedan `insufficient` sin
@@ -67,10 +68,11 @@ se predice sobre un modelo que no se ajustó.
 
 ## Tipo 5 — Atributos (§5.6)
 
-Proporción de respondedores que marcaron el atributo, con **intervalo de Wilson**. Cinco columnas por
-atributo, prefijo `trait_`.
+Proporción de respondedores que marcaron el atributo, con **intervalo de Wilson**. Sale en
+`champion_traits`, una fila por (campeón, atributo), columna `proportion`.
 
-El prefijo no es cosmético: `26-esquema-de-salida.md` §2.2 explica por qué. No lo saques.
+Un atributo y una dimensión con el mismo código no son la misma medición:
+`26-esquema-de-salida.md` §2.2 explica por qué. No las mezcles.
 
 ## Validación de confiabilidad
 

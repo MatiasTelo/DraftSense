@@ -34,8 +34,8 @@ La organización y sus razones están en
 [ADR-015](../../../docs/13-adr/ADR-015-estructura-en-capas-del-backend.md). **Un service no importa
 nada de `fastapi`**: es la regla que hace verificable todo lo demás.
 
-Los **cuatro jobs de fondo** existen como services con su comando de CLI; la programación
-periódica llega en la semana 7:
+Los **cuatro jobs de fondo** existen como services con su comando de CLI y su botón en el panel;
+la programación periódica sigue pendiente, con el despliegue:
 
 | Job | Service | Qué hace |
 |---|---|---|
@@ -104,11 +104,27 @@ audita en `admin_audit`. La app admin de la semana 7 (`admin/backend`, ADR-025) 
 - `services/synthetic.py` y `draftsense seed-synthetic-responses`: respuestas de una verdad oculta
   para probar el consenso y la agregación. **`guard()` se niega a correr si la base no es local.**
 
+**Revisión general del 13/11** (ADR-033, migración `0007`):
+
+- `POST /sessions` **no toca `last_seen`**: lo escribe sólo `POST /responses`, porque la racha se
+  corta contra él. `streaks.visible` devuelve las rachas vigentes para `/me` y `/sessions`.
+- La sesión creada al vuelo se inserta sin confirmar (`sessions.create(..., commit=False)`) y
+  `resolve_session` la confirma al final del pedido, o la revierte si terminó en error. Usa
+  `Depends(..., scope="function")`: por eso `fastapi>=0.121`.
+- `respondents.ip_hash` es un HMAC con la sal de `DS_IP_HASH_SALT`; sin sal queda `NULL`.
+  `check_rate_limit` suma el límite por IP después del límite por respondedor.
+- Un id fuera de `bigint` es `422` o `400`, no `503` (`schemas.responses.MAX_ID`).
+- La regla de variedad suma los tipos de `queued` a lo ya respondido (`sampler.queued_types`,
+  21 §6): es sobre lo que la persona ve.
+- *Not sure* queda fuera del acuerdo: `answers.without_unknown` se usa en `agreement_rate` y en
+  el feedback por pares (23 §3, 12 §2.4).
+- Los topes del límite por IP salen de `quality.ip_rate_per_minute` y `quality.ip_rate_per_day`.
+
 **Lo que todavía no existe:** la programación del worker (con el despliegue, pendiente desde el
-21/10). Al agregar un tipo o una variante hay que sumarlo a `Variant`, a `SERVED_TYPES`, a las
+21/10) y los roles de Postgres del append-only (11 §4). Al agregar un tipo o una variante hay que sumarlo a `Variant`, a `SERVED_TYPES`, a las
 celdas de cobertura de `question_stats`, a `STRAIGHTLINE_TYPES` y a `retests.is_consistent`.
 
-286 tests en `tests/` (`test_semana_8` y `test_synthetic` son los de la semana 8) (`test_patches` es el de la semana 6; CA-606, que la API pública no tenga administración, está en `test_api_contract`). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
+305 tests en `tests/` (`test_semana_8` y `test_synthetic` son los de la semana 8) (`test_patches` es el de la semana 6; CA-606, que la API pública no tenga administración, está en `test_api_contract`). A los de las semanas 2 a 4 se suman `test_sampler`, `test_trust`,
 `test_honeypots`, `test_retests`, `test_degenerate`, `test_fingerprints` y `test_connectivity`.
 Los que prueban el sorteo lo hacen con `random.Random(seed)`, forzando `TYPE_WEIGHTS` en
 `sampler` o fijando `sampler.epsilon` con `set_setting`. Tienen que pasar igual contra la base
@@ -129,7 +145,7 @@ alembic downgrade base && alembic upgrade head    # lo que corre CI: la migraci�
 
 python -m app.cli check-seeds                     # valida los seeds sin tocar la base
 python -m app.cli seed-catalog                    # 8 dimensiones y 7 atributos
-python -m app.cli seed-settings                   # los 34 parámetros operativos
+python -m app.cli seed-settings                   # los 36 parámetros operativos
 python -m app.cli seed-champions --patch 16.17 --released-at 2026-08-25
 python -m app.cli seed-pick-rate --patch 16.17 --file ../infra/seeds/pick_rate_16.17.csv     --source lolalytics --source-url URL --captured-at 2026-09-09
 python -m app.cli sync-roles --patch 16.17        # roles desde el snapshot ya cargado (ADR-019)
@@ -148,8 +164,8 @@ uvicorn app.main:app --reload                     # la API en :8000, OpenAPI en 
 
 > **Desde el 21/10 todo se prueba contra el contenedor `draftsense-pg17-test` publicado en
 > `127.0.0.1:5433`** (`DS_DATABASE_URL=postgresql+asyncpg://draftsense:draftsense@127.0.0.1:5433/draftsense`).
-> Desde el 29/10 tiene sembrada la seed sintética (seed 42): `test_overview_counts_submissions_and_aggregable`
-> de `admin/backend` cuenta las respuestas de hoy en toda la base y falla mientras esté.
+> Desde el 29/10 tiene sembrada la seed sintética (seed 42) y desde el 13/11 está en la migración
+> `0007`. Las cinco suites pasan enteras contra esa base.
 >
 > **Cuidado con el `.env`: apunta a staging.** `alembic downgrade base` contra él borra el esquema
 > de staging, y `pytest` a secas corre `alembic upgrade head` ahí (`test_migration_applies_cleanly`).
@@ -170,14 +186,14 @@ fecha): para re-aplicar los roles está `sync-roles`, que **escribe en la base**
 el parche vigente.
 
 La configuración se lee del entorno con prefijo `DS_` y desde `backend/.env`
-(`DS_DATABASE_URL`, `DS_CORS_ORIGIN`, `DS_DDRAGON_BASE_URL`). **`.env` está en
+(`DS_DATABASE_URL`, `DS_CORS_ORIGIN`, `DS_DDRAGON_BASE_URL`, `DS_IP_HASH_SALT`). **`.env` está en
 `.gitignore` y nunca se versiona**; `backend/.env.example` tiene las claves sin valores.
 
 ## Las cinco reglas que no se negocian
 
 1. **`responses` es append-only.** Nunca un `UPDATE` ni un `DELETE` sobre esa tabla. Las
-   correcciones de calidad son pesos en la agregación y filtros en el export. Lo garantizan los
-   permisos de Postgres, no la disciplina del código ([ADR-002](../../../docs/13-adr/ADR-002-responses-append-only.md)).
+   correcciones de calidad son pesos en la agregación y filtros en el export. Lo van a garantizar
+   los permisos de Postgres cuando se despliegue; **hoy lo sostiene sólo el código** (11 §4) ([ADR-002](../../../docs/13-adr/ADR-002-responses-append-only.md)).
 2. **El trust score nunca sale de la API** (RF-207). Ni en `/me`, ni en el leaderboard, ni en un
    mensaje de error. Es de uso interno.
 3. **Toda migración tiene que ser reversible.** CI corre `downgrade base` y vuelve a subir. Un

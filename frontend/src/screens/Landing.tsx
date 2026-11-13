@@ -10,7 +10,7 @@
  * la universidad convierte «otro quiz de LoL» en algo con destino.
  *
  * `About` y `Privacy` se maquetan pero todavía no llevan a ningún lado: esas dos rutas llegan con
- * `docs/33-privacidad-y-legal.md`, que está pendiente y desbloquea la semana 7.
+ * `docs/33-privacidad-y-legal.md`, que sigue pendiente (al 13/11/2026 no tiene semana asignada).
  *
  * Movimiento (ADR-032, 08/11): el brillo dorado del fondo deriva despacio sobre un rayado tenue, y
  * los elementos entran escalonados en el orden en que se leen. Ninguno trae texto nuevo ni pide

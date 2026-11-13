@@ -7,8 +7,8 @@ de la base permita hacerse pasar por un respondedor.
 
 from __future__ import annotations
 
-import datetime as dt
 import hashlib
+import hmac
 import secrets
 
 import sqlalchemy as sa
@@ -47,6 +47,18 @@ def build_fingerprint(
     return hashlib.sha256(f"{client_part}|{ip_part}".encode()).hexdigest()
 
 
+def hash_ip(client_ip: str | None, salt: str) -> str | None:
+    """HMAC-SHA-256 de la IP con la sal del entorno, o `None` si falta alguna de las dos.
+
+    **Sin sal no se devuelve nada**, y no un hash simple: las IPv4 son 2³² valores, así que un
+    SHA-256 sin sal se revierte probándolos todos y guardarlo sería guardar la IP (ADR-033,
+    RNF-05). Con `None` el respondedor queda fuera del límite por IP, que es el lado seguro.
+    """
+    if not client_ip or not salt:
+        return None
+    return hmac.new(salt.encode("utf-8"), client_ip.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
 async def find_by_token(session: AsyncSession, token: str | None) -> Respondent | None:
     if not token:
         return None
@@ -57,28 +69,36 @@ async def find_by_token(session: AsyncSession, token: str | None) -> Respondent 
     ).scalar_one_or_none()
 
 
-async def create(session: AsyncSession, fingerprint_hash: str) -> tuple[Respondent, str]:
+async def create(
+    session: AsyncSession,
+    fingerprint_hash: str,
+    ip_hash: str | None = None,
+    *,
+    commit: bool = True,
+) -> tuple[Respondent, str]:
     """Crea un respondedor y devuelve (fila, token en claro).
 
     El token en claro se devuelve **una sola vez**, para ponerlo en la cookie. No queda guardado
     en ningún lado del servidor.
+
+    Con `commit=False` la fila queda insertada pero sin confirmar: es lo que usa la dependencia
+    de sesión, que confirma recién cuando el pedido termina bien (ADR-033). Un pedido sin cookie
+    que termina en error no tiene que dejar un respondedor vacío.
     """
     token = secrets.token_urlsafe(TOKEN_BYTES)
     respondent = Respondent(
         session_token_hash=hash_token(token),
         fingerprint_hash=fingerprint_hash,
+        ip_hash=ip_hash,
         alias=generate_alias(),
     )
     session.add(respondent)
-    await session.commit()
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()
     await session.refresh(respondent)
     return respondent, token
-
-
-async def touch(session: AsyncSession, respondent: Respondent) -> None:
-    """Actualiza `last_seen`. Es lo único que hace una revalidación de sesión (CA-002)."""
-    respondent.last_seen = dt.datetime.now(dt.UTC)
-    await session.commit()
 
 
 async def save_onboarding(

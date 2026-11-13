@@ -6,9 +6,9 @@
 # El formato `bloque.nombre` lo exige el CHECK `app_settings_key_format`. El valor es JSON: lo
 # que se escriba acá se guarda tal cual en la columna `value`, de tipo jsonb.
 #
-# Cambiar uno de estos valores en producción NO se hace editando este archivo: se hace por
-# `PATCH /admin/settings/{key}`, que además lo registra en `admin_audit`. Este seed es el
-# estado inicial, no el estado actual.
+# Cambiar uno de estos valores en producción NO se hace editando este archivo: se hace desde la
+# vista *Parámetros* de la app de administración (docs/24-panel-admin.md §3.6), que además lo
+# registra en `admin_audit`. Este seed es el estado inicial, no el estado actual.
 
 # --- sampler. --- docs/21-sampler.md §9 ---------------------------------------------------------
 - key: sampler.enabled_pool_tiers
@@ -83,6 +83,14 @@
     retest: 0.40
     degenerate: 0.50
   description: Pesos de los tres términos de la fórmula del trust score.
+
+- key: quality.ip_rate_per_minute
+  value: 40
+  description: Respuestas por minuto que se aceptan desde una misma IP, sumando a todos sus respondedores (ADR-033).
+
+- key: quality.ip_rate_per_day
+  value: 1500
+  description: Respuestas por día que se aceptan desde una misma IP, sumando a todos sus respondedores (ADR-033).
 
 - key: quality.trust_smoothing
   value: 2

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Any
 
 import sqlalchemy as sa
 from fastapi import FastAPI
@@ -143,6 +144,50 @@ async def test_los_parametros_se_validan(client: AsyncClient) -> None:
     assert (await client.post("/exports", json={"bootstrap": 0})).status_code == 400
     assert (await client.post("/exports", json={"min_trust": 3})).status_code == 400
     assert (await client.post("/exports", json={"patch_window": ".."})).status_code == 400
+    # 13/11/2026: con vida media 0 la corrida arrancaba y moría con `ZeroDivisionError`.
+    assert (await client.post("/exports", json={"halflife": 0})).status_code == 400
+    assert (await client.post("/exports", json={"min_trust": 0})).status_code == 400
+
+
+async def test_dos_corridas_del_mismo_dia_no_se_pisan(
+    client: AsyncClient, admin_app: FastAPI, db: AsyncSession, patch: Patch
+) -> None:
+    """Cada corrida tiene su carpeta: la segunda no deja sin descarga a la primera.
+
+    Hasta el 13/11/2026 la carpeta salía de la ventana, la fecha y la semilla, que no cambian
+    entre dos corridas del mismo día con los mismos cuatro campos del formulario. Entre una y
+    otra entra una respuesta, los archivos cambian, y el SHA-256 de la primera dejaba de coincidir.
+    """
+    await _data(db, patch)
+
+    async def run() -> list[dict[str, Any]]:
+        started = await client.post("/exports", json={"bootstrap": 20})
+        await _runner(admin_app).wait()
+        status = (await client.get(f"/exports/runs/{started.json()['run_id']}")).json()
+        assert status["status"] == "succeeded", status["error"]
+        files: list[dict[str, Any]] = status["result"]["files"]
+        return files
+
+    first = await run()
+    peak = (
+        await db.execute(
+            sa.select(Question).where(
+                Question.type == QuestionType.PEAK_TIMING,
+                Question.patch_id == patch.patch_id,
+            )
+        )
+    ).scalar_one()
+    # Cuatro contra tres: la mediana del pico se mueve y el archivo cambia.
+    for i in range(4):
+        person = await make_respondent(db, f"fp-export-extra-{i}")
+        await add_response(db, person, peak, {"minute": 35})
+    second = await run()
+
+    assert [f["sha256"] for f in first] != [f["sha256"] for f in second]
+    for file in (*first, *second):
+        download = await client.get(f"/exports/{file['export_id']}/file")
+        assert download.status_code == 200, file["file_name"]
+        assert hashlib.sha256(download.content).hexdigest() == file["sha256"]
 
 
 async def test_un_export_inexistente_es_404(client: AsyncClient) -> None:

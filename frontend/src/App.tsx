@@ -5,7 +5,8 @@
  * ramas laterales a las que se llega desde la barra inferior durante el juego, y de las que
  * siempre se vuelve con un botón grande.
  *
- * `/admin` no se enlaza desde ninguna parte y llega en la semana 7, con `docs/24-panel-admin.md`.
+ * No hay `/admin`: la administración es una app aparte, local al servidor del laboratorio
+ * (ADR-025, `docs/24-panel-admin.md`).
  */
 
 import { useEffect } from 'react';

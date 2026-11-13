@@ -181,6 +181,14 @@ export function Play() {
           response_time_ms: Math.round(performance.now() - shownAt.current),
         });
         applyProgress(result.progress);
+        if ('choice' in answer && answer.choice === 'unknown') {
+          // *Not sure* no tiene nada que comparar con la comunidad: la tarjeta siguiente entra
+          // directo. Antes mostraba el cartel de «eres de los primeros en responder», que con
+          // respuestas de sobra era falso (30 §5.1, nota del 13/11/2026).
+          recorded = true;
+          advance();
+          return;
+        }
         dismissed.current = false;
         setShown({
           feedback: result.feedback,

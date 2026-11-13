@@ -30,7 +30,13 @@ from app.models import (
 )
 from app.services import rankings, sessions
 from app.services import responses as responses_service
-from tests.conftest import add_response, as_respondent, pairwise_question, requires_db
+from tests.conftest import (
+    add_response,
+    as_respondent,
+    pairwise_question,
+    requires_db,
+    set_setting,
+)
 
 
 async def _question(
@@ -725,7 +731,8 @@ async def test_ca507_el_feedback_es_por_pares(
     assert response.json()["feedback"] == {
         "pairs_agreed": 2,
         "pairs_compared": 3,
-        "sample_size": 78,
+        # 25 opiniones por par: el *Not sure* de cada uno no suma (nota del 13/11/2026 en 12 §2.4).
+        "sample_size": 75,
     }
 
 
@@ -799,3 +806,121 @@ async def test_un_par_no_ancla_que_es_honeypot_no_se_guarda(
     assert trap.question_id not in {r.question_id for r in rows}
     await db.refresh(row)
     assert row.honeypot_attempts == 0
+
+
+# ------------------------------------------------- 13/11/2026: límite por IP e ids fuera de rango
+
+
+@requires_db
+async def test_el_limite_por_ip_suma_a_todos_los_respondedores_de_esa_ip(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RF-209, ADR-033 — un respondedor nuevo no esquiva el límite si su IP ya lo agotó.
+
+    Es el caso del script sin cookie: cada pedido llega como una identidad distinta, y al límite
+    por respondedor no le queda nada que contar. Los dos límites se bajan a 2, como en CA-209.
+    """
+    monkeypatch.setattr(responses_service, "PER_MINUTE", 2)
+    await set_setting(db, "quality.ip_rate_per_minute", 2)
+    row, token = respondent
+    row.ip_hash = "hash-de-la-misma-ip"
+    for index in range(2):
+        other, _ = await sessions.create(db, f"huella-ip-{index}", "hash-de-la-misma-ip")
+        question = await _question(
+            db, patch, champions[index:], question_type=QuestionType.LANE_MATCHUP
+        )
+        await add_response(db, other, question, {"choice": "even"})
+
+    extra = await _question(db, patch, champions[2:], question_type=QuestionType.LANE_MATCHUP)
+    body = {
+        "question_id": extra.question_id,
+        "answer": {"choice": "even"},
+        "response_time_ms": 1000,
+    }
+    blocked = await as_respondent(client, token).post("/responses", json=body)
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "rate_limit_exceeded"
+    assert int(blocked.headers["Retry-After"]) >= 1
+
+    # Sin `ip_hash` —sin sal, o un respondedor anterior a la migración— sólo cuenta lo propio.
+    row.ip_hash = None
+    await db.commit()
+    allowed = await as_respondent(client, token).post("/responses", json=body)
+    assert allowed.status_code == 201
+
+
+
+@requires_db
+async def test_el_tope_por_ip_se_sube_desde_app_settings(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-033 — una red compartida comparte el contador, así que el tope por IP es un parámetro.
+
+    Con el mismo escenario que agota el límite, subir `quality.ip_rate_per_minute` deja pasar la
+    respuesta sin tocar el límite por respondedor.
+    """
+    monkeypatch.setattr(responses_service, "PER_MINUTE", 2)
+    row, token = respondent
+    row.ip_hash = "hash-de-un-aula"
+    for index in range(2):
+        other, _ = await sessions.create(db, f"huella-aula-{index}", "hash-de-un-aula")
+        question = await _question(
+            db, patch, champions[index:], question_type=QuestionType.LANE_MATCHUP
+        )
+        await add_response(db, other, question, {"choice": "even"})
+    await set_setting(db, "quality.ip_rate_per_minute", 100)
+
+    extra = await _question(db, patch, champions[2:], question_type=QuestionType.LANE_MATCHUP)
+    allowed = await as_respondent(client, token).post(
+        "/responses",
+        json={
+            "question_id": extra.question_id,
+            "answer": {"choice": "even"},
+            "response_time_ms": 1000,
+        },
+    )
+    assert allowed.status_code == 201
+
+
+@requires_db
+async def test_un_id_fuera_de_rango_no_es_un_503(
+    client: AsyncClient, respondent: tuple[Respondent, str]
+) -> None:
+    """Un id que no cabe en `bigint` es un error del pedido, no «la base no responde».
+
+    Llegaba hasta la consulta, asyncpg lo rechazaba y el manejador de `DBAPIError` lo informaba
+    como `503 database_unavailable` (revisión general del 13/11/2026).
+    """
+    _, token = respondent
+    http = as_respondent(client, token)
+    huge = 99_999_999_999_999_999_999_999
+
+    posted = await http.post(
+        "/responses",
+        json={"question_id": huge, "answer": {"choice": "a"}, "response_time_ms": 1000},
+    )
+    assert posted.status_code == 422
+    assert posted.json()["error"]["code"] == "validation_error"
+    assert posted.json()["error"]["field"] == "question_id"
+
+    for path, field in (
+        (f"/questions/next?queued={huge}", "queued"),
+        (f"/questions/queued?ids={huge}", "ids"),
+    ):
+        response = await http.get(path)
+        assert response.status_code == 400
+        assert response.json()["error"] == {
+            "code": "invalid_parameter",
+            "message": response.json()["error"]["message"],
+            "field": field,
+        }

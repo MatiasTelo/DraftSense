@@ -1,6 +1,8 @@
 # 21 — Sampling adaptativo
 
-> Estado: **v1** · Última revisión: 11/10/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 13/11/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+>
+> **13/11/2026:** revisión general. La variedad cuenta la cola del cliente (§6) y el tier 1 son 58 campeones (§2.1, §7.2).
 >
 > **08/10/2026:** el tipo 1 se sirve como un ranking de cinco campeones armado alrededor de un par
 > ancla (§5.1, [ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)). Todo lo que este documento
@@ -54,6 +56,14 @@ Cuántas filas serían, **por parche**:
 | 2 y 5 — una por campeón | 80 | 160 | 340 |
 | 3-2v2 y 4 — pares de duplas | ~10 000 | ~110 000 | **~10⁶** |
 | **Total** | **~17 000** | **~136 000** | **> 1 000 000** |
+
+> **Nota del 13/11/2026.** Los tamaños «40» y «80» de esta tabla son la estimación de
+> [ADR-006](13-adr/ADR-006-pool-escalonado-por-pick-rate.md), que
+> [ADR-016](13-adr/ADR-016-carga-inicial-del-pool.md) dejó sin efecto: el snapshot de 16.17 da
+> **58** campeones en el tier 1 y **96** en los tiers 1 y 2. Con esos tamaños la fila del tipo 1
+> son 13 224 y 36 480 preguntas (C(58, 2) = 1 653 y C(96, 2) = 4 560 pares, por 8 dimensiones), y
+> la de los tipos 2 y 5, 116 y 192. Las demás filas no se recalcularon. El argumento no cambia:
+> son órdenes de magnitud, y precomputar sigue siendo inviable.
 
 Y eso se multiplica por parche, porque `questions_identity` incluye `patch_id`. Con cinco o seis
 parches en la práctica, el catálogo completo precomputado son varios millones de filas, de las
@@ -447,6 +457,14 @@ retests **no pasan por la función de prioridad**: se eligen de su propio catál
 >   esa posición; si no queda otro tipo con candidatas, se permite. La honeypot y el retest no se
 >   corren por esta regla —están arriba—, pero cuentan para la racha.
 
+> **Cambiado el 13/11/2026 (revisión general).** La variedad mira atrás **las tres últimas
+> tarjetas que la persona tiene delante**, no las tres últimas respuestas: a las respuestas ya
+> registradas se les agregan, a continuación, los tipos de las preguntas de `queued`
+> ([`12-api.md`](12-api.md) §2.3), y después lo que se va eligiendo en el lote. El cliente pide el
+> lote cuando le quedan dos tarjetas en cola, así que mirando sólo las respuestas la regla de
+> [`20-tipos-de-pregunta.md`](20-tipos-de-pregunta.md) §7 no se cumplía: podían salir cuatro o
+> cinco seguidas del mismo tipo, o vetarse un tipo sin motivo. El contrato no cambia.
+
 > **Agregado el 29/10/2026.** Con la variante 2v2 hay seis «tipos» en la mezcla y cinco en la
 > variedad:
 >
@@ -489,6 +507,9 @@ mitades densas, que es el peor escenario posible: mucha muestra y ningún orden 
 El panel muestra ambos indicadores, así que la decisión se toma mirando un número, no una intuición.
 Con el volumen esperado del piloto es **improbable que la condición se cumpla**, y eso está bien: el
 plan por defecto es cerrar la práctica con datos densos sobre 40 campeones.
+
+> **Nota del 13/11/2026.** Son los 58 campeones del tier 1 (ADR-016), no 40. Lo mismo vale para
+> la fila «No se precomputa» de §11: el pool es de 58 y el total a no alcanzar, 13 224.
 
 > **Agregado el 21/10/2026.** El panel ([`24-panel-admin.md`](24-panel-admin.md) §3.2) calcula `D_n` como el `score_n` de
 > `25-agregacion.md` §5.1: respuestas **agregables** del tipo 1 del parche vigente con

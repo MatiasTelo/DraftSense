@@ -67,6 +67,11 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | Cuánto dura el feedback y cómo se saltea | `30-ux-flujos.md` §5.1, `13-adr/ADR-030-feedback-de-cuatro-segundos.md` |
 | Layout de escritorio contra celular | `30-ux-flujos.md` §9, `13-adr/ADR-031-escritorio-como-caso-principal.md` |
 | Animaciones: qué se mueve, con qué y cómo se apaga | `30-ux-flujos.md` §9, `13-adr/ADR-032-movimiento-solo-con-css.md` |
+| El límite de tasa por IP, `respondents.ip_hash` y cuándo se crea una sesión al vuelo | `13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md`, `12-api.md` §1.3 y §4, `11-modelo-de-datos.md` §3.7 (notas del 13/11) |
+| Por qué el append-only todavía no está garantizado por permisos | `11-modelo-de-datos.md` §4 (nota del 13/11) |
+| Qué valores acepta un parámetro del panel y cómo se nombran las carpetas de exportación | `24-panel-admin.md` §3.6 y §3.9 (notas del 13/11) |
+| Los rangos de los parámetros de una corrida | `25-agregacion.md` §8.1 (nota del 13/11) |
+| Qué se guarda de una persona, qué no, y los textos propuestos de `/about` y `/privacy` | `33-privacidad-y-legal.md` (**borrador**: no implementar las pantallas hasta que pase a v1) |
 | El wireframe, los estados o el microcopy de una pantalla | `30-ux-flujos.md` §3 a §7 (una por ruta) |
 | Decisiones de interfaz ya cerradas | `30-ux-flujos.md` §10 |
 | Un ejemplo ejecutable de los seis CSV, columna por columna | `examples/README.md` |
@@ -83,7 +88,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `10-arquitectura.md` | v1 |
 | `11-modelo-de-datos.md` | v1 |
 | `12-api.md` | v1 |
-| `13-adr/` (28 ADR) | v1 |
+| `13-adr/` (33 ADR) | v1 |
 | `20-tipos-de-pregunta.md` | **v2** (08/10: tipo 1 como ranking) |
 | `21-sampler.md` | v1 |
 | `22-calidad-de-datos.md` | v1 |
@@ -96,7 +101,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `30-ux-flujos.md` | v1 |
 | `31-plan-de-pruebas.md` | **pendiente** |
 | `32-despliegue.md` | **pendiente** |
-| `33-privacidad-y-legal.md` | **pendiente** |
+| `33-privacidad-y-legal.md` | **borrador** (13/11: inventario escrito; textos públicos y nueve decisiones sin aprobar) |
 | `34-plan-piloto.md` | **pendiente** |
 | `35-glosario.md` | **pendiente** |
 

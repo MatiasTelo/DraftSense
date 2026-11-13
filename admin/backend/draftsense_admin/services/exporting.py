@@ -7,10 +7,12 @@ bien; una corrida que falla —ninguna respuesta pasa los filtros, por ejemplo�
 audita.
 
 Cada corrida escribe en su propia carpeta de `DS_EXPORTS_DIR`, nombrada por la ventana, la fecha
-de exportación y la semilla. Dos corridas con los mismos parámetros sobre el mismo crudo dan los
-mismos archivos (CA-408), así que comparten carpeta sin pisar nada distinto. La descarga busca el
-archivo por `export_id`: lee la fila de `exports`, arma la carpeta desde sus `params` y verifica el
-SHA-256 antes de devolverlo.
+de exportación, la semilla **y el id de la corrida**. Hasta el 13/11/2026 faltaba lo último, con
+el argumento de que dos corridas iguales dan los mismos archivos; pero la semilla no lleva todos
+los parámetros ni el estado del crudo, así que dos corridas del mismo día caían en la misma
+carpeta, la segunda pisaba a la primera y sus filas de `exports` dejaban de poder descargarse
+(el SHA-256 ya no coincidía). La descarga busca el archivo por `export_id`: lee la fila de
+`exports`, toma la carpeta de sus `params` y verifica el SHA-256 antes de devolverlo.
 """
 
 from __future__ import annotations
@@ -42,12 +44,18 @@ class ExportFileMissingError(LookupError):
     pass
 
 
-def folder_name(record: dict[str, Any]) -> str | None:
-    """La carpeta de una corrida, a partir de los parámetros registrados."""
+def legacy_folder_name(record: dict[str, Any]) -> str | None:
+    """La carpeta de una corrida anterior al 13/11/2026, que no guardaba `folder`."""
     try:
         return f"{record['patch_window']}_{record['exported_at']}_{record['seed']}"
     except KeyError:
         return None
+
+
+def folder_name(record: dict[str, Any]) -> str | None:
+    """La carpeta de una corrida, a partir de lo registrado en `exports.params`."""
+    folder = record.get("folder")
+    return str(folder) if folder else legacy_folder_name(record)
 
 
 def _number(params: dict[str, Any], key: str, kind: type) -> Any:
@@ -58,8 +66,8 @@ def _number(params: dict[str, Any], key: str, kind: type) -> Any:
         raise ValueError(f"{key} tiene que ser un número")
     if kind is int and (not float(value).is_integer() or value < 1):
         raise ValueError(f"{key} tiene que ser un entero positivo")
-    if kind is float and value < 0:
-        raise ValueError(f"{key} no puede ser negativo")
+    if kind is float and value <= 0:
+        raise ValueError(f"{key} tiene que ser mayor que 0")
     return kind(value)
 
 
@@ -75,7 +83,7 @@ def validate(params: dict[str, Any]) -> dict[str, Any]:
         run_params.parse_window(window)
     trust = _number(params, "min_trust", float)
     if trust is not None and trust > 1:
-        raise ValueError("min_trust va entre 0 y 1")
+        raise ValueError("min_trust va entre 0 y 1, sin el 0")
     return {
         "patch_window": window,
         "min_trust": trust,
@@ -144,7 +152,7 @@ class ExportRunner:
     async def _execute(self, run: ExportRun) -> None:
         try:
             async with self._sessions() as session:
-                result = await self._run(session, run.params)
+                result = await self._run(session, run)
         except (NoDataError, ValueError) as exc:
             run.status = "failed"
             run.error = str(exc)
@@ -157,7 +165,8 @@ class ExportRunner:
         finally:
             run.finished_at = dt.datetime.now(dt.UTC)
 
-    async def _run(self, session: AsyncSession, form: dict[str, Any]) -> dict[str, Any]:
+    async def _run(self, session: AsyncSession, run: ExportRun) -> dict[str, Any]:
+        form = run.params
         patch = await questions.current_patch(session)
         resolved = await run_params.resolve(
             session,
@@ -168,7 +177,8 @@ class ExportRunner:
             bootstrap=form["bootstrap"],
         )
         record = resolved.as_record()
-        folder = self._out_dir / str(folder_name(record))
+        # El id de la corrida hace única la carpeta: ver el docstring del módulo.
+        folder = self._out_dir / f"{legacy_folder_name(record)}_{run.run_id[:8]}"
         result = await pipeline.run(session, resolved, folder, workers=self._workers)
         files = [
             {
@@ -197,9 +207,14 @@ async def file_for(session: AsyncSession, out_dir: Path, export_id: int) -> tupl
     row = await session.get(Export, export_id)
     if row is None:
         raise ExportFileMissingError(f"no existe la exportación {export_id}")
-    folder = folder_name(row.params or {})
-    path = (out_dir / folder / row.file_name) if folder is not None else None
-    if path is None or not path.is_file():
+    record = row.params or {}
+    # Una corrida del CLI guarda como `folder` el nombre de su `--out`, que puede no estar bajo
+    # la carpeta del panel: se prueba también el nombre viejo antes de darla por perdida.
+    names = dict.fromkeys(n for n in (folder_name(record), legacy_folder_name(record)) if n)
+    path = next(
+        (p for p in (out_dir / name / row.file_name for name in names) if p.is_file()), None
+    )
+    if path is None:
         raise ExportFileMissingError(f"{row.file_name} no está en la carpeta de exportaciones")
     if hashlib.sha256(path.read_bytes()).hexdigest() != row.sha256:
         raise ExportFileMissingError(f"{row.file_name} no coincide con el SHA-256 registrado")

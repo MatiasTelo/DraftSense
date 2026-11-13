@@ -111,6 +111,24 @@ describe('Play', () => {
     });
   });
 
+  it('Not sure pasa a la tarjeta siguiente sin cartel de feedback', async () => {
+    vi.mocked(postResponse).mockResolvedValue({
+      recorded: true,
+      feedback: null,
+      progress: PROGRESS,
+    });
+    renderPlay();
+
+    fireEvent.click(screen.getByText('Not sure'));
+
+    // Entra la tarjeta siguiente...
+    await waitFor(() => {
+      expect(screen.getByText('Sett')).toBeInTheDocument();
+    });
+    // ...y nunca se dijo que la persona fue de las primeras: no hay nada que comparar.
+    expect(screen.queryByText(/one of the first/i)).not.toBeInTheDocument();
+  });
+
   it('CA-502 — el doble toque devuelve 409 y la interfaz avanza sin mostrar error', async () => {
     vi.mocked(postResponse).mockRejectedValue(
       new ApiError('duplicate_response', 'already answered', 409),

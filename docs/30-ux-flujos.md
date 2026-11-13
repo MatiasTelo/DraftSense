@@ -1,6 +1,8 @@
 # 30 — Flujos e interfaz
 
-> Estado: **v1** · Última revisión: 08/11/2026
+> Estado: **v1** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. *Not sure* no muestra cartel de feedback (§5.1).
 >
 > **08/11/2026:** el escritorio pasa a ser el caso principal, con el contenido en un panel centrado
 > y la navegación arriba (§5, §9, [ADR-031](13-adr/ADR-031-escritorio-como-caso-principal.md)), y
@@ -287,6 +289,12 @@ durante los primeros días **todas** las preguntas van a caer ahí.
 | Racha en múltiplo de 10 | `10 in a row 🔥` sobre el feedback normal |
 | Tipo 2 (mediana) | `Most players said 26 min. You said 27.` |
 | Tipo 5 (atributos), agregado el 29/10/2026 | `You agree with the community on 5 of 7 traits`, con una barra por atributo |
+| *Not sure* en el tipo 1, agregado el 13/11/2026 | **Sin cartel**: entra la tarjeta siguiente |
+
+> **Agregado el 13/11/2026 (revisión general, decisión del alumno).** Tras *Not sure* no hay nada
+> que comparar con la comunidad, así que no se muestra feedback y la tarjeta siguiente entra
+> directo. Antes aparecía el cartel de soporte bajo —«You're one of the first to answer this»—,
+> que con respuestas de sobra era falso. La respuesta se registra y suma a la racha como siempre.
 
 > **Agregado el 29/10/2026.** El 2v2 y el tipo 4 usan las barras de consenso con la barra debajo
 > de la etiqueta, como el 1v1. El tipo 5 muestra la frase de arriba y, debajo, los siete atributos

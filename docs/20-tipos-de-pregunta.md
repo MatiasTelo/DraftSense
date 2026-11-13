@@ -1,6 +1,8 @@
 # 20 — Los cinco tipos de pregunta
 
-> Estado: **v2** · Última revisión: 08/10/2026
+> Estado: **v2** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. La regla de variedad de §7 vale sobre lo que la persona ve (21 §6).
 >
 > **v2 (08/10/2026):** el tipo 1 pasa de comparar dos campeones a ordenar cinco
 > ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md)), y las salidas se nombran con los
@@ -652,6 +654,9 @@ Reglas que se superponen a esa mezcla:
 
 El detalle del algoritmo que elige *cuál* pregunta dentro de cada tipo está en
 [`21-sampler.md`](21-sampler.md).
+
+> **Nota del 13/11/2026.** «Seguidas» es **lo que la persona ve**: la regla de variedad cuenta
+> también las tarjetas ya servidas y todavía sin contestar (21 §6, nota del 13/11).
 
 ---
 

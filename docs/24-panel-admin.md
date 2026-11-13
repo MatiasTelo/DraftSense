@@ -1,6 +1,9 @@
 # 24 — Panel de administración
 
-> Estado: **v1** · Ola 3 · Semana 7 · Última revisión: 29/10/2026
+> Estado: **v1** · Ola 3 · Semana 7 · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. Un parámetro sólo acepta un valor de la misma forma que el
+> actual (§3.6).
 >
 > **29/10/2026:** la exportación de la semana 9 (§3.9, §4, §5, §6 y CA-612).
 
@@ -154,6 +157,14 @@ Editar una clave abre un editor del valor en JSON con confirmación. Reglas:
 - **Se acepta cualquier JSON válido.** No hay un esquema por clave en ningún documento, y la
   decisión del 21/10/2026 es no inventarlo: la responsabilidad del valor es de quien lo edita. Por
   eso la confirmación muestra el valor actual y el nuevo lado a lado.
+
+  > **Cambiado el 13/11/2026** (decisión del alumno tras la revisión general). Se sigue sin
+  > esquema por clave, pero el valor nuevo tiene que tener **la misma forma que el actual**: el
+  > mismo tipo JSON (número, texto, booleano, lista u objeto), en un objeto las mismas claves con
+  > la misma forma, y en una lista elementos de la forma de los actuales. Otra cosa es
+  > `400 invalid_parameter` y no se guarda nada. La prueba que lo motivó: `"x"` en
+  > `sampler.cold_threshold` dejó `GET /questions/next` respondiendo `500` a todos los
+  > respondedores hasta que se revirtió. Un entero y un decimal son el mismo tipo.
 - `updated_by` queda en `admin`.
 - La API pública cachea `app_settings` 60 segundos (11 §3.12): el cambio tarda a lo sumo eso en
   verse. La vista lo avisa.
@@ -231,6 +242,23 @@ leída de `exports` (vacía hasta la semana 9).
 > - Si la corrida falla —por ejemplo, ninguna respuesta pasa los filtros (25 §7)— la vista muestra
 >   el error, no se escribe ningún archivo y no se audita.
 
+> **Cambiado el 13/11/2026 (revisión general).**
+>
+> - **Cada corrida tiene su propia carpeta**, nombrada con la ventana, la fecha, la semilla y el
+>   id de la corrida, y ese nombre queda en `exports.params.folder`. Antes la carpeta salía sólo
+>   de la ventana, la fecha y la semilla: dos corridas del mismo día compartían carpeta, la
+>   segunda pisaba a la primera y sus archivos dejaban de poder descargarse (cuatro de las seis
+>   corridas de la base de pruebas respondían `404`). Las corridas anteriores a hoy siguen
+>   buscándose con el nombre viejo.
+> - **Un campo del formulario que no es un número es un error**, no un vacío: `0,25` con coma se
+>   mandaba como `null` y la corrida salía con el umbral por defecto sin avisar.
+> - **`min_trust` va entre 0 y 1 sin el 0, y la vida media tiene que ser mayor que 0**
+>   (`400 invalid_parameter`); ver la nota de [`25-agregacion.md`](25-agregacion.md) §8.1.
+> - La descarga del Informe de Calidad de Datos (semana 10) se rotula «Informe» y se sirve como
+>   `text/markdown`; cada corrida escribe **siete** filas en `exports`, no seis.
+> - Si la consulta del estado falla —el panel se reinició y la corrida ya no existe—, la vista
+>   muestra el error y vuelve a habilitar el botón. Lo mismo en *Jobs* (§3.7).
+
 ### 3.10 Auditoría
 
 Todas las filas de `admin_audit`, de la más nueva a la más vieja, **paginadas de a 50 y sin tope**:
@@ -296,6 +324,14 @@ de `infra/seeds/`), `404` (respondedor, parche, job o corrida inexistente), `409
 está corriendo), `422 seed_invalid` (el archivo no pasa la validación, con cada problema en
 `details`). Desde el 29/10: `409 export_running` (ya hay una exportación en curso) y `404` si el
 archivo de un `export_id` no existe en `DS_EXPORTS_DIR`.
+
+> **Corregido el 13/11/2026.** Lo que devuelve el panel hoy: un cuerpo que no cumple el esquema es
+> `422 validation_error` (los manejadores son los de la API pública); una **clave inexistente** de
+> `app_settings` y unos **campeones inexistentes** en `PATCH /api/champions/pool-tier` son
+> `404 not_found`, no `400`; y un valor de otra forma que el actual (§3.6) o un parámetro de
+> exportación fuera de rango (§3.9) son `400 invalid_parameter`. `GET /api/exports/{id}/file`
+> sirve el Informe de Calidad de Datos como `text/markdown`. `GET /api/exports` devuelve las
+> últimas 200 filas.
 
 **El nombre de archivo de un seed se valida contra la lista de `/api/seeds/files`**, nunca se usa
 como ruta: un nombre con `/`, `\` o `..` es `400`.

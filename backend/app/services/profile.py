@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Question, QuestionType, Respondent, Response
 from app.services import app_settings, submissions
+from app.services.answers import UNKNOWN_CHOICE, without_unknown
 
 
 async def coverage(session: AsyncSession, respondent: Respondent) -> dict[str, int]:
@@ -62,15 +63,19 @@ async def agreement_rate(session: AsyncSession, respondent: Respondent) -> float
     agreed = 0
     for answer, counts in rows:
         choice = _choice_of(answer)
-        if choice is None or not counts:
+        # *Not sure* no es una opinión que pueda coincidir o no (nota del 13/11/2026 en 23 §3):
+        # ni la respuesta de la persona ni las de los demás entran en la cuenta.
+        if choice is None or choice == UNKNOWN_CHOICE or not counts:
             continue
-        sample_size = sum(counts.values())
-        if sample_size < threshold:
+        decided = without_unknown(counts)
+        sample_size = sum(decided.values())
+        if sample_size == 0 or sample_size < threshold:
             continue
         eligible += 1
-        if choice == max(counts, key=lambda k: counts[k]):
+        if choice == max(decided, key=lambda k: decided[k]):
             agreed += 1
     return agreed / eligible if eligible else 0.0
+
 
 
 def _choice_of(answer: dict[str, Any]) -> str | None:

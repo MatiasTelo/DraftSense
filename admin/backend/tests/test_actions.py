@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+import pytest
 import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,17 +130,42 @@ async def test_enabled_tiers_has_its_own_action(client: AsyncClient, db: AsyncSe
     assert rows[-1].payload == {"key": "sampler.enabled_pool_tiers", "value": 2, "previous": 1}
 
 
-async def test_any_json_value_is_accepted(client: AsyncClient, db: AsyncSession) -> None:
-    """24 §3.6: no hay esquema por clave; ni siquiera el tipo tiene que coincidir."""
+async def test_a_value_of_the_same_shape_is_accepted(client: AsyncClient, db: AsyncSession) -> None:
+    """24 §3.6: sin esquema por clave, pero con la forma del valor actual."""
     await set_setting(db, "sampler.epsilon", 1.0)
-    value: Any = {"cualquier": ["cosa", 1]}
-    response = await client.patch("/settings/sampler.epsilon", json={"value": value})
+    response = await client.patch("/settings/sampler.epsilon", json={"value": 0})
     assert response.status_code == 200
     listing = (await client.get("/settings")).json()["settings"]
     stored = next(s for s in listing if s["key"] == "sampler.epsilon")
-    assert stored["value"] == value
+    assert stored["value"] == 0
     assert stored["updated_by"] == "admin"
     assert (await audit_rows(db, "set_setting"))[-1].payload["previous"] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("current", "value"),
+    [
+        (5, "x"),  # el caso del 13/11: tiró `GET /questions/next`
+        (5, True),
+        (5, None),
+        (5, [5]),
+        ("America/Argentina/Buenos_Aires", 3),
+        ([10, 15], ["a", "b"]),
+        ({"retest": 0.4, "honeypot": 0.6}, {"retest": 0.4}),
+        ({"retest": 0.4, "honeypot": 0.6}, {"retest": 0.4, "honeypot": "mucho"}),
+    ],
+)
+async def test_a_value_of_another_shape_is_rejected(
+    client: AsyncClient, db: AsyncSession, current: Any, value: Any
+) -> None:
+    await set_setting(db, "sampler.epsilon", current)
+    before = await count_audit(db)
+    response = await client.patch("/settings/sampler.epsilon", json={"value": value})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_parameter"
+    listing = (await client.get("/settings")).json()["settings"]
+    assert next(s for s in listing if s["key"] == "sampler.epsilon")["value"] == current
+    assert await count_audit(db) == before
 
 
 async def test_same_value_does_not_audit(client: AsyncClient, db: AsyncSession) -> None:

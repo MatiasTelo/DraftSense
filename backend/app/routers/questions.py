@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, status
 from app.dependencies import CurrentSessionDep, SessionDep
 from app.errors import ApiError
 from app.schemas.questions import QuestionBatch
+from app.schemas.responses import MAX_ID
 from app.services import queued as queued_service
 from app.services import sampler
 from app.services.question_texts import LANGS, Lang
@@ -29,7 +30,8 @@ def parse_queued(raw: str | None) -> list[int]:
     if not raw:
         return []
     ids = [int(part) for part in raw.split(",")]
-    if len(ids) > MAX_QUEUED or any(question_id <= 0 for question_id in ids):
+    # El tope de arriba es el de `bigint`: ver `schemas.responses.MAX_ID`.
+    if len(ids) > MAX_QUEUED or any(not 0 < question_id <= MAX_ID for question_id in ids):
         raise ValueError(raw)
     return list(dict.fromkeys(ids))
 

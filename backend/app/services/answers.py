@@ -109,3 +109,12 @@ async def validate_trait_codes(session: AsyncSession, answer: dict[str, Any]) ->
     unknown = [c for c in codes if c not in known]
     if unknown:
         raise UnknownTraitError(unknown)
+
+
+def without_unknown(counts: dict[str, int]) -> dict[str, int]:
+    """`answer_counts` sin la clave de *Not sure*: lo que se compara contra una mayoría.
+
+    Con ella adentro, un par muy contestado «no sé» llegaba al umbral de consenso sin tener
+    opiniones, y `unknown` podía ser «la mayoría»: quien sí opinaba figuraba en desacuerdo.
+    """
+    return {key: value for key, value in counts.items() if key != UNKNOWN_CHOICE}

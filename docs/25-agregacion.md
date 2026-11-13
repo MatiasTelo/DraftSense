@@ -1,6 +1,10 @@
 # 25 — Pipeline de agregación: del respondedor al CSV
 
-> Estado: **v1** · Última revisión: 08/10/2026 · Ola 4 · Desbloquea la semana 9 del cronograma
+> Estado: **v1** · Última revisión: 13/11/2026 · Ola 4 · Desbloquea la semana 9 del cronograma
+>
+> **13/11/2026:** revisión general. Rangos de los parámetros de la corrida y `folder` en
+> `exports.params` (§8.1); fechas en UTC y antigüedad sin días negativos (§2.1); cero sin signo y
+> `aggregation_version` `1.0.1` (§4.6); alcance real de la reproducibilidad (§8.3).
 >
 > **08/10/2026:** la salida por campeón son cuatro archivos en formato largo, `synergy_mean` se
 > eliminó y `duo_features` lleva `role_a` / `role_b`
@@ -163,6 +167,13 @@ peso(r) = trust_score(respondedor(r)) · 0.5 ^ ( dias(r) / H )
 dias(r) = exported_at − date(r.created_at)          en días enteros
 H       = aggregation.decay_halflife_days           inicial 21
 ```
+
+> **Precisado el 13/11/2026 (revisión general).** Las dos fechas son **UTC** —`date(r.created_at)`
+> ya lo era; el default de `exported_at` era la fecha local y pasa a ser la de UTC (§8.1)— y
+> `dias(r)` **nunca es menor que 0**: `dias(r) = max(0, exported_at − date(r.created_at))`. Sin
+> ese piso, una respuesta posterior a `exported_at` —una corrida nocturna en UTC−3, o la
+> reproducción de una corrida vieja— daba días negativos y un factor mayor que 1: pesaba más que
+> su propio trust, que es el techo que supone la tabla de abajo.
 
 Es la única ponderación del pipeline. Los dos factores están decididos en documentos previos —el
 trust en [`22-calidad-de-datos.md`](22-calidad-de-datos.md) §7.3, el decaimiento en
@@ -495,6 +506,12 @@ Fijo, porque de él depende que el SHA-256 sea reproducible (CA-408).
 | `_n` | entero | `148` |
 | Booleanos | `true` / `false` en minúscula | `false` |
 | Vacío | cadena vacía | `,,` |
+
+> **Agregado el 13/11/2026 (revisión general, decisión del alumno).** Un valor que redondea a
+> cero se escribe **sin signo**: `0.000`, nunca `-0.000`. Antes un score centrado como `-0.0004`
+> salía con signo, en un contrato donde `0` quiere decir «el promedio del pool». Como cambia
+> bytes de los archivos, **`aggregation_version` pasa de `1.0.0` a `1.0.1`**: entra en la semilla
+> (§4.2) y en `exports`, así que una corrida `1.0.0` no se confunde con una `1.0.1`.
 
 Codificación UTF-8 sin BOM, fin de línea `\n`, separador `,`, sin comillas salvo que el valor las
 necesite. Orden de filas: `peak_timing` por `champion_id`; `champion_dimensions` por
@@ -894,10 +911,24 @@ python -m aggregation.run \
 Todo parámetro omitido se toma de `app_settings` (§9), y el valor **efectivamente usado** —no el
 default— es el que se registra.
 
+> **Agregado el 13/11/2026 (revisión general).** Los rangos que la corrida exige antes de leer una
+> sola respuesta, tanto por línea de comandos como desde el panel: `0 < min_trust ≤ 1`,
+> `halflife > 0`, `sigma > 0` y `bootstrap ≥ 1`. Con `halflife = 0` el peso de §2.1 divide por
+> cero, y con `min_trust = 0` entra quien tiene trust 0, cuya respuesta pesa cero —lo que §2.1
+> excluye— y deja a un campeón dividiendo por una suma de pesos nula. Fuera de rango, el CLI
+> termina con `ERROR` y el panel responde `400`.
+>
+> Además de los parámetros, `exports.params` guarda `folder`, el nombre de la carpeta donde
+> quedaron los archivos. No entra en la semilla ni en el informe: no es un parámetro de la
+> corrida, es dónde encontrarlos (24 §3.9).
+
 `--exported-at` es un parámetro y no `now()` por una razón concreta: la fecha entra en la columna
 `exported_at` de cada fila, así que sin ella una reproducción hecha otro día daría otro archivo y
 CA-408 sería imposible de cumplir. Su default es la fecha de hoy; reproducir una corrida vieja
 exige pasar la fecha registrada.
+
+> **Precisado el 13/11/2026.** «La fecha de hoy» es la de **UTC**, la misma zona en que se toma
+> la fecha de cada respuesta (§2.1).
 
 ### 8.2 Los ocho pasos
 
@@ -956,6 +987,24 @@ Eso se sostiene sobre cinco cosas, todas fijadas arriba: orden determinista de l
 (§4.6) y `exported_at` como parámetro (§8.1). Cualquiera que se afloje rompe la propiedad en
 silencio, así que el test de CA-408 corre la misma exportación dos veces y compara hashes.
 
+> **Precisado el 13/11/2026 (revisión general, decisión del alumno).** «Sobre el mismo crudo» es
+> una condición más fuerte de lo que parece, y hay que leerla entera: la carga lee **el estado de
+> la base al momento de correr**. Volver a pasar los parámetros de una corrida vieja da el mismo
+> archivo sólo si desde entonces **no cambió** nada de esto:
+>
+> - `responses`: no entraron respuestas nuevas en la ventana (la carga no corta por fecha);
+> - `respondents.trust_score` e `is_flagged`, que se recalculan con cada honeypot, cada retest y
+>   cada job, y **no tienen historial**;
+> - `questions.is_honeypot`, que cambia cuando una honeypot se retira;
+> - el pool: `champions.is_active`, `pool_tier` y `sampler.enabled_pool_tiers`;
+> - los catálogos activos de dimensiones y atributos.
+>
+> Lo que **sí** queda garantizado, y es la trazabilidad real de una entrega: los archivos
+> escritos, su SHA-256 en `exports`, todos los parámetros en `exports.params` y, desde hoy, el
+> pool con que se armaron (`exports.params.pool_champion_ids`). Para volver a tener exactamente
+> el archivo de una entrega hay que **conservarlo**, no recalcularlo. CA-408 —dos corridas
+> seguidas dan el mismo hash— sigue valiendo tal cual, y es lo que prueba el test.
+
 ---
 
 ## 9. Parámetros
@@ -1005,7 +1054,7 @@ no la toca.
 | El orden que produce el modelo es coherente | A le gana a B y B a C ⇒ `θ_A > θ_B > θ_C` | CA-401 |
 | El trust pondera | Dos conjuntos idénticos salvo trust dan scores distintos en la dirección esperada | CA-402 |
 | **El rango declarado no pondera** | Dos conjuntos idénticos salvo `declared_rank` dan **exactamente** el mismo CSV, hash incluido | §3.2 |
-| Grafo desconectado, reportado y no forzado | Dos componentes ⇒ ambas marcadas `insufficient`, sin orden global | CA-403 |
+| Grafo desconectado, reportado y no forzado | Dos componentes ⇒ los campeones **fuera de la componente mayor** marcados `insufficient`, sin orden global (§7). *Corregido el 13/11/2026: decía «ambas marcadas», que contradecía a §7; el pipeline sigue a §7* | CA-403 |
 | Toda estimación lleva incertidumbre | Recorrido del CSV: existen `_ci_low ≤ valor ≤ _ci_high`, `_n`, `_support` | CA-404 |
 | Vacío no es cero | Campeón sin datos ⇒ celda vacía, `_n = 0`, `insufficient` | CA-405 |
 | Observado y predicho se distinguen | Par nunca preguntado ⇒ `is_observed = false`, `n = 0`, IC más ancho | CA-406 |

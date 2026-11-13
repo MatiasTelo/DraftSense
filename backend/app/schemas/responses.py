@@ -8,11 +8,16 @@ from pydantic import BaseModel, Field
 
 from app.schemas.common import is_absent
 
+#: El mayor `bigint` de Postgres. Un id más grande no puede existir, y si llegara a la consulta
+#: asyncpg lo rechaza con un error de datos que el manejador de `DBAPIError` informa como
+#: `503 database_unavailable`: la base estaría «caída» para un simple id mal escrito.
+MAX_ID = 2**63 - 1
+
 
 class ResponseIn(BaseModel):
-    question_id: int
+    question_id: int = Field(ge=-MAX_ID, le=MAX_ID)
     #: Sólo el tipo 1: el ranking servido, cuyo ancla tiene que ser `question_id` (ADR-022).
-    ranking_id: int | None = None
+    ranking_id: int | None = Field(default=None, ge=-MAX_ID, le=MAX_ID)
     #: La forma del `answer` depende del tipo real de la pregunta, no de lo que declare el
     #: cliente: se valida contra `questions.type` leído de la base (RF-108).
     answer: dict[str, Any]

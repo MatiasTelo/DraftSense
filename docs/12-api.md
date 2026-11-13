@@ -1,6 +1,8 @@
 # 12 — Contrato de la API REST
 
-> Estado: **v1** · Última revisión: 07/11/2026
+> Estado: **v1** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. `POST /sessions` ya no actualiza `last_seen` (§2.1).
 >
 > **07/11/2026:** endpoint nuevo `GET /questions/queued`, que re-arma la cola en otro idioma sin
 > pasar por el sampler (§2.8, [ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md)).
@@ -58,6 +60,13 @@ Los endpoints `/admin/*` requieren el header `X-Admin-Key`.
 > `POST /sessions` y reintentando— agrega un viaje de red al camino crítico para no ganar nada.
 > El respondedor creado así es indistinguible de cualquier otro.
 
+> **Cambiado el 13/11/2026** ([ADR-033](13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md)). La
+> sesión creada al vuelo **se confirma sólo si el pedido termina bien**. Un pedido sin cookie que
+> termina en error (`400`, `404`, `409`, `422`, `429`) no deja un respondedor creado y su respuesta
+> no lleva `Set-Cookie`. Antes cada uno dejaba una fila vacía en `respondents`. Los endpoints que
+> crean la sesión así son todos los que la necesitan: además de los tres de arriba,
+> `GET /leaderboard`, `POST /sessions/onboarding` y `GET /questions/queued`.
+
 ### 1.4 Lo que nunca sale de la API
 
 - `is_honeypot` y `expected_answer` — exponerlos invalidaría el mecanismo entero.
@@ -85,12 +94,22 @@ Los endpoints `/admin/*` requieren el header `X-Admin-Key`.
 | `POST` | `/admin/respondents/{id}/flag` | Marcar o desmarcar un respondedor |
 | `GET` | `/health` | Sonda de salud |
 
+> **Nota del 13/11/2026.** Las seis filas `/admin/*` de esta tabla están **sin efecto desde el
+> 21/10/2026** ([ADR-025](13-adr/ADR-025-app-de-administracion-local.md)): la API pública no
+> tiene administración, que vive en la app local de [`24-panel-admin.md`](24-panel-admin.md). La
+> nota estaba en §1.3 y en §2.7, pero no acá. Los endpoints vigentes son ocho: los siete
+> restantes de la tabla, contando `/questions/queued`.
+
 ---
 
 ### 2.1 `POST /sessions`
 
-Crea una sesión anónima. **Idempotente**: si llega con una cookie válida, no crea nada nuevo y sólo
-actualiza `last_seen`.
+Crea una sesión anónima. **Idempotente**: si llega con una cookie válida, no crea nada nuevo y
+devuelve el estado del respondedor.
+
+> **Cambiado el 13/11/2026.** Decía «y sólo actualiza `last_seen`». Ya no lo toca: `last_seen` es
+> la fecha de la última respuesta y lo escribe sólo `POST /responses`, porque la racha se corta
+> comparando contra él (CA-002 y CA-310 en [`03-criterios-aceptacion.md`](03-criterios-aceptacion.md)).
 
 **Request:** sin cuerpo. El cliente envía en el header `X-Client-Fingerprint` un hash calculado
 localmente a partir de user-agent y resolución de pantalla; el servidor lo combina con un hash de
@@ -162,6 +181,9 @@ tarjeta y tarjeta.
 > dimensión o un atributo le falta el texto en español. Cualquier otro valor devuelve
 > `400 invalid_parameter` con `field: "lang"`. Es el único endpoint que lo acepta: los demás no
 > devuelven textos para mostrar ([ADR-028](13-adr/ADR-028-idioma-por-parametro.md)).
+>
+> *(Nota del 13/11/2026: desde el 07/11 también lo acepta `GET /questions/queued`, §2.8,
+> [ADR-029](13-adr/ADR-029-cambiar-de-idioma-traduce-la-cola.md).)*
 
 **`200 OK`** — un arreglo `questions` cuyos elementos siguen una de estas cinco formas.
 
@@ -445,6 +467,13 @@ Para `peak_timing` el consenso no es una distribución de opciones sino la media
 > `sample_size` la suma de respuestas de esos pares. El cliente muestra *"You agree with the
 > community on 7 of 9 pairs"*. Si ningún par llega al umbral, o si la respuesta fue *Not sure*,
 > `feedback` es `null`.
+
+> **Cambiado el 13/11/2026.** En `pairs_compared`, `pairs_agreed` y `sample_size` **no cuentan
+> los `unknown`**: el umbral se mide sobre las respuestas que eligieron un campeón, la «opción más
+> votada» es `a` o `b`, y `sample_size` es la suma de esas respuestas. Lo mismo vale para
+> `agreement_rate` de `GET /me` ([`23-gamificacion.md`](23-gamificacion.md) §3). Tras un
+> *Not sure* el cliente no muestra ningún cartel: pasa a la tarjeta siguiente
+> ([`30-ux-flujos.md`](30-ux-flujos.md) §5.1).
 
 > **Agregado el 29/10/2026.** Los tipos de la semana 8:
 >
@@ -742,6 +771,19 @@ despliegue.
 > **Cambiado el 08/10/2026.** Se cuentan **envíos**, no filas: un ranking del tipo 1 son diez filas
 > y una sola respuesta ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
 > [`11-modelo-de-datos.md`](11-modelo-de-datos.md) §6).
+
+> **Agregado el 13/11/2026** ([ADR-033](13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md)). Hasta
+> hoy sólo estaba implementado el límite por `respondent_id`. El límite **por hash de IP** usa los
+> mismos dos valores y cuenta los envíos de todos los respondedores creados desde la misma IP,
+> sobre `respondents.ip_hash` (HMAC-SHA-256 con la sal de `DS_IP_HASH_SALT`). Se evalúa después
+> del límite por respondedor y devuelve el mismo `429`. Sin sal configurada no se aplica. Las
+> cabeceras `X-RateLimit-*` siguen informando el límite por respondedor. Los dos topes por IP
+> son parámetros —`quality.ip_rate_per_minute` y `quality.ip_rate_per_day`, que arrancan en 40 y
+> 1 500— porque una red compartida comparte el contador; los del respondedor siguen fijos.
+>
+> Además, **un id fuera del rango de `bigint`** en `question_id` o `ranking_id` es
+> `422 validation_error`, y en `queued` o `ids`, `400 invalid_parameter`. Antes llegaba a la base
+> y salía como `503 database_unavailable`.
 
 ---
 

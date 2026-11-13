@@ -156,7 +156,8 @@ De `docs/30-ux-flujos.md` §10. No se replantean:
 |---|---|
 | Registro | No hay |
 | Onboarding | Al inicio, salteable |
-| Confirmación de respuesta | Sólo tipos 2 y 5; los demás registran al primer toque |
+| Confirmación de respuesta | Tipos 1, 2 y 5 (`Confirm`); los tipos 3 y 4 registran al primer toque |
+| Feedback tras *Not sure* | Ninguno: entra la tarjeta siguiente (30 §5.1, 13/11) |
 | Duración del feedback | 4 s, y un toque, `Enter` o `Espacio` la saltean (ADR-030, 07/11) |
 | Orden del leaderboard | Cantidad de respuestas, no acuerdo |
 | Trust score visible | No, nunca |

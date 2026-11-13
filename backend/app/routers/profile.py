@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query, status
 from app.dependencies import CurrentSessionDep, SessionDep
 from app.errors import ApiError
 from app.schemas.profile import LeaderboardOut, MeOut
-from app.services import leaderboard, profile
+from app.services import leaderboard, profile, streaks
 
 router = APIRouter(tags=["profile"])
 
@@ -23,11 +23,14 @@ async def me(session: SessionDep, current: CurrentSessionDep) -> MeOut:
     ninguna métrica de la que se pueda despejar alguna de esas cosas (RF-207, CA-303).
     """
     respondent = current.respondent
+    current_streak, current_day_streak = await streaks.visible(
+        session, respondent, dt.datetime.now(dt.UTC)
+    )
     return MeOut(
         answers_count=respondent.answers_count,
-        current_streak=respondent.current_streak,
+        current_streak=current_streak,
         best_streak=respondent.best_streak,
-        current_day_streak=respondent.current_day_streak,
+        current_day_streak=current_day_streak,
         best_day_streak=respondent.best_day_streak,
         agreement_rate=await profile.agreement_rate(session, respondent),
         coverage=await profile.coverage(session, respondent),

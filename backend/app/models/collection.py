@@ -74,6 +74,9 @@ class Respondent(Base):
     )
     session_token_hash: Mapped[str] = mapped_column(sa.Text, nullable=False, unique=True)
     fingerprint_hash: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    #: HMAC-SHA-256 de la IP de creación, con la sal de `DS_IP_HASH_SALT` (ADR-033). `NULL` sin
+    #: sal o en los respondedores anteriores a la migración `0007`: nunca un hash sin sal.
+    ip_hash: Mapped[str | None] = mapped_column(sa.Text)
 
     # Onboarding. Los tres opcionales: NULL = prefirió no decir u omitió.
     declared_rank: Mapped[str | None] = mapped_column(sa.Text)
@@ -179,6 +182,9 @@ class Respondent(Base):
             name="respondents_counters_consistent",
         ),
         sa.Index("respondents_fingerprint", "fingerprint_hash"),
+        sa.Index(
+            "respondents_ip_hash", "ip_hash", postgresql_where=sa.text("ip_hash IS NOT NULL")
+        ),
         sa.Index(
             "respondents_leaderboard",
             sa.text("answers_count DESC"),

@@ -38,12 +38,17 @@ from app.services import (
     submissions,
     trust,
 )
-from app.services.answers import UNKNOWN_CHOICE
+from app.services.answers import UNKNOWN_CHOICE, without_unknown
 
 #: Los dos límites del contrato (`docs/12-api.md` §4). Son holgados para una persona —una
 #: respuesta cada 5 a 10 segundos son unas 10 por minuto— y cortan el scripting trivial.
 PER_MINUTE = 40
 PER_DAY = 1500
+
+#: Los topes del límite por hash de IP (ADR-033). Si faltan en `app_settings` valen lo mismo que
+#: los del respondedor.
+IP_PER_MINUTE_KEY = "quality.ip_rate_per_minute"
+IP_PER_DAY_KEY = "quality.ip_rate_per_day"
 
 _rng = random.Random()
 
@@ -78,6 +83,20 @@ async def _count_since(
     ).scalar_one()
 
 
+async def _count_since_by_ip(session: AsyncSession, ip_hash: str, since: dt.datetime) -> int:
+    """Envíos desde `since` de todos los respondedores creados desde esa IP (ADR-033)."""
+    same_ip = sa.select(Respondent.respondent_id).where(Respondent.ip_hash == ip_hash)
+    return (
+        await session.execute(
+            submissions.heads(sa.select(sa.func.count()).select_from(Response))
+            .where(
+                Response.respondent_id.in_(same_ip),
+                Response.created_at > since,
+            )
+        )
+    ).scalar_one()
+
+
 async def check_rate_limit(
     session: AsyncSession, respondent: Respondent, now: dt.datetime
 ) -> RateLimitState:
@@ -87,9 +106,11 @@ async def check_rate_limit(
     reinicie en cada despliegue (`docs/12-api.md` §4). Con el índice es un recorrido de unas
     pocas decenas de filas.
 
-    El límite por hash de IP que menciona §4 **no está implementado**: `responses` no guarda
-    ninguna columna derivada de la IP, y agregarla contradiría RNF-05. Queda el límite por
-    respondedor, que es el que describe el párrafo de implementación del mismo documento.
+    Después del límite por respondedor se evalúa el **límite por hash de IP** (ADR-033), con los
+    mismos dos valores, sobre los envíos de todos los respondedores creados desde la misma IP.
+    Es lo que frena a un script que no guarda la cookie: cada pedido suyo llega como un
+    respondedor nuevo, y al de recién no hay nada que contarle. Sin `ip_hash` —no hay sal
+    configurada, o el respondedor es anterior a la migración `0007`— no se aplica.
     """
     minute_ago = now - dt.timedelta(minutes=1)
     day_ago = now - dt.timedelta(days=1)
@@ -112,6 +133,17 @@ async def check_rate_limit(
     in_day = await _count_since(session, respondent, day_ago)
     if in_day >= PER_DAY:
         raise RateLimitError(int(dt.timedelta(days=1).total_seconds()))
+
+    if respondent.ip_hash is not None:
+        # Los dos topes por IP son parámetros y no constantes: varias personas detrás de una misma
+        # red comparten el contador, y antes de difundir el piloto en un aula hay que poder
+        # subirlos desde el panel, sin desplegar (ADR-033). Arrancan en los valores de RF-209.
+        ip_per_minute = int(await app_settings.get(session, IP_PER_MINUTE_KEY, PER_MINUTE))
+        ip_per_day = int(await app_settings.get(session, IP_PER_DAY_KEY, PER_DAY))
+        if await _count_since_by_ip(session, respondent.ip_hash, minute_ago) >= ip_per_minute:
+            raise RateLimitError(int(dt.timedelta(minutes=1).total_seconds()))
+        if await _count_since_by_ip(session, respondent.ip_hash, day_ago) >= ip_per_day:
+            raise RateLimitError(int(dt.timedelta(days=1).total_seconds()))
 
     return RateLimitState(
         limit=PER_MINUTE,
@@ -342,7 +374,9 @@ async def build_ranking_feedback(
     threshold = await app_settings.get(session, "sampler.consensus_threshold", 20)
     compared = agreed = sample_size = 0
     for question, choice in recorded.pairs:
-        counts: dict[str, int] = question.answer_counts or {}
+        # Sin los *Not sure* de los demás: no suman al umbral ni pueden ser la mayoría (nota del
+        # 13/11/2026 en 12 §2.4).
+        counts = without_unknown(question.answer_counts or {})
         total = sum(counts.values())
         if total == 0 or total < threshold:
             continue

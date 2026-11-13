@@ -1,7 +1,7 @@
 /**
  * Tipo 2 — slider de pico de poder (`docs/20-tipos-de-pregunta.md` §3).
  *
- * Es el único tipo, junto al 5, que **necesita confirmación explícita**: un slider no tiene un
+ * Como los tipos 1 y 5, **necesita confirmación explícita**: un slider no tiene un
  * «primer toque» que valga como respuesta (`docs/30-ux-flujos.md` §10). Moverlo no registra nada;
  * registra *Confirm*, o `Enter` en escritorio (§9).
  *

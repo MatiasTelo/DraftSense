@@ -1,6 +1,8 @@
 # 26 — Esquema de salida
 
-> Estado: **v2** · Última revisión: 08/10/2026
+> Estado: **v2** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. El mapeo de los niveles de línea es posterior al ajuste (§4) y la promesa de reproducibilidad de §7 se acota.
 >
 > **v2 (08/10/2026):** `champion_features` se divide en cuatro archivos en formato largo, se
 > elimina `synergy_mean` y `duo_context` pasa a `role_a` y `role_b`
@@ -316,7 +318,11 @@ recolectada, y el laboratorio tiene que poder distinguirlos. Las filas con `is_o
 tienen `n_responses = 0` y un intervalo notoriamente más ancho.
 
 Los cinco niveles de respuesta se mapean a `{a_strong: +1, a_slight: +0.5, even: 0, b_slight: −0.5,
-b_strong: −1}` antes del ajuste.
+b_strong: −1}` para calcular `advantage`.
+
+> **Corregido el 13/11/2026.** Decía «antes del ajuste». El mapeo se aplica **después**: el
+> modelo ordinal se ajusta sobre los cinco niveles tal cual, y `advantage` es el valor esperado
+> de esa escala bajo las probabilidades ajustadas ([`25-agregacion.md`](25-agregacion.md) §5.3).
 
 ---
 
@@ -434,3 +440,12 @@ Toda entrega es auditable. Para cada archivo, `exports` registra:
 Con esos parámetros y la tabla `responses` —que es append-only— cualquier corrida se puede
 reproducir bit a bit. Si un resultado del laboratorio resulta sorprendente, se puede reconstruir
 exactamente el archivo que lo produjo.
+
+> **Corregido el 13/11/2026 (revisión general).** Esa promesa era más fuerte que lo que el
+> sistema garantiza. Además de las columnas de arriba, `exports` guarda `params` —todos los
+> parámetros de la corrida, la carpeta de los archivos y el pool con que se armaron—, y con eso
+> queda registrado **qué archivo se entregó y cómo se calculó**. Pero recalcularlo da el mismo
+> archivo sólo mientras no cambien el crudo ni el estado de calidad —respuestas nuevas, trust,
+> marcados, honeypots retiradas, tiers—, que no tienen historial
+> ([`25-agregacion.md`](25-agregacion.md) §8.3, nota del 13/11). La garantía es el archivo
+> conservado y su SHA-256, no la posibilidad de regenerarlo meses después.

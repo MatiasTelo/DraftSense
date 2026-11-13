@@ -55,12 +55,13 @@ CI falla — que es exactamente lo que tiene que pasar.
 
 Cada una es un error silencioso: no rompe nada, sólo mete ruido sistemático.
 
-1. **`trait_` no es cosmético** (§2.2). Cuatro atributos del tipo 5 (`engage`, `poke`, `pick`,
-   `peel`) se llaman igual que cuatro dimensiones del tipo 1, pero son mediciones distintas y **no
-   intercambiables**: la dimensión es un *score relativo* en log-odds sin cero natural
-   (*"¿cuánto engage tiene comparado con los demás?"*); el `trait_` es una *proporción absoluta* 0–1
-   (*"¿qué fracción de la comunidad dice que hace engage?"*). Un campeón puede tener `engage = -0.4`
-   y `trait_engage = 0.71` sin contradicción. **Nunca les quites el prefijo ni las mezcles.**
+1. **Dimensión y atributo no son lo mismo aunque se llamen igual** (§2.2). Cuatro atributos del
+   tipo 5 (`engage`, `poke`, `pick`, `peel`) tienen el mismo código que cuatro dimensiones del
+   tipo 1, pero son mediciones distintas y **no intercambiables**: la dimensión es un *score
+   relativo* en log-odds sin cero natural, en `champion_dimensions.score`; el atributo es una
+   *proporción absoluta* 0–1, en `champion_traits.proportion`. Un campeón puede tener
+   `score = -0.4` y `proportion = 0.71` en `engage` sin contradicción. Desde el formato largo
+   (ADR-023) ya no hay prefijo `trait_`: cada medición vive en su archivo. **Nunca las mezcles.**
 2. **Vacío no es cero** (§2.3). Celda vacía = "no tenemos datos"; `0` en `engage` = "engage promedio
    del pool". Vacío va con `_n = 0` y `_support = insufficient`.
 3. **`_norm` no es comparable entre exports** (§2.5). Su referencia es el mínimo y el máximo del pool

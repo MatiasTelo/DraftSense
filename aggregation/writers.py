@@ -133,7 +133,11 @@ def number(value: float | None, digits: int) -> str:
     """El `%.Nf` de §4.6, y vacío —no cero— cuando no hay valor (§4.5)."""
     if value is None:
         return ""
-    return f"{value:.{digits}f}"
+    text = f"{value:.{digits}f}"
+    # Un valor que redondea a cero desde abajo se escribía `-0.000`: un cero con signo en un
+    # contrato donde `0` quiere decir «el promedio del pool» (§4.6, nota del 13/11/2026). Cambiar
+    # esto cambia el SHA-256 de los archivos: por eso subió `AGGREGATION_VERSION`.
+    return text[1:] if text.startswith("-") and float(text) == 0 else text
 
 
 def integer(value: float | None) -> str:

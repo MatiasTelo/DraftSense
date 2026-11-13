@@ -1,6 +1,8 @@
 # 02 — Casos de uso
 
-> Estado: **v1** · Última revisión: 11/10/2026
+> Estado: **v1** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. El paso 10 de CU-03 dice 4 segundos (ADR-030).
 >
 > **11/10/2026:** registrar un parche y activarlo pasan a ser pasos distintos en CU-06
 > ([ADR-024](13-adr/ADR-024-activacion-explicita-de-parche.md)).
@@ -108,7 +110,10 @@ Es el caso de uso central del sistema. Todo lo demás existe para sostenerlo.
    respuesta y actualiza los contadores del respondedor.
 8. Si la pregunta era honeypot o retest, el sistema recalcula el trust score.
 9. El sistema devuelve la distribución de respuestas de la comunidad y el progreso actualizado.
-10. El cliente muestra el feedback 1,2 segundos y pasa a la siguiente tarjeta de la cola.
+10. El cliente muestra el feedback 4 segundos —o hasta que la persona lo saltea con un toque,
+    `Enter` o `Espacio`— y pasa a la siguiente tarjeta de la cola.
+    *(Cambiado el 13/11/2026: decía «1,2 segundos», que
+    [ADR-030](13-adr/ADR-030-feedback-de-cuatro-segundos.md) sustituyó el 07/11.)*
 11. Cuando quedan dos preguntas en cola, el cliente vuelve al paso 1 en segundo plano.
 
 **Alternativo A — soporte insuficiente.** Si la pregunta tiene menos de 20 respuestas, el sistema
