@@ -31,8 +31,8 @@ ni interpretación de resultados. DraftSense mide campeones; el laboratorio hace
 | `frontend/` | SPA en React 18 + TypeScript + Vite. Interfaz pública de etiquetado |
 | `backend/` | API REST en FastAPI + SQLAlchemy 2.0 async. Sesiones, sampler, registro de respuestas |
 | `admin/` | App de administración local del servidor del laboratorio: panel, jobs, seeds y exportación ([ADR-025](docs/13-adr/ADR-025-app-de-administracion-local.md)) |
-| `aggregation/` | Paquete Python ejecutable como CLI. Agregación estadística y exportación |
-| `infra/` | Migraciones Alembic, seeds, configuración de despliegue |
+| `aggregation/` | Paquete Python ejecutable como CLI (`python -m aggregation.run`). Agregación estadística, los seis CSV y el Informe de Calidad de Datos |
+| `infra/` | Seeds versionados y `check_docs.py`. Las migraciones Alembic están en `backend/migrations/` |
 | `docs/` | Documentación técnica — **empezar por [`docs/README.md`](docs/README.md)** |
 
 ## Puesta en marcha local
@@ -49,8 +49,10 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows;  source .venv/bin/activate en Linux/macOS
 pip install -e ".[dev]"
 
-# Apuntar a la base: crear backend/.env (esta en .gitignore, nunca se versiona)
+# Apuntar a la base: crear backend/.env desde backend/.env.example (esta en .gitignore, nunca
+# se versiona)
 #   DS_DATABASE_URL=postgresql+asyncpg://usuario:clave@host:5432/basededatos
+#   DS_IP_HASH_SALT=un valor aleatorio largo   # sin ella no hay limite de tasa por IP (ADR-033)
 # Lo leen la aplicacion, Alembic y los tests.
 
 alembic upgrade head            # crea el esquema
@@ -83,12 +85,11 @@ está en la máquina ([ADR-025](docs/13-adr/ADR-025-app-de-administracion-local.
 cd admin/backend
 python -m venv .venv
 .venv/Scripts/activate          # Windows;  source .venv/bin/activate en Linux/macOS
-pip install -e ../../backend -e ".[dev]"
+pip install -e ../../backend -e ../../aggregation -e ".[dev]"   # el panel corre el pipeline
 # Crear admin/.env desde admin/.env.example (está en .gitignore, nunca se versiona)
 
 cd ..
-./run.sh                        # o .
-un.ps1 en Windows: construye el frontend si falta y levanta el panel
+./run.sh                        # en Windows: .\run.ps1. Construye el frontend si falta y levanta el panel
 ```
 
 En desarrollo, `npm run dev` en `admin/frontend` levanta Vite en `127.0.0.1:5174` con proxy de
@@ -101,12 +102,14 @@ cd backend && ruff check . && mypy app && pytest -q
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 cd admin/backend && ruff check . && mypy draftsense_admin && pytest -q
 cd admin/frontend && npm run lint && npm run typecheck && npm test && npm run build
+cd aggregation && ruff check . && mypy -p aggregation && pytest -q
 python infra/check_docs.py      # DDL, enlaces y conteos de la documentación
 ```
 
-Los tests del backend corren **sin base de datos**: los que la requieren se saltean solos si no
-hay `DS_DATABASE_URL`. Con un `.env` configurado corren los diez; en CI siempre, contra un
-Postgres 17 real.
+Los tests de `backend`, `admin/backend` y `aggregation` que necesitan base **se saltean solos** si
+no hay `DS_DATABASE_URL`. Con la variable apuntando a un Postgres corren todos; en CI siempre,
+contra un Postgres 17 real. `pytest` aplica las migraciones a la base que diga esa variable: para
+probar conviene un Postgres descartable en Docker, no la base de staging.
 
 ### Operación
 

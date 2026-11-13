@@ -290,7 +290,7 @@ async def run(
     # El informe describe la corrida entera (27 §9.1).
     included[report.KIND] = _counts(data.rows)
 
-    export_ids = await record.insert(session, data, params, written, included)
+    export_ids = await record.insert(session, data, params, written, included, out.name)
 
     reports = [result.report for result in results]
     responses, respondents = _counts(data.rows)

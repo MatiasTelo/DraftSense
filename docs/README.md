@@ -43,7 +43,7 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 | [`30-ux-flujos.md`](30-ux-flujos.md) | Navegación, wireframes, estados por pantalla, microcopy | **v1** |
 | [`31-plan-de-pruebas.md`](31-plan-de-pruebas.md) | Niveles, casos críticos, datos de prueba | pendiente |
 | [`32-despliegue.md`](32-despliegue.md) | Entornos, variables, secretos, CI/CD, runbook | pendiente |
-| [`33-privacidad-y-legal.md`](33-privacidad-y-legal.md) | Qué se guarda y qué no, política de privacidad, aviso de Riot | pendiente |
+| [`33-privacidad-y-legal.md`](33-privacidad-y-legal.md) | Qué se guarda y qué no, política de privacidad, aviso de Riot | borrador |
 | [`34-plan-piloto.md`](34-plan-piloto.md) | Canales, oleadas, métricas de éxito, plan B | pendiente |
 | [`35-glosario.md`](35-glosario.md) | Términos de LoL y de estadística | pendiente |
 

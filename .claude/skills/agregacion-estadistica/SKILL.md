@@ -1,8 +1,8 @@
 ---
 name: agregacion-estadistica
 description: >-
-  El pipeline de agregación estadística de DraftSense: convierte respuestas crudas en los tres CSV
-  que recibe el Laboratorio DHARMa. Usar SIEMPRE al trabajar sobre el paquete `aggregation/`, sobre
+  El pipeline de agregación estadística de DraftSense: convierte respuestas crudas en los seis CSV
+  y el Informe de Calidad de Datos que recibe el Laboratorio DHARMa. Usar SIEMPRE al trabajar sobre el paquete `aggregation/`, sobre
   `docs/25-agregacion.md`, `docs/26-esquema-de-salida.md` o `docs/27-validacion-confiabilidad.md`, y
   ante cualquier tarea de ingeniería o ciencia de datos del proyecto. Activar con: Bradley-Terry,
   `choix`, ILSR, iteración MM de Hunter, Rao-Kupper, bootstrap, intervalo de confianza, intervalo de
@@ -54,8 +54,13 @@ unos 2,5 minutos hasta la semana 9; **con el informe tarda unos 10 a 11 minutos*
 ajustes por segmento y el bootstrap por respondedor usan el mismo B. Da el mismo SHA-256 en los
 siete archivos dos veces seguidas y recupera la verdad con ρ de 0,91 a 0,98.
 
-La especificación en cambio está completa y en `v1`: `25-agregacion.md` (52 KB, el documento más
-grande del repo) y `26-esquema-de-salida.md`, más el ejemplo ejecutable de `docs/examples/`.
+La especificación está completa: `25-agregacion.md` (`v1`, el documento más grande del repo),
+`26-esquema-de-salida.md` (`v2`) y `27-validacion-confiabilidad.md` (`v1`), más el ejemplo
+ejecutable de `docs/examples/`.
+
+Desde el 13/11 `RunParams` valida sus rangos al construirse (`0 < min_trust ≤ 1`, `halflife > 0`,
+`sigma > 0`, `bootstrap ≥ 1`; 25 §8.1) y `exports.params` guarda además `folder`, la carpeta
+donde quedaron los archivos, que **no** entra en la semilla ni en el informe.
 
 ## La corrida
 

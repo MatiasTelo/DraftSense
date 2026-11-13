@@ -30,7 +30,11 @@ function JobCard({ row, onFinished }: { row: JobRow; onFinished: () => void }) {
         setRun(next);
         if (next.status !== 'running') onFinished();
       } catch (e) {
+        // Igual que en Exportaciones: si la corrida ya no existe (el panel se reinició), dejarla
+        // en `running` deshabilita el botón hasta recargar la página.
         setError(e as Error);
+        setRun(null);
+        onFinished();
       }
     }, POLL_MS);
     return () => window.clearTimeout(timer.current);

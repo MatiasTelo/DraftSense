@@ -1,8 +1,9 @@
 /**
  * Tipo 3 — enfrentamiento de línea (`docs/20-tipos-de-pregunta.md` §4), en sus dos variantes.
  *
- * Registra al primer toque, como el tipo 1: la escala de cinco niveles es una lista de opciones,
- * no un control que haya que ajustar (`docs/30-ux-flujos.md` §10).
+ * Registra al primer toque, como el tipo 4: la escala de cinco niveles es una lista de opciones,
+ * no un control que haya que ajustar (`docs/30-ux-flujos.md` §10). El tipo 1 dejó de registrar
+ * así cuando pasó a ser un ranking (ADR-022).
  *
  * - **1v1**: dos retratos lado a lado. Las etiquetas llegan con el nombre del campeón ya puesto
  *   —«Syndra wins hard»— y se muestran tal cual: el nombre en el botón elimina el paso mental de

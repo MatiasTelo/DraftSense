@@ -80,3 +80,36 @@ async def apply(session: AsyncSession, respondent: Respondent, now: dt.datetime)
 
     respondent.answers_count += 1
     respondent.last_seen = now
+
+
+async def visible(
+    session: AsyncSession, respondent: Respondent, now: dt.datetime
+) -> tuple[int, int]:
+    """Las dos rachas tal como valen en `now`: `(current_streak, current_day_streak)`.
+
+    Las columnas sólo se recalculan al responder, así que entre respuestas guardan la racha *como
+    quedó*, no la vigente. Quien vuelve después de una semana vería «4 days in a row» en `/me` y
+    en la barra de `/play` hasta su próxima respuesta, que es justo la que la reinicia. Esto
+    aplica en lectura las mismas dos condiciones de corte que `apply`, sin escribir nada.
+    """
+    gap_minutes = await app_settings.get(session, "gamification.streak_gap_minutes", 30)
+    min_answers = await app_settings.get(session, "gamification.day_streak_min_answers", 5)
+    timezone = await app_settings.get(
+        session, "gamification.streak_timezone", "America/Argentina/Buenos_Aires"
+    )
+
+    last_seen = respondent.last_seen
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=dt.UTC)
+    answer_streak = respondent.current_streak
+    if now - last_seen > dt.timedelta(minutes=gap_minutes):
+        answer_streak = 0
+
+    today = now.astimezone(ZoneInfo(timezone)).date()
+    last_date = respondent.last_active_date
+    # Vigente si hubo actividad hoy, o si ayer se llegó al umbral: en ese caso todavía se puede
+    # sostener respondiendo hoy. Cualquier otra cosa ya es una racha cortada.
+    alive = last_date == today or (
+        last_date == today - dt.timedelta(days=1) and respondent.answers_today >= min_answers
+    )
+    return answer_streak, respondent.current_day_streak if alive else 0

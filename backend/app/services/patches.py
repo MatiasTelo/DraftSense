@@ -3,7 +3,8 @@
 Hasta la semana 6 los seeds activaban el parche como efecto lateral: el primer `seed-champions`
 dejaba vigente un parche sin snapshot ni honeypots, y el sampler empezaba a servir preguntas contra
 él. Ahora los seeds sólo registran (`register`) y el parche cambia únicamente con `activate`, que
-usan el comando `activate-patch` y, desde la semana 7, `POST /admin/patches/{patch_id}/activate`.
+usan el comando `activate-patch` y, desde la semana 7, la vista *Parches y seeds* de la app de
+administración (`POST /api/patches/{version}/activate` del panel, ADR-025).
 """
 
 from __future__ import annotations

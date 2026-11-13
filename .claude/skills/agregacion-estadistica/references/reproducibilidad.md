@@ -27,6 +27,23 @@ seed = int(sha256(f"{patch_window}|{min_trust}|{H}|{sigma}|{B}|{aggregation_vers
 
 Si agregás un parámetro que cambia el resultado, **tiene que entrar en esa cadena**.
 
+Hoy la cadena **no** lleva `bt_prior`, las λ de las duplas, `max_iter`, `tol`, los umbrales de
+soporte ni el pool: quedan en `exports.params` (el pool, en `pool_champion_ids`), pero dos
+corridas que sólo difieren en ellos comparten semilla.
+
+**Qué se puede reproducir y qué no** está en 25 §8.3 (nota del 13/11/2026): la carga lee el
+estado actual de la base, así que una corrida vieja se recalcula igual sólo mientras no cambien
+el crudo, los trust, los marcados, las honeypots ni el pool. La garantía de una entrega es el
+archivo conservado y su SHA-256, no la posibilidad de regenerarlo. CA-408 —dos corridas seguidas,
+mismo hash— sigue valiendo.
+
+Tres reglas del 13/11 que cambian bytes y por eso subieron `AGGREGATION_VERSION` a `1.0.1`, o
+que hay que conocer antes de tocar `load.py`:
+
+- un valor que redondea a cero se escribe `0.000`, nunca `-0.000` (`writers.number`, 25 §4.6);
+- la antigüedad de una respuesta nunca es menor que 0 días (`load.weight`, 25 §2.1);
+- el default de `exported_at` es la fecha **UTC**, la misma zona de `created_at`.
+
 ## El formato numérico
 
 De §4.6. No es cosmético: de esto depende el hash.
@@ -34,8 +51,8 @@ De §4.6. No es cosmético: de esto depende el hash.
 | Qué | Formato |
 |---|---|
 | Scores en log-odds y sus IC | `%.3f` |
-| Proporciones (`trait_*`, `_norm`) y sus IC | `%.3f` |
-| `*_unknown_rate` | `%.2f` |
+| Proporciones (`proportion`, `_norm`) y sus IC | `%.3f` |
+| `unknown_rate` | `%.2f` |
 | `power_at_*` | `%.2f` |
 | `peak_minute` y su IC | entero |
 | `_n` | entero |

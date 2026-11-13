@@ -87,8 +87,9 @@ export const es: Messages = {
     answers: 'respuestas',
     streak: 'racha',
     best: 'mejor',
-    daysInARow: (days: number) => `🔥 ${days} días seguidos`,
-    bestDays: (days: number) => `mejor: ${days} días`,
+    daysInARow: (days: number) =>
+      days === 1 ? '🔥 1 día seguido' : `🔥 ${days} días seguidos`,
+    bestDays: (days: number) => `mejor: ${days} ${days === 1 ? 'día' : 'días'}`,
     agreementBefore: 'Coincides con la comunidad el',
     agreementAfter: 'de las veces',
     topBefore: 'Top',

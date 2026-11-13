@@ -12,4 +12,4 @@ from __future__ import annotations
 #: Entra en la semilla del bootstrap y en `exports.aggregation_version` (§4.2, CA-407). Cambiarla
 #: cambia los números aunque el crudo y los parámetros sean los mismos: subila sólo cuando cambie
 #: un estimador, no por un refactor que no toca resultados.
-AGGREGATION_VERSION = "1.0.0"
+AGGREGATION_VERSION = "1.0.1"

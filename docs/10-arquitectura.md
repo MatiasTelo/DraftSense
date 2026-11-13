@@ -1,6 +1,9 @@
 # 10 — Arquitectura
 
-> Estado: **v1** · Última revisión: 31/08/2026
+> Estado: **v1** · Última revisión: 13/11/2026
+>
+> **13/11/2026:** revisión general. `POST /sessions` no escribe `last_seen` (§3) y el append-only
+> por permisos queda pendiente del despliegue (§6).
 
 Describe los componentes del sistema, cómo se despliegan, qué hace cada uno y cómo se comunican.
 Las decisiones que motivaron esta forma están en [`13-adr/`](13-adr/).
@@ -81,6 +84,15 @@ Cada push a `main` despliega staging; producción se despliega por tag. El pipel
 `ruff` + `mypy` + `pytest` sobre el backend, `eslint` + `tsc --noEmit` + `vitest` + `build` sobre
 el frontend, y un smoke test de Playwright contra el preview.
 
+> **Estado al 13/11/2026.** Esta sección describe el despliegue **planeado**, no el actual. Hoy
+> no hay despliegue automático ni smoke test de Playwright: el CI
+> (`.github/workflows/ci.yml`) corre lint, tipos, tests y build de `backend`, `aggregation`,
+> `frontend`, `admin/backend` y `admin/frontend`, más `infra/check_docs.py`, contra un
+> **Postgres 17**. Desarrollo y pruebas usan también Postgres 17 en Docker (el «16» de este
+> documento y de [`11-modelo-de-datos.md`](11-modelo-de-datos.md) quedó viejo; el mínimo sigue
+> siendo 15). El despliegue en el servidor del laboratorio y la programación del worker siguen
+> pendientes desde el 21/10, con [`32-despliegue.md`](32-despliegue.md).
+
 **Staging y producción no comparten base de datos.** Las respuestas de prueba no deben poder
 contaminar el dataset que se entrega al laboratorio.
 
@@ -96,7 +108,11 @@ Presupuesto: menos de 200 KB gzip.
 **2. Sesión.** La SPA hace `POST /api/v1/sessions`. Si no hay cookie `ds_session` válida, la API
 crea una fila en `respondents` con `trust_score = 0.500`, genera un token, guarda su SHA-256 y
 devuelve el token en una cookie `HttpOnly; Secure; SameSite=Lax` de 180 días. Si ya había cookie,
-la operación es idempotente y sólo actualiza `last_seen`.
+la operación es idempotente y no escribe nada.
+
+> **Cambiado el 13/11/2026.** Decía «y sólo actualiza `last_seen`»; ver CA-002 en
+> [`03-criterios-aceptacion.md`](03-criterios-aceptacion.md). `last_seen` lo escribe sólo el paso 4
+> del registro de una respuesta.
 
 **3. Onboarding.** Se muestran las tres preguntas de segmentación (rango, rol principal, horas
 semanales) con un botón *Skip* visible. Si el usuario responde, `POST /api/v1/sessions/onboarding`;
@@ -182,6 +198,10 @@ Cuatro reglas que atraviesan todo el diseño y no se negocian por conveniencia d
    código: el rol de aplicación tiene `INSERT` y `SELECT`, no `UPDATE` ni `DELETE`. Las correcciones
    de calidad se aplican como pesos en la agregación
    ([ADR-002](13-adr/ADR-002-responses-append-only.md)).
+
+   > **Estado al 13/11/2026.** Los permisos todavía no están aplicados en ningún entorno: se
+   > crean con el despliegue ([`11-modelo-de-datos.md`](11-modelo-de-datos.md) §4, nota del
+   > 13/11). Hasta entonces la regla la sostiene el código.
 2. **Todo dato crudo se versiona por parche.** Una respuesta sólo tiene sentido junto al parche en
    que se dio. La agregación puede combinar parches con decaimiento, pero el crudo nunca pierde su
    `patch_id` ([ADR-004](13-adr/ADR-004-ventana-de-parches-con-decaimiento.md)).

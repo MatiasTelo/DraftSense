@@ -9,8 +9,8 @@ import { POLL_MS } from './Jobs';
 /**
  * 24 §3.9 (nota del 29/10). *Generar CSV* corre el pipeline de agregación en segundo plano, como
  * un job: se consulta el estado cada 2 s y, al terminar, la lista de corridas se recarga. Los
- * campos vacíos se mandan como `null` y los resuelve `app_settings`. El Informe de Calidad de
- * Datos llega en la semana 10, con `docs/27-validacion-confiabilidad.md`.
+ * campos vacíos se mandan como `null` y los resuelve `app_settings`. Desde la semana 10 cada
+ * corrida trae además el Informe de Calidad de Datos (`docs/27-validacion-confiabilidad.md`).
  */
 
 const STATUS: Record<ExportRun['status'], { label: string; className: string }> = {
@@ -19,9 +19,19 @@ const STATUS: Record<ExportRun['status'], { label: string; className: string }> 
   failed: { label: 'falló', className: 'text-series-2' },
 };
 
-function numberOrNull(value: string): number | null {
+/**
+ * Vacío es `null` («usar app_settings»). Lo que no es un número **es un error**, no un vacío:
+ * `Number('0,25')` es `NaN`, `JSON.stringify` lo manda como `null`, y la corrida salía con el
+ * umbral por defecto sin avisar (13/11/2026).
+ */
+function numberOrNull(value: string, label: string): number | null {
   const trimmed = value.trim();
-  return trimmed === '' ? null : Number(trimmed);
+  if (trimmed === '') return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${label}: «${trimmed}» no es un número. Los decimales van con punto.`);
+  }
+  return parsed;
 }
 
 export default function Exports() {
@@ -57,7 +67,11 @@ export default function Exports() {
         setRun(next);
         if (next.status !== 'running') reload();
       } catch (e) {
+        // Sin esto el botón queda deshabilitado para siempre: el estado seguía en `running`
+        // aunque el proceso del panel se hubiera reiniciado y la corrida ya no existiera.
         setStartError(e as Error);
+        setRun(null);
+        reload();
       }
     }, POLL_MS);
     return () => window.clearTimeout(timer.current);
@@ -66,13 +80,13 @@ export default function Exports() {
   async function start() {
     if (form === null) return;
     setStartError(null);
-    const params = {
-      patch_window: form.window.trim() === '' ? null : form.window.trim(),
-      min_trust: numberOrNull(form.trust),
-      halflife: numberOrNull(form.halflife),
-      bootstrap: numberOrNull(form.bootstrap),
-    };
     try {
+      const params = {
+        patch_window: form.window.trim() === '' ? null : form.window.trim(),
+        min_trust: numberOrNull(form.trust, 'Umbral de confianza'),
+        halflife: numberOrNull(form.halflife, 'Vida media del decaimiento'),
+        bootstrap: numberOrNull(form.bootstrap, 'Remuestreos del bootstrap'),
+      };
       const started = await api.startExport(params);
       setRun({
         run_id: started.run_id,
@@ -102,7 +116,10 @@ export default function Exports() {
   }
 
   return (
-    <Page title="Exportaciones" intro="Generar los seis CSV de la entrega (CU-08).">
+    <Page
+      title="Exportaciones"
+      intro="Generar los seis CSV de la entrega y el Informe de Calidad de Datos (CU-08)."
+    >
       <ErrorBox error={error} />
       {loading && !data && <Loading />}
       {data && form && (
@@ -170,7 +187,7 @@ export default function Exports() {
                           <td className={`${td} font-mono text-xs`}>{e.sha256.slice(0, 12)}…</td>
                           <td className={td}>
                             <a className="text-gold underline" href={api.exportFileUrl(e.export_id)} download>
-                              CSV
+                              {e.file_name.endsWith('.md') ? 'Informe' : 'CSV'}
                             </a>
                           </td>
                         </tr>

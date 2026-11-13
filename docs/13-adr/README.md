@@ -13,8 +13,8 @@ escribe uno nuevo. El registro es histórico.
 |---|---|---|
 | [001](ADR-001-sin-autenticacion.md) | Sin autenticación: sesión anónima por cookie | aceptada |
 | [002](ADR-002-responses-append-only.md) | `responses` es append-only | aceptada |
-| [003](ADR-003-bradley-terry.md) | Bradley-Terry para los scores de dimensión | aceptada |
-| [004](ADR-004-ventana-de-parches-con-decaimiento.md) | Versionado por parche en el crudo, ventana con decaimiento en la agregación | aceptada |
+| [003](ADR-003-bradley-terry.md) | Bradley-Terry para los scores de dimensión | aceptada · la implementación es un MM propio y no `choix.ilsr_pairwise` (25 §8.2, nota del 29/10) |
+| [004](ADR-004-ventana-de-parches-con-decaimiento.md) | Versionado por parche en el crudo, ventana con decaimiento en la agregación | aceptada · el `champion_features` que nombra son hoy los archivos de ADR-023 |
 | [005](ADR-005-alcance-medicion-de-campeones.md) | El alcance es la medición de campeones, no el análisis de partidas | aceptada · archivos y métrica sustituidos por ADR-023 |
 | [006](ADR-006-pool-escalonado-por-pick-rate.md) | Pool escalonado, definido por un snapshot de pick rate | aceptada |
 | [007](ADR-007-fastapi-python.md) | Backend en FastAPI sobre Python | aceptada |
@@ -34,15 +34,16 @@ escribe uno nuevo. El registro es histórico.
 | [021](ADR-021-puentes-en-cadena.md) | Los puentes del grafo se materializan como una cadena de k−1 preguntas | aceptada |
 | [022](ADR-022-tipo-1-ranking-de-cinco.md) | El tipo 1 es un ranking de cinco campeones que se guarda como diez comparaciones | aceptada |
 | [023](ADR-023-salida-en-formato-largo.md) | La salida por campeón se entrega en formato largo, en cuatro archivos | aceptada |
-| [024](ADR-024-activacion-explicita-de-parche.md) | Un parche se activa con un paso explícito, auditado y con precondiciones | aceptada |
+| [024](ADR-024-activacion-explicita-de-parche.md) | Un parche se activa con un paso explícito, auditado y con precondiciones | aceptada · la ruta `POST /admin/patches/…` que anuncia nunca existió: es la del panel (ADR-025) |
 | [025](ADR-025-app-de-administracion-local.md) | La administración es una aplicación local del servidor del laboratorio, sin clave | aceptada |
 | [026](ADR-026-rol-explicito-en-las-duplas.md) | Cada pregunta de duplas guarda qué rol juega cada campeón | aceptada |
 | [027](ADR-027-tipo-5-al-menos-un-atributo.md) | El tipo 5 exige marcar al menos un atributo | aceptada |
-| [028](ADR-028-idioma-por-parametro.md) | El idioma lo elige la persona con un selector, y viaja como parámetro `lang` | aceptada · punto 5 sustituido por ADR-029 |
+| [028](ADR-028-idioma-por-parametro.md) | El idioma lo elige la persona con un selector, y viaja como parámetro `lang` | aceptada · punto 5 sustituido por ADR-029, que además suma `lang` a `/questions/queued` |
 | [029](ADR-029-cambiar-de-idioma-traduce-la-cola.md) | Cambiar de idioma traduce la cola en vez de descartarla | aceptada |
 | [030](ADR-030-feedback-de-cuatro-segundos.md) | El feedback dura 4 segundos y se saltea con un toque | aceptada |
 | [031](ADR-031-escritorio-como-caso-principal.md) | El escritorio es el caso principal; el celular sigue funcionando | aceptada |
 | [032](ADR-032-movimiento-solo-con-css.md) | El movimiento de la interfaz se hace sólo con CSS | aceptada |
+| [033](ADR-033-limite-por-hash-de-ip-con-sal.md) | El límite por IP cuenta sobre un hash con sal, y la sesión se crea sólo si el pedido sale bien | aceptada |
 
 ## Cuál merece un ADR
 

@@ -424,6 +424,39 @@ async def test_la_variedad_mira_las_respuestas_anteriores(
 
 
 @requires_db
+async def test_la_variedad_cuenta_las_tarjetas_en_cola(
+    client: AsyncClient,
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+    dimension: Dimension,
+) -> None:
+    """20 §7 es sobre lo que la persona ve seguido: una respondida y dos en cola ya son tres.
+
+    Antes del 13/11/2026 la secuencia reciente eran sólo las respuestas registradas. Como el
+    cliente pide el lote con dos tarjetas todavía en cola, podían salir cuatro o cinco seguidas
+    del mismo tipo.
+    """
+    row, token = respondent
+    await restrict_pool(db, champions, [dimension])
+    answered = await pairwise_question(db, patch, champions[0], champions[1], dimension)
+    await add_response(db, row, answered, {"choice": "a"})
+    in_queue = [
+        await pairwise_question(db, patch, champions[0], champions[index], dimension)
+        for index in (2, 3)
+    ]
+    row.next_honeypot_at = FAR
+    row.next_retest_at = FAR
+    await db.commit()
+
+    queued = ",".join(str(q.question_id) for q in in_queue)
+    response = await as_respondent(client, token).get(f"/questions/next?count=1&queued={queued}")
+
+    assert response.json()["questions"][0]["type"] != "pairwise_dimension"
+
+
+@requires_db
 async def test_un_rol_salteado_queda_en_el_log(
     client: AsyncClient,
     db: AsyncSession,

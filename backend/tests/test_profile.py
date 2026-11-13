@@ -25,7 +25,7 @@ from app.models import (
     Response,
 )
 from app.services import profile, streaks
-from tests.conftest import as_respondent, requires_db
+from tests.conftest import add_response, as_respondent, pairwise_question, requires_db
 
 BUENOS_AIRES = dt.timezone(dt.timedelta(hours=-3))
 
@@ -68,6 +68,57 @@ async def test_la_racha_sigue_dentro_de_la_ventana(
 
     assert row.current_streak == 13
     assert row.best_streak == 13
+
+
+@requires_db
+async def test_revalidar_la_sesion_no_salva_la_racha(
+    client: AsyncClient, db: AsyncSession, respondent: tuple[Respondent, str]
+) -> None:
+    """CA-310 con la SPA de por medio: volver a abrir la app no cuenta como seguir respondiendo.
+
+    Es el bug del 13/11/2026: `POST /sessions` actualizaba `last_seen`, la SPA lo llama en cada
+    carga, y la primera respuesta después de una pausa veía una diferencia de segundos.
+    """
+    row, token = respondent
+    row.current_streak = 12
+    row.best_streak = 12
+    row.last_seen = dt.datetime.now(dt.UTC) - dt.timedelta(hours=4)
+    await db.flush()
+
+    response = await as_respondent(client, token).post("/sessions")
+    assert response.status_code == 200
+    # Lo que se muestra ya es la racha vigente, no la que quedó guardada.
+    assert response.json()["current_streak"] == 0
+    assert response.json()["best_streak"] == 12
+
+    await db.refresh(row)
+    await streaks.apply(db, row, dt.datetime.now(dt.UTC))
+    assert row.current_streak == 1
+    assert row.best_streak == 12
+
+
+@requires_db
+async def test_las_rachas_visibles_vencen_solas(
+    db: AsyncSession, respondent: tuple[Respondent, str]
+) -> None:
+    """`/me` no muestra como vigente una racha que la próxima respuesta va a reiniciar."""
+    row, _ = respondent
+    row.last_seen = _at(2026, 9, 9, 9)
+    for day in (9, 10):
+        for minute in range(5):
+            await streaks.apply(db, row, _at(2026, 9, day, 10) + dt.timedelta(minutes=minute))
+    last = _at(2026, 9, 10, 10) + dt.timedelta(minutes=4)
+
+    # Recién respondió: las dos siguen (la de respuestas arrancó de nuevo el día 10).
+    assert await streaks.visible(db, row, last + dt.timedelta(minutes=10)) == (5, 2)
+    # 31 minutos después se cortó la de respuestas; la de días sigue.
+    assert await streaks.visible(db, row, last + dt.timedelta(minutes=31)) == (0, 2)
+    # Al día siguiente todavía se puede sostener: ayer llegó al umbral.
+    assert await streaks.visible(db, row, _at(2026, 9, 11, 20)) == (0, 2)
+    # Salteado el 11 entero, ya no.
+    assert await streaks.visible(db, row, _at(2026, 9, 12, 10)) == (0, 0)
+    # Y nada de esto escribe.
+    assert (row.current_streak, row.current_day_streak) == (5, 2)
 
 
 @requires_db
@@ -256,6 +307,38 @@ async def test_la_tasa_de_acuerdo_incluye_el_matchup_y_no_el_pico(
                 response_time_ms=3000,
             )
         )
+    await db.commit()
+
+    assert await profile.agreement_rate(db, row) == 1.0
+
+
+@requires_db
+async def test_not_sure_no_entra_en_la_tasa_de_acuerdo(
+    db: AsyncSession,
+    respondent: tuple[Respondent, str],
+    patch: Patch,
+    champions: list[Champion],
+    dimension: Dimension,
+) -> None:
+    """23 §3, nota del 13/11/2026 — *Not sure* no es una opinión con la que coincidir.
+
+    Tres pares. En el primero la persona opina `a` y los *Not sure* de los demás son más que
+    cualquier opción: antes «la mayoría» era `unknown` y figuraba en desacuerdo. En el segundo
+    contesta *Not sure*: antes contaba como un desacuerdo más. En el tercero las opiniones no
+    llegan al umbral aunque el total sí: antes entraba igual.
+    """
+    row, _ = respondent
+    cases = [
+        ((0, 1), {"a": 25, "b": 2, "unknown": 40}, "a"),
+        ((0, 2), {"a": 30, "b": 1}, "unknown"),
+        ((0, 3), {"a": 3, "b": 9, "unknown": 30}, "a"),
+    ]
+    for (first, second), counts, choice in cases:
+        question = await pairwise_question(
+            db, patch, champions[first], champions[second], dimension
+        )
+        question.answer_counts = counts
+        await add_response(db, row, question, {"choice": choice})
     await db.commit()
 
     assert await profile.agreement_rate(db, row) == 1.0

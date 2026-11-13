@@ -7,12 +7,14 @@ es la app local de `admin/`.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Header, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
 from app.models import Respondent
 from app.services import sessions
@@ -57,7 +59,7 @@ async def resolve_session(
     response: Response,
     session: SessionDep,
     x_client_fingerprint: Annotated[str | None, Header()] = None,
-) -> CurrentSession:
+) -> AsyncIterator[CurrentSession]:
     """Devuelve el respondedor de la cookie, creándolo si no hay uno válido.
 
     **No tener sesión no es un error**, es el estado inicial de todo visitante: se crea una y se
@@ -70,17 +72,36 @@ async def resolve_session(
         # Deliberadamente NO se toca `last_seen` acá. La racha de respuestas se corta comparando
         # `now() - last_seen` contra los 30 minutos (`docs/23-gamificacion.md` §2.1): si la
         # dependencia lo actualizara, la diferencia sería siempre cero y la racha no se cortaría
-        # nunca. Lo actualizan `POST /sessions` y `POST /responses`, que son los dos puntos donde
-        # el documento lo pide.
-        return CurrentSession(respondent=respondent, created=False)
+        # nunca. Lo actualiza sólo `POST /responses`: desde el 13/11/2026 tampoco `POST /sessions`,
+        # que la SPA llama en cada carga y producía exactamente eso (CA-002).
+        yield CurrentSession(respondent=respondent, created=False)
+        return
 
+    ip = client_ip(request)
     fingerprint = sessions.build_fingerprint(
-        x_client_fingerprint, request.headers.get("user-agent"), client_ip(request)
+        x_client_fingerprint, request.headers.get("user-agent"), ip
     )
-    respondent, new_token = await sessions.create(session, fingerprint)
+    # La fila se inserta pero no se confirma todavía (ADR-033): un pedido sin cookie que termina
+    # en error —un `curl` con el cuerpo mal armado, un script sin cookie contra el rate limit—
+    # dejaba un respondedor vacío por pedido. Si el endpoint confirma por su cuenta en el camino,
+    # la fila se confirma con él, que es lo correcto: ese pedido está saliendo bien.
+    respondent, new_token = await sessions.create(
+        session,
+        fingerprint,
+        sessions.hash_ip(ip, get_settings().ip_hash_salt),
+        commit=False,
+    )
     set_session_cookie(response, new_token)
-    return CurrentSession(respondent=respondent, created=True)
+    try:
+        yield CurrentSession(respondent=respondent, created=True)
+    except BaseException:
+        await session.rollback()
+        raise
+    await session.commit()
 
 
-CurrentSessionDep = Annotated[CurrentSession, Depends(resolve_session)]
+# `scope="function"` hace que lo que sigue al `yield` corra ANTES de enviar la respuesta. Con el
+# alcance por defecto correría después, y el navegador podría mandar el pedido siguiente con una
+# cookie que la base todavía no conoce: se le crearía un segundo respondedor.
+CurrentSessionDep = Annotated[CurrentSession, Depends(resolve_session, scope="function")]
 

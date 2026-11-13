@@ -35,8 +35,8 @@ con el del DDL documentado.
 
 ## Migraciones
 
-- Tres migraciones: `0001_initial_schema.py`, `0002_completar_esquema_documentado.py` y
-  `0003_agregar_estado_de_calidad.py` (las columnas de ADR-020), en `migrations/versions/`.
+- Siete migraciones en `migrations/versions/`, de `0001_initial_schema.py` a
+  `0007_agregar_hash_de_ip.py` (ADR-033). Para saber qué trajo cada una, leer su docstring.
 - **Toda migración debe ser reversible.** CI corre `alembic downgrade base` y después
   `alembic upgrade head`. Un `downgrade()` que no deshace todo rompe el build, incluidos los tipos
   enum nativos, que hay que dropear a mano.

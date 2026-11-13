@@ -22,7 +22,8 @@ class OnboardingIn(BaseModel):
     """Los tres campos son opcionales: `null` significa que prefirió no decir.
 
     Se validan contra las mismas listas que los CHECK de la tabla, para que un valor inválido
-    devuelva un 422 con el campo señalado en vez de un 500 por violación de restricción.
+    devuelva un `400 invalid_parameter` con el campo señalado en vez de un 500 por violación de
+    restricción.
     """
 
     declared_rank: str | None = Field(default=None)

@@ -333,6 +333,10 @@ def test_la_cabecera_es_la_del_fixture(kind: str) -> None:
 
 def test_el_formato_numerico_es_el_de_la_tabla() -> None:
     assert writers.number(-0.18, 3) == "-0.180"
+    # Un valor que redondea a cero no lleva signo (§4.6, nota del 13/11/2026).
+    assert writers.number(-0.0004, 3) == "0.000"
+    assert writers.number(-0.004, 2) == "0.00"
+    assert writers.number(-0.0005001, 3) == "-0.001"
     assert writers.number(0.34, 2) == "0.34"
     assert writers.number(None, 3) == ""
     assert writers.boolean(False) == "false"

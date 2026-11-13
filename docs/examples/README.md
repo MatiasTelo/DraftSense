@@ -307,7 +307,9 @@ observados = mus[mus.is_observed]
 ```
 
 Los cinco niveles de la respuesta se mapean a `{a_strong: +1, a_slight: +0.5, even: 0,
-b_slight: −0.5, b_strong: −1}` antes del ajuste.
+b_slight: −0.5, b_strong: −1}` para calcular `advantage`: el modelo se ajusta sobre los cinco
+niveles y el mapeo se aplica después, como valor esperado (`../25-agregacion.md` §5.3;
+corregido el 13/11/2026, decía «antes del ajuste»).
 
 ---
 
@@ -388,7 +390,9 @@ deriva de la diferencia de sus `lane_strength`, en una línea de código.
 
 Cada archivo real queda registrado en la tabla `exports` con `sha256`, `row_count`, `column_count`,
 `responses_included`, `respondents_included`, `min_trust_applied`, `patch_window`,
-`decay_halflife_days`, `bootstrap_samples`, `aggregation_version` y `created_at`.
+`decay_halflife_days`, `bootstrap_samples`, `aggregation_version` y `created_at`, más `params`,
+con todos los parámetros de la corrida, la carpeta y el pool usado (agregado el 13/11/2026; ver
+`../26-esquema-de-salida.md` §7 sobre qué se puede reproducir y qué no).
 
 Con esos parámetros y la tabla `responses` —que es append-only— cualquier corrida se reproduce bit a
 bit. Si un resultado del laboratorio resulta sorprendente, se puede reconstruir exactamente el

@@ -3,16 +3,16 @@
 Todo lo de acá está cerrado. No se replantea como si fuera una opción abierta; si hay que cambiarlo,
 se escribe un ADR nuevo que reemplace al viejo. Las rutas son relativas a `draftsense/docs/`.
 
-## Las 30 decisiones de arquitectura
+## Las 33 decisiones de arquitectura
 
 Cada línea es la decisión, no el razonamiento. El *por qué* y las alternativas descartadas están en
 el ADR; leerlo entero antes de contradecirlo.
 
 | ADR | Decisión |
 |---|---|
-| **001** sin autenticación | No hay registro ni login. La identidad es una sesión anónima en cookie `ds_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 180 días). En base se guarda **sólo el SHA-256** del token. No se almacena email, nombre, IP en claro ni cuenta de Riot |
-| **002** responses append-only | Una respuesta **nunca** se modifica ni se borra. Las correcciones de calidad son *pesos* en la agregación y *filtros parametrizados* en el export. Se garantiza con permisos de Postgres: al rol `draftsense_app` se le revoca `UPDATE`, `DELETE` y `TRUNCATE` |
-| **003** Bradley-Terry | Comparaciones pareadas ajustadas con Bradley-Terry por dimensión, ponderado por trust, vía `choix.ilsr_pairwise`. IC por bootstrap (2 000 remuestreos). El tipo 3 usa la generalización de **Rao-Kupper**, que admite empates y margen |
+| **001** sin autenticación | No hay registro ni login. La identidad es una sesión anónima en cookie `ds_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 180 días). En base se guarda **sólo el SHA-256** del token. No se almacena email, nombre, IP en claro ni cuenta de Riot (de la IP, sólo un hash con sal: ADR-033) |
+| **002** responses append-only | Una respuesta **nunca** se modifica ni se borra. Las correcciones de calidad son *pesos* en la agregación y *filtros parametrizados* en el export. Se garantiza con permisos de Postgres: al rol `draftsense_app` se le revoca `UPDATE`, `DELETE` y `TRUNCATE`. **Al 13/11 ese rol no existe en ningún entorno: se crea con el despliegue** (11 §4), y hasta entonces lo sostiene el código |
+| **003** Bradley-Terry | Comparaciones pareadas ajustadas con Bradley-Terry por dimensión, ponderado por trust. La implementación es un MM de Hunter propio con el `ε` del prior (`choix` sólo en el test: 25 §8.2). IC por bootstrap (2 000 remuestreos). El tipo 3 usa la generalización de **Rao-Kupper**, que admite empates y margen |
 | **004** ventana de parches con decaimiento | El crudo se versiona por parche siempre (`responses.patch_id` nunca se pierde). La agregación corre sobre una **ventana** de parches, ponderando por recencia con decaimiento exponencial de vida media configurable |
 | **005** alcance | **DraftSense mide campeones y entrega esa medición.** No consume el dataset de partidas, no construye features por partida, no se integra con el modelo, no interpreta resultados. Salida: tres archivos + Informe de Calidad de Datos. **La lista de archivos y la métrica las sustituyó ADR-023** |
 | **006** pool escalonado | `champions.pool_tier` define 3 niveles: 1 núcleo, 2 expansión, 3 el resto (tamaños reales en ADR-016: 58 y 96). El sampler sólo usa los habilitados. **Promover un campeón es un `UPDATE`, no un despliegue.** El núcleo sale de un snapshot manual de pick rate versionado en `infra/seeds/` |
@@ -40,6 +40,9 @@ el ADR; leerlo entero antes de contradecirlo.
 | **028** idioma por parámetro | La persona elige `EN \| ES` con un selector (landing y barra de `/play`, `localStorage`); `GET /questions/next?lang=en\|es` arma los textos en ese idioma y cae al inglés si falta uno. El microcopy vive en `frontend/src/i18n/`. ~~Cambiar de idioma vacía la cola~~ (sustituido por ADR-029). El idioma no se guarda en la base |
 | **029** la cola se traduce | Cambiar de idioma **traduce** la cola: `GET /questions/queued?ids=…&lang=…` re-arma con `render()` las mismas preguntas, el tipo 1 con su ranking ya servido, y **no pasa por el sampler ni escribe nada**. La tarjeta conserva su estado porque la `key` sigue siendo el `question_id`. Si falla, la cola queda en el idioma anterior. Sustituye ADR-028 §5 |
 | **030** feedback de 4 s | El feedback dura **4 s** y un toque en el cartel, `Enter` o `Espacio` lo saltean (no la tecla mantenida ni la que cae sobre un botón). Vale para todas las variantes. Sin texto de aviso. Sustituye la fila «1,2 s» de 30 §10 |
+| **031** escritorio primero | El escritorio es el caso principal: panel de hasta 720 px centrado y navegación arriba desde 1024 px. El celular sigue funcionando como estaba, sin scroll horizontal y con objetivos táctiles de 44 px |
+| **032** movimiento sólo con CSS | Las animaciones (botones, opciones, entrada de pantallas y tarjetas, barras del feedback, barra de tiempo de 4 s) se hacen sólo con CSS, sin dependencias, y se apagan con `prefers-reduced-motion` |
+| **033** límite por hash de IP | `respondents.ip_hash` (migración `0007`) = HMAC-SHA-256 de la IP de creación con la sal de `DS_IP_HASH_SALT`; sin sal queda `NULL` y el límite no se aplica. El límite por IP cuenta los envíos de todos los respondedores de esa IP, con topes en `quality.ip_rate_per_minute` y `quality.ip_rate_per_day` (40 y 1 500 al sembrar; **subirlos antes de difundir en una red compartida**). La sesión creada al vuelo se confirma sólo si el pedido termina bien. Exige `fastapi>=0.121` |
 
 ## Los cinco tipos de pregunta
 

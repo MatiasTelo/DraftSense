@@ -1,6 +1,8 @@
 # 22 — Calidad de datos y trust score
 
-> Estado: **v1** · Última revisión: 08/10/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+> Estado: **v1** · Última revisión: 13/11/2026 · Ola 3 · Desbloquea la semana 5 del cronograma
+>
+> **13/11/2026:** revisión general. Dos claves nuevas para el límite de tasa por IP (§8, ADR-033).
 >
 > **08/10/2026:** cómo funcionan la honeypot (§3.7), el retest (§4.1) y los patrones degenerados
 > (§5) desde que el tipo 1 es un ranking de cinco campeones
@@ -569,6 +571,8 @@ Todos en `app_settings` (RF-606):
 | `quality.fingerprint_max_identities` | `5` | Identidades por huella en 24 h antes de marcar |
 | `quality.trust_weights` | `{"honeypot":0.60,"retest":0.40,"degenerate":0.50}` | Pesos de la fórmula |
 | `quality.trust_smoothing` | `2` | Fuerza del suavizado bayesiano |
+| `quality.ip_rate_per_minute` | `40` | Respuestas por minuto desde una misma IP, sumando a todos sus respondedores (agregada el 13/11/2026, [ADR-033](13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md)) |
+| `quality.ip_rate_per_day` | `1500` | Lo mismo, por día (agregada el 13/11/2026, ADR-033) |
 | `export.min_trust` | `0.30` | Umbral por defecto del filtro de exportación |
 
 ---

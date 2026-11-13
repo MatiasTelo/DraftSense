@@ -1,6 +1,8 @@
 # 23 — Gamificación y retención
 
-> Estado: **v1** · Última revisión: 08/10/2026 · Ola 3 · Desbloquea la semana 6 del cronograma
+> Estado: **v1** · Última revisión: 13/11/2026 · Ola 3 · Desbloquea la semana 6 del cronograma
+>
+> **13/11/2026:** revisión general. *Not sure* queda fuera de la tasa de acuerdo (§3).
 >
 > **08/10/2026:** un ranking del tipo 1 cuenta como **una** respuesta en todo lo que se muestra
 > acá (§3, nota al pie de la tabla), aunque guarde diez filas
@@ -136,6 +138,13 @@ retención a mitad del piloto y busca una palanca.
 > ranking suma 1. Si contaran filas, el tipo 1 valdría diez veces más que los demás y la tabla de
 > posiciones premiaría elegirlo. La tasa de acuerdo, en cambio, se calcula **por par**: cada una de
 > las diez comparaciones se compara con la mayoría de su par.
+
+> **Cambiado el 13/11/2026 (revisión general, decisión del alumno).** ***Not sure* queda fuera de
+> la tasa de acuerdo.** Una respuesta `unknown` no entra ni al numerador ni al denominador, y los
+> `unknown` de los demás no cuentan para el soporte ≥ 20 ni pueden ser «la mayoría» de un par.
+> Antes era una opción más: decir «no sé» bajaba el porcentaje, y en un par muy contestado
+> *Not sure* quien sí opinaba figuraba en desacuerdo con una mayoría que no opinaba nada. No
+> cambia qué se guarda: `unknown` se sigue registrando y publicando en `unknown_rate`.
 
 **La tasa de acuerdo se muestra pero no se premia.** Es información sobre uno mismo —*"coincidís con
 la comunidad el 78 % de las veces"*— y aparece sin juicio, sin meta, sin barra de progreso y sin

@@ -11,7 +11,7 @@ function pretty(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
-/** 24 §3.6. Cualquier JSON válido se acepta: la responsabilidad del valor es de quien edita. */
+/** 24 §3.6. El backend rechaza un valor que no tenga la forma del actual (13/11/2026). */
 export default function Settings() {
   const { data, error, loading, reload } = useResource(() => api.settings());
   const [editing, setEditing] = useState<SettingRow | null>(null);

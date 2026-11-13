@@ -83,9 +83,14 @@ class Dataset:
 
 
 def weight(trust: float, created_at: dt.datetime, params: RunParams) -> float:
-    """§2.1. Los días son enteros: la fecha de la respuesta en UTC contra `exported_at`."""
+    """§2.1. Los días son enteros: la fecha de la respuesta en UTC contra `exported_at`.
+
+    La antigüedad nunca baja de cero. Sin ese piso, una respuesta posterior a `exported_at` —al
+    reproducir una corrida vieja, o por un `exported_at` en otra zona horaria— daba días negativos
+    y un factor mayor que 1: pesaba más que su propio trust (nota del 13/11/2026).
+    """
     created = created_at.astimezone(dt.UTC).date()
-    days = (params.exported_at - created).days
+    days = max(0, (params.exported_at - created).days)
     return float(trust) * float(0.5 ** (days / params.halflife))
 
 

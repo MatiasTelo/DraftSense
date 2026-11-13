@@ -5,8 +5,9 @@
  * que puede no estar disponible —navegación privada, almacenamiento bloqueado—: en ese caso la
  * sesión arranca en inglés y el selector sigue funcionando hasta recargar.
  *
- * El idioma viaja al servidor como `lang` en `GET /questions/next`, que es el único endpoint que
- * devuelve textos para mostrar. Cambiarlo descarta la cola: lo hace `LanguageToggle`.
+ * El idioma viaja al servidor como `lang` en `GET /questions/next` y en `GET /questions/queued`,
+ * los dos endpoints que devuelven textos para mostrar. Cambiarlo **traduce** la cola en vez de
+ * descartarla (ADR-029): lo hace `LanguageToggle`.
  */
 
 import { create } from 'zustand';

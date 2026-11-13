@@ -73,9 +73,14 @@ async def test_overview_counts_submissions_and_aggregable(
         "respondents": 2,
         "flagged_respondents": 1,
     }
-    assert body["today_submissions"] == 5
+    # Los envíos de hoy y el volumen no se acotan al parche vigente (24 §3.1), así que cuentan
+    # también lo que la base ya tenga de hoy: contra la base de Docker con respuestas de una
+    # prueba manual, un `== 5` fallaba sin que nada estuviera roto. Los totales de arriba, que sí
+    # son del parche, fijan el número exacto.
+    assert body["today_submissions"] >= 5
     assert len(body["volume"]) == 7
-    assert body["volume"][-1]["counts"]["pairwise_dimension"] == 5
+    assert body["volume"][-1]["counts"]["pairwise_dimension"] >= 5
+    assert body["today_submissions"] == sum(body["volume"][-1]["counts"].values())
     assert body["connected_dimensions"] == 1
     assert body["total_dimensions"] == 2
 

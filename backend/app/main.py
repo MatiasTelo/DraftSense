@@ -7,6 +7,7 @@ documento está desactualizado** (`docs/12-api.md`, encabezado).
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -20,6 +21,8 @@ from app.routers import health, profile, questions, responses, sessions
 
 API_PREFIX = "/api/v1"
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -28,6 +31,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Sin el `dispose()`, cada recarga de `--reload` deja conexiones abiertas contra el pooler de
     Supabase hasta agotar su cupo, y el síntoma aparece recién varios reinicios después.
     """
+    if not get_settings().ip_hash_salt:
+        # Sin sal no se guarda `respondents.ip_hash` y la mitad «por hash de IP» de RF-209 queda
+        # apagada (ADR-033). En desarrollo es esperable; en producción es un error de despliegue.
+        logger.warning("DS_IP_HASH_SALT no está configurada: el límite de tasa por IP no se aplica")
     yield
     await get_engine().dispose()
 

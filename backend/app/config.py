@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     cors_origin: str = Field(default="http://localhost:5173")
     #: URL base de Data Dragon, para el seeder de campeones.
     ddragon_base_url: str = Field(default="https://ddragon.leagueoflegends.com")
+    #: Sal del hash de IP (ADR-033). **Es una credencial**: sólo en `.env`, nunca en el repo.
+    #: Vacía, no se guarda ningún hash de IP y el límite de tasa por IP no se aplica.
+    ip_hash_salt: str = Field(default="")
 
     @property
     def masked_database_url(self) -> str:

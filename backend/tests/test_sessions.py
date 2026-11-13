@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+import uuid
 
+import pytest
 import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models import LaneRole, Respondent
 from app.services import sessions
 from tests.conftest import as_respondent, requires_db
@@ -43,9 +47,9 @@ async def test_crear_sesion_anonima(client: AsyncClient, db: AsyncSession) -> No
 
 @requires_db
 async def test_la_creacion_es_idempotente(
-    client: AsyncClient, respondent: tuple[Respondent, str]
+    client: AsyncClient, db: AsyncSession, respondent: tuple[Respondent, str]
 ) -> None:
-    """CA-002 — con cookie válida no se crea una identidad nueva."""
+    """CA-002 — con cookie válida no se crea una identidad nueva, ni se mueve `last_seen`."""
     row, token = respondent
     before = row.last_seen
 
@@ -53,7 +57,9 @@ async def test_la_creacion_es_idempotente(
 
     assert response.status_code == 200
     assert response.json()["respondent_id"] == str(row.respondent_id)
-    assert row.last_seen > before
+    # Revalidar no es responder: si moviera `last_seen`, la racha no se cortaría nunca (CA-310).
+    await db.refresh(row)
+    assert row.last_seen == before
 
 
 @requires_db
@@ -141,3 +147,105 @@ async def test_endpoint_sin_cookie_crea_la_sesion(client: AsyncClient) -> None:
     assert response.status_code == 200
     assert "ds_session=" in response.headers["set-cookie"]
     assert response.json()["answers_count"] == 0
+
+
+@requires_db
+async def test_onboarding_senala_el_campo_que_fallo(
+    client: AsyncClient, respondent: tuple[Respondent, str]
+) -> None:
+    """El `field` del error es el campo inválido, no siempre `declared_rank`."""
+    _, token = respondent
+    response = await as_respondent(client, token).post(
+        "/sessions/onboarding", json={"declared_rank": "gold", "declared_hours_bucket": "zzz"}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["field"] == "declared_hours_bucket"
+
+
+# ------------------------------------------------------------ ADR-033: creación y hash de IP
+
+
+async def _count_respondents(db: AsyncSession) -> int:
+    return (await db.execute(sa.select(sa.func.count()).select_from(Respondent))).scalar_one()
+
+
+@requires_db
+async def test_un_pedido_sin_cookie_que_falla_no_crea_respondedor(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """ADR-033 — la sesión al vuelo se confirma sólo si el pedido termina bien.
+
+    Antes del 13/11/2026 cada uno de estos pedidos dejaba una fila vacía en `respondents`: un
+    script sin cookie fabricaba una identidad por pedido, también con los que salían mal.
+    """
+    before = await _count_respondents(db)
+
+    failures = [
+        await client.get("/questions/next?count=0"),
+        await client.get("/leaderboard?window=year"),
+        await client.post(
+            "/responses",
+            json={"question_id": 999_999_999, "answer": {"choice": "a"}, "response_time_ms": 1000},
+        ),
+        await client.post("/responses", json={"question_id": 1}),
+        await client.post("/sessions/onboarding", json={"declared_hours_bucket": "zzz"}),
+    ]
+
+    assert [r.status_code for r in failures] == [400, 400, 404, 422, 400]
+    assert all("set-cookie" not in r.headers for r in failures)
+    assert await _count_respondents(db) == before
+
+
+@requires_db
+async def test_un_pedido_sin_cookie_que_sale_bien_crea_la_sesion(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """El otro lado: `GET /me` sin cookie crea la sesión, y la cookie sirve después."""
+    before = await _count_respondents(db)
+
+    first = await client.get("/me")
+    assert first.status_code == 200
+    assert "ds_session=" in first.headers["set-cookie"]
+    assert await _count_respondents(db) == before + 1
+
+    # httpx guarda la cookie: el segundo pedido es del mismo respondedor.
+    second = await client.post("/sessions")
+    assert second.status_code == 200
+    assert await _count_respondents(db) == before + 1
+
+
+def test_el_hash_de_ip_exige_sal() -> None:
+    """ADR-033 — sin sal no hay hash: uno sin sal se revierte probando las 2³² IPv4."""
+    assert sessions.hash_ip("203.0.113.7", "") is None
+    assert sessions.hash_ip(None, "sal") is None
+
+    hashed = sessions.hash_ip("203.0.113.7", "sal")
+    assert hashed is not None and HEX64.match(hashed)
+    assert hashed == sessions.hash_ip("203.0.113.7", "sal")
+    assert hashed != sessions.hash_ip("203.0.113.7", "otra-sal")
+    assert hashed != sessions.hash_ip("203.0.113.8", "sal")
+
+
+@requires_db
+async def test_la_sesion_guarda_el_hash_de_ip_solo_con_sal(
+    client: AsyncClient, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    without = (await client.post("/sessions")).json()["respondent_id"]
+    client.cookies.clear()
+    monkeypatch.setattr(get_settings(), "ip_hash_salt", "sal-de-prueba")
+    with_salt = (await client.post("/sessions")).json()["respondent_id"]
+
+    rows = {
+        str(r.respondent_id): r.ip_hash
+        for r in (
+            await db.execute(
+                sa.select(Respondent).where(
+                    Respondent.respondent_id.in_([uuid.UUID(without), uuid.UUID(with_salt)])
+                )
+            )
+        ).scalars()
+    }
+    assert rows[without] is None
+    assert rows[with_salt] is not None and HEX64.match(rows[with_salt])
+    # La IP no aparece en ningún lado: ni en claro ni como hash simple.
+    assert rows[with_salt] != hashlib.sha256(b"127.0.0.1").hexdigest()

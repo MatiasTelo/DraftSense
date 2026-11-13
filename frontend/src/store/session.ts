@@ -52,26 +52,40 @@ function counters(source: SessionResponse | Progress): Counters {
   };
 }
 
+/**
+ * El `POST /sessions` en vuelo, para que dos llamadas simultáneas compartan un solo pedido.
+ *
+ * Sin cookie todavía, cada `POST /sessions` crea un respondedor: `App` y `Play` arrancan los dos
+ * (y `StrictMode` monta dos veces en desarrollo), y el segundo quedaba huérfano con la misma
+ * huella. Con más de cinco, el job de huellas duplicadas marca a la persona (22 §6.2).
+ */
+let inFlight: Promise<void> | null = null;
+
 export const useSession = create<SessionState>((set) => ({
   respondentId: null,
   onboardingSeen: false,
   counters: ZERO,
   ready: false,
 
-  async bootstrap() {
-    try {
-      const session = await createSession();
-      set({
-        respondentId: session.respondent_id,
-        onboardingSeen: session.onboarding_seen,
-        counters: counters(session),
-        ready: true,
-      });
-    } catch {
-      // Que falle no bloquea nada: los endpoints crean la sesión al vuelo, así que el usuario
-      // puede jugar igual. Se marca listo para no dejar el landing colgado en el esqueleto.
-      set({ ready: true });
-    }
+  bootstrap() {
+    inFlight ??= (async () => {
+      try {
+        const session = await createSession();
+        set({
+          respondentId: session.respondent_id,
+          onboardingSeen: session.onboarding_seen,
+          counters: counters(session),
+          ready: true,
+        });
+      } catch {
+        // Que falle no bloquea nada: los endpoints crean la sesión al vuelo, así que el usuario
+        // puede jugar igual. Se marca listo para no dejar el landing colgado en el esqueleto.
+        set({ ready: true });
+      } finally {
+        inFlight = null;
+      }
+    })();
+    return inFlight;
   },
 
   markOnboardingSeen() {

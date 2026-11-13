@@ -23,7 +23,11 @@ _loaded_at = 0.0
 
 
 def reset_cache() -> None:
-    """Vacía la caché. La usan los tests y el panel después de un `PATCH /admin/settings`."""
+    """Vacía la caché de este proceso. La usan los tests y el panel al cambiar un parámetro.
+
+    El panel es otro proceso (ADR-025): la API pública no se entera y ve el cambio cuando vence
+    su propia caché, a lo sumo en `CACHE_TTL_SECONDS`.
+    """
     global _cache, _loaded_at
     _cache = None
     _loaded_at = 0.0

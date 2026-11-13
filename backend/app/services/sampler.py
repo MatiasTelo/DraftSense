@@ -173,6 +173,30 @@ async def recent_types(session: AsyncSession, respondent_id: uuid.UUID) -> list[
     return [QuestionType(t) for t in reversed(list(rows))]
 
 
+async def queued_types(session: AsyncSession, queued: Collection[int]) -> list[QuestionType]:
+    """Los tipos de las preguntas que el cliente tiene en cola, en el orden en que las va a ver.
+
+    La regla de variedad es sobre lo que la persona **ve** seguido (20 §7), y al pedir un lote
+    siempre hay tarjetas servidas y todavía sin contestar: sin ellas, la secuencia «reciente»
+    eran las tres últimas respuestas y podían salir cuatro o cinco seguidas del mismo tipo
+    (nota del 13/11/2026 en 21 §6). El orden es el de `queued` cuando el cliente manda una lista
+    —que es el de su cola—; un conjunto no tiene orden y se toma por id, que es el de creación.
+    """
+    if not queued:
+        return []
+    ids = list(queued) if isinstance(queued, Sequence) else sorted(queued)
+    types = dict(
+        (
+            await session.execute(
+                sa.select(Question.question_id, Question.type).where(Question.question_id.in_(ids))
+            )
+        )
+        .tuples()
+        .all()
+    )
+    return [QuestionType(types[question_id]) for question_id in ids if question_id in types]
+
+
 @dataclass(slots=True)
 class _Batch:
     """El estado de un lote: lo que ya se eligió y lo que se trajo de la base una sola vez."""
@@ -452,7 +476,12 @@ async def next_batch(
         config=config,
         rng=rng,
         answered=await questions.answered_question_ids(session, respondent.respondent_id),
-        recent=await recent_types(session, respondent.respondent_id),
+        # Lo ya respondido y, a continuación, lo que está en cola: es lo que la persona tiene
+        # delante cuando llegue a la primera pregunta de este lote.
+        recent=[
+            *await recent_types(session, respondent.respondent_id),
+            *await queued_types(session, queued),
+        ],
         queued=in_queue,
     )
 

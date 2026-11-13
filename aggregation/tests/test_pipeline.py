@@ -11,7 +11,7 @@ import pytest
 import sqlalchemy as sa
 
 from aggregation import pipeline, writers
-from aggregation.load import NoDataError, load
+from aggregation.load import NoDataError, load, weight
 from aggregation.params import DEFAULT_SUPPORT_THRESHOLDS, RunParams
 from app.models import Export, LaneRole, QuestionType
 from tests.conftest import World, pairwise, requires_db, winner
@@ -103,6 +103,10 @@ async def test_ca407_una_fila_de_exports_por_archivo(world: World, tmp_path: Pat
         assert row.params["power_sigma"] == 7.5
         assert row.params["exported_at"] == "2030-03-15"
         assert row.params["support_thresholds"] == DEFAULT_SUPPORT_THRESHOLDS
+        # Dónde quedaron los archivos y con qué pool se armaron (25 §8.3, nota del 13/11).
+        assert row.params["folder"] == "x"
+        assert row.params["pool_champion_ids"] == sorted(row.params["pool_champion_ids"])
+        assert len(row.params["pool_champion_ids"]) >= 1
         assert len(row.sha256) == 64
     names = {p.name for p in (tmp_path / "x").iterdir()}
     assert names == {f"{kind}_v90.20.csv" for kind in writers.KINDS} | {
@@ -163,6 +167,20 @@ async def test_ca409_la_ventana_excluye_y_el_decaimiento_pesa(world: World) -> N
     assert world.patches["old"].patch_id not in patches
     weights = {r.patch_id: r.weight for r in data.rows}
     assert weights[world.patches["mid"].patch_id] < weights[world.patches["current"].patch_id]
+
+
+def test_una_respuesta_posterior_a_la_exportacion_no_pesa_mas_que_su_trust() -> None:
+    """§2.1, nota del 13/11/2026 — la antigüedad no baja de cero días.
+
+    Reproducir una corrida vieja con su `exported_at` daba días negativos para lo que entró
+    después, y un factor de decaimiento mayor que 1.
+    """
+    run = params()
+    after = dt.datetime.combine(run.exported_at, dt.time(12), dt.UTC) + dt.timedelta(days=5)
+    same_day = dt.datetime.combine(run.exported_at, dt.time(1), dt.UTC)
+    assert weight(0.8, after, run) == 0.8
+    assert weight(0.8, same_day, run) == 0.8
+    assert weight(0.8, same_day - dt.timedelta(days=run.halflife), run) == pytest.approx(0.4)
 
 
 async def test_sin_respuestas_falla_y_no_escribe(world: World, tmp_path: Path) -> None:

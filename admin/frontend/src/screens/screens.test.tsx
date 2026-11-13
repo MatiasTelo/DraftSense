@@ -163,6 +163,17 @@ describe('Exports', () => {
     expect(await screen.findByText(/terminó bien/)).toBeInTheDocument();
   });
 
+  it('un campo que no es un número se avisa y no lanza la corrida con el valor por defecto', async () => {
+    const calls = mockApi({ 'GET /patches': CURRENT, 'GET /exports': EMPTY_EXPORTS });
+    renderInLayout(<Exports />);
+    const button = await screen.findByRole('button', { name: 'Generar CSV' });
+    fireEvent.change(screen.getByDisplayValue('0.3'), { target: { value: '0,25' } });
+    fireEvent.click(button);
+
+    expect(await screen.findByText(/«0,25» no es un número/)).toBeInTheDocument();
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
   it('cada archivo de una corrida se descarga por su export_id', async () => {
     mockApi({
       'GET /patches': CURRENT,

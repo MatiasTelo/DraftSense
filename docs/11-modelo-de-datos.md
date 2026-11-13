@@ -1,6 +1,10 @@
 # 11 — Modelo de datos
 
-> Estado: **v1** · Última revisión: 08/10/2026 · Motor: PostgreSQL 16
+> Estado: **v1** · Última revisión: 13/11/2026 · Motor: PostgreSQL 15 o superior (CI y desarrollo corren sobre 17)
+>
+> **13/11/2026:** revisión general. `respondents.ip_hash` (§3.7,
+> [ADR-033](13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md), migración `0007`) y el estado real
+> de los roles de §4.
 >
 > **08/10/2026:** tabla `rankings` (§3.14), columna `responses.ranking_id` y los tipos de archivo
 > nuevos de `exports` ([ADR-022](13-adr/ADR-022-tipo-1-ranking-de-cinco.md),
@@ -243,6 +247,7 @@ CREATE TABLE respondents (
     respondent_id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     session_token_hash    text NOT NULL UNIQUE,
     fingerprint_hash      text NOT NULL,
+    ip_hash               text,  -- HMAC-SHA-256 de la IP de creación, con sal (ADR-033)
 
     -- Onboarding (los tres opcionales: NULL = prefirió no decir u omitió)
     declared_rank         text,
@@ -299,6 +304,7 @@ CREATE TABLE respondents (
 );
 
 CREATE INDEX respondents_fingerprint ON respondents (fingerprint_hash);
+CREATE INDEX respondents_ip_hash ON respondents (ip_hash) WHERE ip_hash IS NOT NULL;
 CREATE INDEX respondents_leaderboard ON respondents (answers_count DESC)
     WHERE NOT is_flagged;
 ```
@@ -328,6 +334,13 @@ supuesto del alfa de Krippendorff y del modelo de Bradley-Terry.
 **Privacidad.** No se guarda IP en claro, ni email, ni nombre, ni identificador de cuenta de Riot.
 El sistema no tiene login. `fingerprint_hash` es SHA-256 de user-agent + hash de IP + resolución de
 pantalla; es irreversible y su único uso es deduplicación. Ver `33-privacidad-y-legal.md`.
+
+> **Agregado el 13/11/2026** ([ADR-033](13-adr/ADR-033-limite-por-hash-de-ip-con-sal.md),
+> migración `0007`). `ip_hash` es el HMAC-SHA-256 de la IP con la que se creó el respondedor,
+> con una sal secreta que vive sólo en el entorno (`DS_IP_HASH_SALT`). Su único uso es el límite
+> de tasa por IP de [`12-api.md`](12-api.md) §4. Es `NULL` en los respondedores anteriores a la
+> migración y siempre que no haya sal configurada: un hash sin sal de una IPv4 se revierte por
+> fuerza bruta, así que en ese caso no se guarda nada. La IP en claro sigue sin guardarse.
 
 ### 3.8 `questions`
 
@@ -749,7 +762,7 @@ en tres semanas.
 `app_settings` es el estado actual; `exports` es el registro histórico. Reproducir una corrida vieja
 con los parámetros de hoy daría un archivo distinto y rompería RNF-08.
 
-La aplicación cachea la tabla **60 segundos** en memoria: son unas 30 filas que se leen en cada
+La aplicación cachea la tabla **60 segundos** en memoria: son unas 36 filas que se leen en cada
 petición y cambian dos veces por semana.
 
 ### 3.13 `admin_audit`
@@ -867,6 +880,18 @@ GRANT INSERT  ON exports    TO draftsense_agg;
 ```
 
 Las migraciones corren con el rol dueño del esquema, distinto de los dos anteriores.
+
+> **Estado al 13/11/2026 (revisión general).** Estos roles **todavía no existen en ningún
+> entorno** y ningún archivo del repositorio los crea: ni una migración, ni un script de `infra/`.
+> La aplicación, el panel y el pipeline se conectan con el único usuario de `DS_DATABASE_URL`, que
+> es el dueño del esquema. Hasta el despliegue en el servidor del laboratorio, el append-only de
+> `responses` y de `admin_audit` lo sostiene **sólo el código** —ningún service emite un `UPDATE`
+> ni un `DELETE` sobre esas tablas— y no los permisos de Postgres.
+>
+> Decisión del alumno: los roles se crean **con el despliegue**, y el procedimiento va en
+> [`32-despliegue.md`](32-despliegue.md), que sigue pendiente. CA-208 y la segunda mitad de CA-604
+> no tienen test automatizado hasta entonces. El SQL de arriba es el contrato de lo que hay que
+> aplicar.
 
 ---
 
