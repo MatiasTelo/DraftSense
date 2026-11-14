@@ -46,6 +46,7 @@ de la PPS). Fija el marco general; acá está el detalle ejecutable.
 | [`33-privacidad-y-legal.md`](33-privacidad-y-legal.md) | Qué se guarda y qué no, política de privacidad, aviso de Riot | borrador |
 | [`34-plan-piloto.md`](34-plan-piloto.md) | Canales, oleadas, métricas de éxito, plan B | pendiente |
 | [`35-glosario.md`](35-glosario.md) | Términos de LoL y de estadística | pendiente |
+| [`36-manual-admin.md`](36-manual-admin.md) | Manual de uso de la app de administración: qué mirar, qué hacer y para qué sirve cada parámetro | borrador |
 
 ## Convenciones
 
