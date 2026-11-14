@@ -51,6 +51,7 @@ Esta tabla no resume los documentos: dice **dónde mirar**. El contenido se lee 
 | La fórmula del trust score y cuándo se recalcula | `22-calidad-de-datos.md` §7 |
 | Cómo funcionan las rachas, el perfil o la tabla de posiciones | `23-gamificacion.md` §2, §3, §5 |
 | El panel de administración: vistas, acciones, auditoría, contrato interno | `24-panel-admin.md` (v1) y `13-adr/ADR-025-app-de-administracion-local.md` |
+| Cómo se usa el panel y para qué sirve cada parámetro, en lenguaje simple | `36-manual-admin.md` (borrador; si contradice al 24, manda el 24) |
 | Por qué la administración es una app local sin clave y no `/admin/*` en la API | `13-adr/ADR-025-app-de-administracion-local.md` |
 | Qué respuestas entran a una corrida y cuáles no | `25-agregacion.md` §1 |
 | Cómo se pondera una respuesta | `25-agregacion.md` §2 |
@@ -104,6 +105,7 @@ Los estados son los que declara `docs/README.md`. **Si cambian ahí, cambian ac�
 | `33-privacidad-y-legal.md` | **borrador** (13/11: inventario escrito; textos públicos y nueve decisiones sin aprobar) |
 | `34-plan-piloto.md` | **pendiente** |
 | `35-glosario.md` | **pendiente** |
+| `36-manual-admin.md` | **borrador** (13/11: manual de uso del panel y guía de parámetros) |
 
 Un documento `pendiente` es un stub: declara qué va a contener y qué semana desbloquea, nada más.
 **No implementes la funcionalidad que describe sin escribirlo primero.**
